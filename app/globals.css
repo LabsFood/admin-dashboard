@@ -1,26 +1,209 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ─────────────────────────────────────────────────────────────────────────────
+   Lab's Food — Admin Dashboard
+   Palette : reprise du site principal (labs-food-main)
+   Style   : cartes rounded-3xl, sidebar sombre — inspiré du dashboard client
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@theme {
+  /* ── Navy (couleur primaire) ── */
+  --color-navy: #00234B;
+  --color-navy-deep: #001833;
+  --color-navy-mid: #0A3160;
+  --color-navy-soft: #1A4577;
+
+  /* ── Terra (accent orange) ── */
+  --color-terra: #D96941;
+  --color-terra-deep: #B8542F;
+  --color-terra-soft: #E8895F;
+  --color-terra-pale: #F4D4C2;
+
+  /* ── Teal (accent secondaire) ── */
+  --color-teal: #193C40;
+  --color-teal-deep: #0E2426;
+  --color-teal-soft: #2A5559;
+  --color-teal-pale: #D1DCDD;
+
+  /* ── Surfaces crème ── */
+  --color-cream: #F7F1E8;
+  --color-cream-soft: #FBF7F0;
+  --color-cream-deep: #EDE3D1;
+  --color-paper: #FFFFFF;
+
+  /* ── Encre / texte ── */
+  --color-ink: #0F1F2E;
+  --color-ink-mid: #3A4A5A;
+  --color-ink-soft: #7B8794;
+
+  /* ── Statuts ── */
+  --color-success: #2F9E6E;
+  --color-success-soft: #DCF1E7;
+  --color-warning: #E0A126;
+  --color-warning-soft: #FBEDD0;
+  --color-danger: #D14545;
+  --color-danger-soft: #F8DEDE;
+  --color-info: #3E6FB5;
+  --color-info-soft: #DEE8F5;
+
+  /* ── Polices (variables injectées par next/font) ── */
+  --font-display: var(--font-fraunces), Georgia, serif;
+  --font-sans: var(--font-montserrat), system-ui, sans-serif;
+  --font-mono: var(--font-mono-dm), ui-monospace, monospace;
+
+  /* ── Rayons ── */
+  --radius-3xl: 1.75rem;
+  --radius-4xl: 2.25rem;
+
+  /* ── Animations ── */
+  --animate-fade-up: fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-fade-in: fade-in 0.4s ease forwards;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ─── Base ──────────────────────────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+  border-color: rgba(0, 35, 75, 0.10);
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.6;
 }
+
+::selection {
+  background: rgba(217, 105, 65, 0.25);
+  color: var(--color-ink);
+}
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 35, 75, 0.18);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(0, 35, 75, 0.32); }
+
+.scroll-thin::-webkit-scrollbar { width: 5px; }
+.scroll-thin::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); }
+
+/* ─── Typographie ───────────────────────────────────────────────────────────── */
+.font-display { font-family: var(--font-display); }
+.font-mono    { font-family: var(--font-mono); }
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-terra);
+}
+.eyebrow::before {
+  content: '';
+  width: 22px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.7;
+}
+
+/* ─── Composants utilitaires ───────────────────────────────────────────────── */
+.card {
+  background: var(--color-paper);
+  border: 1px solid rgba(0, 35, 75, 0.07);
+  border-radius: var(--radius-3xl);
+}
+
+.card-hover {
+  transition: border-color 0.25s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+.card-hover:hover {
+  border-color: rgba(217, 105, 65, 0.45);
+  box-shadow: 0 24px 50px -28px rgba(0, 35, 75, 0.30);
+  transform: translateY(-3px);
+}
+
+.input-base {
+  width: 100%;
+  padding: 0.7rem 0.95rem;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  border: 1.5px solid rgba(0, 35, 75, 0.13);
+  border-radius: 0.85rem;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.input-base::placeholder { color: var(--color-ink-soft); opacity: 0.75; }
+.input-base:focus {
+  border-color: var(--color-terra);
+  box-shadow: 0 0 0 4px rgba(217, 105, 65, 0.12);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.7rem 1.2rem;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 0.8rem;
+  border-radius: 999px;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.25s ease, color 0.25s ease,
+    border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+}
+.btn:active { transform: translateY(1px); }
+
+.btn-primary { background: var(--color-terra); color: #fff; }
+.btn-primary:hover {
+  background: var(--color-terra-deep);
+  box-shadow: 0 14px 28px -12px rgba(217, 105, 65, 0.6);
+}
+
+.btn-navy { background: var(--color-navy); color: #fff; }
+.btn-navy:hover { background: var(--color-navy-mid); }
+
+.btn-outline {
+  background: transparent;
+  border-color: rgba(0, 35, 75, 0.18);
+  color: var(--color-navy);
+}
+.btn-outline:hover { border-color: var(--color-terra); color: var(--color-terra); }
+
+.btn-ghost { background: transparent; color: var(--color-ink-mid); }
+.btn-ghost:hover { background: rgba(0, 35, 75, 0.05); color: var(--color-navy); }
+
+/* Animations de page */
+.animate-fade-up { animation: var(--animate-fade-up); }
+.animate-fade-in { animation: var(--animate-fade-in); }
+
+/* Masquage de la scrollbar pour les rangées de filtres */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
