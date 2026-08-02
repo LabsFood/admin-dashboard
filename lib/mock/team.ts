@@ -71,6 +71,10 @@ export const TEAM: TeamMember[] = [
   },
 ];
 
+export function teamMemberById(id: string): TeamMember | undefined {
+  return TEAM.find((m) => m.id === id);
+}
+
 export const SERVICE_ZONES: ServiceZone[] = [
   {
     id: "zone_nice",

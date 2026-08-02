@@ -75,6 +75,17 @@ export interface Meal {
   status: MealStatus;
 }
 
+// ─── Menus de la semaine (composition) ───────────────────────────────────────
+export interface WeeklyMenu {
+  id: string;
+  title: string;
+  weekNumber: number;
+  startDate: string;
+  endDate: string;
+  mealIds: string[];
+  status: MealStatus;
+}
+
 // ─── Formules ────────────────────────────────────────────────────────────────
 export interface Formule {
   id: string;

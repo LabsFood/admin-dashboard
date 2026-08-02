@@ -1,4 +1,3 @@
-import { ChefHat } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function Logo({
@@ -13,11 +12,16 @@ export default function Logo({
     <div className={cn("flex items-center gap-2.5", className)}>
       <span
         className={cn(
-          "flex h-9 w-9 items-center justify-center rounded-xl",
-          light ? "bg-terra text-white" : "bg-navy text-white",
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl p-1",
+          light ? "bg-white/10" : "bg-cream-soft",
         )}
       >
-        <ChefHat className="h-5 w-5" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/LogoOrange.png"
+          alt="Lab's Food"
+          className="h-full w-full object-contain"
+        />
       </span>
       <div className="leading-none">
         <p

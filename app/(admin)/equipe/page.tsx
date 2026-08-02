@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
+  ArrowRight,
   Award,
   ChefHat,
   Mail,
@@ -46,12 +48,15 @@ export default function EquipePage() {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {TEAM.map((m, i) => (
-            <motion.article
+            <motion.div
               key={m.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.32, delay: i * 0.06 }}
-              className="card flex flex-col p-5"
+            >
+            <Link
+              href={`/equipe/${m.id}`}
+              className="card card-hover flex h-full flex-col p-5"
             >
               <div className="flex items-start gap-3">
                 <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-navy text-base font-bold text-white">
@@ -133,7 +138,13 @@ export default function EquipePage() {
                 </span>
                 <span>Depuis le {formatDate(m.joinedAt)}</span>
               </div>
-            </motion.article>
+
+              <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-terra">
+                Voir la fiche
+                <ArrowRight className="h-3.5 w-3.5" />
+              </span>
+            </Link>
+            </motion.div>
           ))}
         </div>
       </section>

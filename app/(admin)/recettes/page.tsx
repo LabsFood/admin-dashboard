@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { Clock, Globe2, Plus } from "lucide-react";
 import Badge from "@/components/ui/Badge";
 import FilterTabs from "@/components/ui/FilterTabs";
+import MealDrawer from "@/components/admin/MealDrawer";
 import { MEALS } from "@/lib/mock/menus";
-import type { Continent, Difficulty } from "@/lib/mock/types";
+import type { Continent, Difficulty, Meal, MealStatus } from "@/lib/mock/types";
 
 const CONTINENTS: Continent[] = [
   "Europe",
@@ -26,6 +28,10 @@ type Filter = "all" | Continent;
 
 export default function RecettesPage() {
   const [filter, setFilter] = useState<Filter>("all");
+  const [overrides, setOverrides] = useState<Record<string, MealStatus>>({});
+  const [selected, setSelected] = useState<Meal | null>(null);
+
+  const statusOf = (m: Meal): MealStatus => overrides[m.id] ?? m.status;
 
   const counts = MEALS.reduce<Record<string, number>>((acc, m) => {
     acc[m.continent] = (acc[m.continent] ?? 0) + 1;
@@ -56,9 +62,9 @@ export default function RecettesPage() {
             </p>
           </div>
         </div>
-        <button className="btn btn-primary">
+        <Link href="/recettes/nouvelle" className="btn btn-primary">
           <Plus className="h-4 w-4" /> Ajouter une recette
-        </button>
+        </Link>
       </motion.section>
 
       <FilterTabs<Filter>
@@ -91,39 +97,42 @@ export default function RecettesPage() {
               </div>
               <ul className="divide-y divide-[rgba(0,35,75,0.06)]">
                 {recipes.map((m) => (
-                  <li
-                    key={m.id}
-                    className="flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-cream-soft"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={m.image}
-                      alt={m.name}
-                      className="h-12 w-12 shrink-0 rounded-xl object-cover"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-navy">
-                        {m.name}
-                      </p>
-                      <p className="font-mono text-[11px] text-ink-soft">
-                        {m.country}
-                      </p>
-                    </div>
-                    <div className="hidden items-center gap-1.5 sm:flex">
-                      {m.dietaryTags.slice(0, 2).map((t) => (
-                        <span
-                          key={t}
-                          className="rounded-full bg-teal-pale px-2 py-0.5 text-[10px] font-medium text-teal"
-                        >
-                          {t}
-                        </span>
-                      ))}
-                    </div>
-                    <span className="hidden items-center gap-1 text-[11px] text-ink-soft md:inline-flex">
-                      <Clock className="h-3 w-3" />
-                      {m.prepTime} min
-                    </span>
-                    <Badge tone={DIFF_TONE[m.difficulty]}>{m.difficulty}</Badge>
+                  <li key={m.id}>
+                    <button
+                      type="button"
+                      onClick={() => setSelected(m)}
+                      className="flex w-full items-center gap-4 px-5 py-3.5 text-left transition-colors hover:bg-cream-soft"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={m.image}
+                        alt={m.name}
+                        className="h-12 w-12 shrink-0 rounded-xl object-cover"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-navy">
+                          {m.name}
+                        </p>
+                        <p className="font-mono text-[11px] text-ink-soft">
+                          {m.country}
+                        </p>
+                      </div>
+                      <div className="hidden items-center gap-1.5 sm:flex">
+                        {m.dietaryTags.slice(0, 2).map((t) => (
+                          <span
+                            key={t}
+                            className="rounded-full bg-teal-pale px-2 py-0.5 text-[10px] font-medium text-teal"
+                          >
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                      <span className="hidden items-center gap-1 text-[11px] text-ink-soft md:inline-flex">
+                        <Clock className="h-3 w-3" />
+                        {m.prepTime} min
+                      </span>
+                      <Badge tone={DIFF_TONE[m.difficulty]}>{m.difficulty}</Badge>
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -131,6 +140,19 @@ export default function RecettesPage() {
           );
         })}
       </div>
+
+      <MealDrawer
+        meal={selected}
+        open={selected !== null}
+        onClose={() => setSelected(null)}
+        status={selected ? statusOf(selected) : "draft"}
+        onStatusChange={(s) =>
+          selected && setOverrides((o) => ({ ...o, [selected.id]: s }))
+        }
+        editHref={
+          selected ? `/recettes/nouvelle?id=${selected.id}` : "/recettes/nouvelle"
+        }
+      />
     </div>
   );
 }

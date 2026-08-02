@@ -1,22 +1,27 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
   ArrowRight,
+  Ban,
   CalendarRange,
+  CheckCircle2,
+  Crown,
   Home,
   Mail,
   MapPin,
   MessageCircle,
+  Pencil,
   Phone,
   Sparkles,
   Wallet,
 } from "lucide-react";
 import Badge from "@/components/ui/Badge";
-import { euros, formatDate, initials } from "@/lib/utils";
+import { cn, euros, formatDate, initials } from "@/lib/utils";
 import {
   clientTone,
   clientLabel,
@@ -26,10 +31,14 @@ import {
 import { clientById } from "@/lib/mock/clients";
 import { RESERVATIONS, RESERVATION_STATUS_LABEL } from "@/lib/mock/reservations";
 import { DEMANDES, DEMANDE_STATUS_LABEL } from "@/lib/mock/demandes";
+import type { ClientStatus } from "@/lib/mock/types";
 
 export default function ClientDetailPage() {
   const params = useParams<{ id: string }>();
   const client = clientById(params.id);
+  const [status, setStatus] = useState<ClientStatus>(
+    client?.status ?? "prospect",
+  );
 
   if (!client) {
     return (
@@ -82,8 +91,8 @@ export default function ClientDetailPage() {
               <p className="mt-3 font-display text-xl font-bold">
                 {client.name}
               </p>
-              <Badge tone={clientTone[client.status]} className="mt-2">
-                {clientLabel[client.status]}
+              <Badge tone={clientTone[status]} className="mt-2">
+                {clientLabel[status]}
               </Badge>
               <div className="mt-4 w-full space-y-2 text-left text-xs text-white/70">
                 <p className="flex items-center gap-2">
@@ -124,6 +133,52 @@ export default function ClientDetailPage() {
                 `, ${client.household.kids} enfant${
                   client.household.kids > 1 ? "s" : ""
                 }`}
+            </div>
+          </section>
+
+          {/* Actions */}
+          <section className="card p-5">
+            <h4 className="mb-3 font-display text-base font-bold text-navy">
+              Actions
+            </h4>
+            <div className="space-y-2">
+              {status !== "vip" && (
+                <ActionButton
+                  Icon={Crown}
+                  label="Passer en VIP"
+                  tone="terra"
+                  onClick={() => setStatus("vip")}
+                />
+              )}
+              {status === "inactive" ? (
+                <ActionButton
+                  Icon={CheckCircle2}
+                  label="Réactiver le client"
+                  tone="success"
+                  onClick={() => setStatus("active")}
+                />
+              ) : (
+                <ActionButton
+                  Icon={Ban}
+                  label="Suspendre le client"
+                  tone="danger"
+                  onClick={() => setStatus("inactive")}
+                />
+              )}
+              {status !== "active" && status !== "inactive" && (
+                <ActionButton
+                  Icon={CheckCircle2}
+                  label="Marquer comme actif"
+                  tone="success"
+                  onClick={() => setStatus("active")}
+                />
+              )}
+              <ActionButton
+                Icon={Pencil}
+                label="Modifier la fiche"
+                tone="neutral"
+                onClick={() => {}}
+              />
             </div>
           </section>
 
@@ -231,6 +286,38 @@ export default function ClientDetailPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function ActionButton({
+  Icon,
+  label,
+  tone,
+  onClick,
+}: {
+  Icon: typeof Wallet;
+  label: string;
+  tone: "terra" | "success" | "danger" | "neutral";
+  onClick: () => void;
+}) {
+  const tones: Record<typeof tone, string> = {
+    terra: "text-terra-deep hover:border-terra/40 hover:bg-terra/5",
+    success: "text-success hover:border-success/40 hover:bg-success-soft/50",
+    danger: "text-danger hover:border-danger/40 hover:bg-danger-soft/50",
+    neutral: "text-ink-mid hover:border-navy/30 hover:bg-cream-soft",
+  };
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center gap-2.5 rounded-xl border border-[rgba(0,35,75,0.1)] px-3.5 py-2.5 text-sm font-semibold transition-colors",
+        tones[tone],
+      )}
+    >
+      <Icon className="h-4 w-4" />
+      {label}
+    </button>
   );
 }
 

@@ -3,20 +3,30 @@
 import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, MapPin, Plus, Search, Users } from "lucide-react";
+import {
+  ArrowRight,
+  LayoutGrid,
+  MapPin,
+  Plus,
+  Rows3,
+  Search,
+  Users,
+} from "lucide-react";
 import Badge from "@/components/ui/Badge";
 import FilterTabs from "@/components/ui/FilterTabs";
 import EmptyState from "@/components/ui/EmptyState";
-import { euros, formatDate, initials } from "@/lib/utils";
+import { cn, euros, formatDate, initials } from "@/lib/utils";
 import { clientTone, clientLabel } from "@/lib/status";
 import { CLIENTS } from "@/lib/mock/clients";
 import type { ClientStatus } from "@/lib/mock/types";
 
 type Filter = "all" | ClientStatus;
+type View = "card" | "table";
 
 export default function ClientsPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
+  const [view, setView] = useState<View>("card");
 
   const counts = CLIENTS.reduce<Record<string, number>>((acc, c) => {
     acc[c.status] = (acc[c.status] ?? 0) + 1;
@@ -67,6 +77,7 @@ export default function ClientsPage() {
               className="input-base pl-9"
             />
           </div>
+          <ViewToggle view={view} onChange={setView} />
           <button className="btn btn-primary shrink-0">
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">Client</span>
@@ -82,7 +93,7 @@ export default function ClientsPage() {
             text="Aucun client ne correspond à cette recherche."
           />
         </div>
-      ) : (
+      ) : view === "card" ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((c, i) => (
             <motion.div
@@ -156,7 +167,94 @@ export default function ClientsPage() {
             </motion.div>
           ))}
         </div>
+      ) : (
+        <div className="card overflow-hidden">
+          <div className="hidden grid-cols-[1.6fr_0.8fr_0.7fr_0.9fr_0.8fr_auto] gap-4 border-b border-[rgba(0,35,75,0.07)] bg-cream-soft px-5 py-3 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-soft lg:grid">
+            <span>Client</span>
+            <span>Ville</span>
+            <span>Sessions</span>
+            <span>Dépensé</span>
+            <span>Statut</span>
+            <span />
+          </div>
+          <ul className="divide-y divide-[rgba(0,35,75,0.06)]">
+            {filtered.map((c) => (
+              <li key={c.id}>
+                <Link
+                  href={`/clients/${c.id}`}
+                  className="grid grid-cols-1 items-center gap-2 px-5 py-3.5 transition-colors hover:bg-cream-soft lg:grid-cols-[1.6fr_0.8fr_0.7fr_0.9fr_0.8fr_auto] lg:gap-4"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-navy text-xs font-bold text-white">
+                      {initials(c.name)}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-navy">
+                        {c.name}
+                      </p>
+                      <p className="truncate font-mono text-[11px] text-ink-soft">
+                        {c.email}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="flex items-center gap-1 text-xs text-ink-mid">
+                    <MapPin className="h-3 w-3 text-ink-soft" />
+                    {c.address.city}
+                  </p>
+                  <p className="text-sm font-semibold text-navy">
+                    {c.ordersCount}
+                    <span className="ml-1 text-[11px] font-normal text-ink-soft lg:hidden">
+                      sessions
+                    </span>
+                  </p>
+                  <p className="text-sm font-semibold text-navy">
+                    {euros(c.totalSpent)}
+                  </p>
+                  <Badge tone={clientTone[c.status]}>
+                    {clientLabel[c.status]}
+                  </Badge>
+                  <ArrowRight className="hidden h-4 w-4 text-terra lg:block" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
+    </div>
+  );
+}
+
+function ViewToggle({
+  view,
+  onChange,
+}: {
+  view: View;
+  onChange: (v: View) => void;
+}) {
+  return (
+    <div className="flex shrink-0 items-center rounded-full border border-[rgba(0,35,75,0.13)] bg-paper p-0.5">
+      {(
+        [
+          { id: "card", Icon: LayoutGrid, label: "Cartes" },
+          { id: "table", Icon: Rows3, label: "Tableau" },
+        ] as const
+      ).map(({ id, Icon, label }) => (
+        <button
+          key={id}
+          type="button"
+          aria-label={label}
+          title={label}
+          onClick={() => onChange(id)}
+          className={cn(
+            "flex h-8 w-8 items-center justify-center rounded-full transition-colors",
+            view === id
+              ? "bg-navy text-white"
+              : "text-ink-soft hover:text-navy",
+          )}
+        >
+          <Icon className="h-4 w-4" />
+        </button>
+      ))}
     </div>
   );
 }
