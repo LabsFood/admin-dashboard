@@ -26,3 +26,9 @@ Note: The development server is configured to run on port `8035`.
 - **Styling**: [Tailwind CSS](https://tailwindcss.com)
 - **Animations**: [Framer Motion](https://www.framer.com/motion/)
 - **Icons**: [Lucide React](https://lucide.dev/)
+
+## Etat du projet
+
+Donnees et authentification **mockees** (`lib/mock/`, `lib/auth.tsx`) — pas encore
+connecte a l'API `LF-BackEnd`. Voir [AGENTS.md](./AGENTS.md) pour le detail du stack,
+des variables d'environnement a venir et de la cible de deploiement.
