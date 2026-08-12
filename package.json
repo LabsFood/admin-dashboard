@@ -6,7 +6,8 @@
     "dev": "next dev -p 8035",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "prepare": "husky"
   },
   "dependencies": {
     "@clerk/localizations": "^4.13.10",
@@ -25,8 +26,15 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "^16.3.0",
+    "eslint-config-next": "16.2.6",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.10",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix"
+    ]
   }
 }
