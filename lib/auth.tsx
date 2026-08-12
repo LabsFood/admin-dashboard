@@ -1,46 +1,47 @@
 "use client";
 
 import { useUser, useClerk } from "@clerk/nextjs";
+import { useMe } from "./api/me";
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Authentification admin adossée à Clerk.
+   Identité admin adossée à Clerk.
 
-   La console réutilise l'instance Clerk de l'espace client. L'accès est réservé
-   aux comptes dont `publicMetadata.role === "admin"` (garde appliquée par le
-   middleware et par le layout `(admin)`).
+   `useAuth()` fournit l'identité (nom, email), l'état de session Clerk et
+   `signOut`. Le **rôle applicatif** provient désormais de l'API (`GET /me`,
+   source de vérité Postgres) et non plus de `publicMetadata` Clerk — il est
+   exposé ici pour l'affichage (Sidebar, Paramètres).
 
-   Ce hook conserve volontairement l'ancienne interface `useAuth()` — `user`,
-   `signOut`, `isAuthenticated`, `isReady` — pour que la Sidebar, la Topbar et le
-   layout restent inchangés. Il ajoute `isAdmin`.
+   La garde d'accès autoritaire (loading / erreur / rôle) est appliquée par le
+   layout `(admin)` via `useMe()` directement, afin de distinguer un rôle non
+   admin d'une API injoignable.
    ───────────────────────────────────────────────────────────────────────────── */
 
 export interface AdminUser {
   name: string;
   email: string;
-  role: string;
+  /** Rôle applicatif issu de `/me` ; `undefined` tant que la requête charge. */
+  role?: string;
 }
 
 interface AuthState {
   user: AdminUser | null;
   isAuthenticated: boolean;
   isReady: boolean;
-  isAdmin: boolean;
   signOut: () => void;
 }
 
 export function useAuth(): AuthState {
   const { isLoaded, isSignedIn, user } = useUser();
   const clerk = useClerk();
+  const me = useMe();
 
-  const role =
-    (user?.publicMetadata?.role as string | undefined) ?? undefined;
   const email = user?.primaryEmailAddress?.emailAddress ?? "";
 
   const mapped: AdminUser | null = user
     ? {
         name: user.fullName?.trim() || email || "Admin",
         email,
-        role: role ?? "Administrateur",
+        role: me.data?.role,
       }
     : null;
 
@@ -48,7 +49,6 @@ export function useAuth(): AuthState {
     user: mapped,
     isAuthenticated: !!isSignedIn,
     isReady: isLoaded,
-    isAdmin: role === "admin",
     signOut: () => clerk.signOut({ redirectUrl: "/login" }),
   };
 }
