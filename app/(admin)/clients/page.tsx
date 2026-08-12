@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -8,6 +8,7 @@ import {
   LayoutGrid,
   MapPin,
   Plus,
+  RotateCw,
   Rows3,
   Search,
   Users,
@@ -17,42 +18,61 @@ import FilterTabs from "@/components/ui/FilterTabs";
 import EmptyState from "@/components/ui/EmptyState";
 import { cn, euros, formatDate, initials } from "@/lib/utils";
 import { clientTone, clientLabel } from "@/lib/status";
-import { CLIENTS } from "@/lib/mock/clients";
+import { useClients } from "@/lib/api/admin";
+import { toClientView, type ClientView } from "@/lib/api/adapt";
 import type { ClientStatus } from "@/lib/mock/types";
 
 type Filter = "all" | ClientStatus;
 type View = "card" | "table";
+
+/** Placeholder pour un champ non encore fourni par l'API. */
+const DASH = "—";
 
 export default function ClientsPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [view, setView] = useState<View>("card");
 
-  const counts = CLIENTS.reduce<Record<string, number>>((acc, c) => {
-    acc[c.status] = (acc[c.status] ?? 0) + 1;
-    return acc;
-  }, {});
+  const { data, isPending, isError, error, refetch } = useClients();
 
-  const filtered = CLIENTS.filter((c) => {
-    const matchStatus = filter === "all" || c.status === filter;
-    const q = query.toLowerCase();
-    const matchQuery =
-      !q ||
-      c.name.toLowerCase().includes(q) ||
-      c.email.toLowerCase().includes(q) ||
-      c.address.city.toLowerCase().includes(q);
-    return matchStatus && matchQuery;
-  });
+  const clients = useMemo<ClientView[]>(
+    () => (data ?? []).map(toClientView),
+    [data],
+  );
 
-  const totalRevenue = CLIENTS.reduce((n, c) => n + c.totalSpent, 0);
+  const counts = useMemo(
+    () =>
+      clients.reduce<Record<string, number>>((acc, c) => {
+        acc[c.status] = (acc[c.status] ?? 0) + 1;
+        return acc;
+      }, {}),
+    [clients],
+  );
+
+  const filtered = useMemo(
+    () =>
+      clients.filter((c) => {
+        const matchStatus = filter === "all" || c.status === filter;
+        const q = query.toLowerCase();
+        const matchQuery =
+          !q ||
+          c.name.toLowerCase().includes(q) ||
+          c.email.toLowerCase().includes(q);
+        return matchStatus && matchQuery;
+      }),
+    [clients, filter, query],
+  );
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-        <MiniStat label="Clients" value={CLIENTS.length} />
-        <MiniStat label="VIP" value={counts.vip ?? 0} />
-        <MiniStat label="Prospects" value={counts.prospect ?? 0} />
-        <MiniStat label="CA total" value={euros(totalRevenue)} />
+        <MiniStat label="Clients" value={isPending ? DASH : clients.length} />
+        <MiniStat label="VIP" value={isPending ? DASH : counts.vip ?? 0} />
+        <MiniStat label="Actifs" value={isPending ? DASH : counts.active ?? 0} />
+        <MiniStat
+          label="Prospects"
+          value={isPending ? DASH : counts.prospect ?? 0}
+        />
       </div>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -60,7 +80,7 @@ export default function ClientsPage() {
           value={filter}
           onChange={setFilter}
           options={[
-            { id: "all", label: "Tous", count: CLIENTS.length },
+            { id: "all", label: "Tous", count: clients.length },
             { id: "vip", label: "VIP", count: counts.vip ?? 0 },
             { id: "active", label: "Actifs", count: counts.active ?? 0 },
             { id: "prospect", label: "Prospects", count: counts.prospect ?? 0 },
@@ -73,7 +93,7 @@ export default function ClientsPage() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Nom, email, ville…"
+              placeholder="Nom, email…"
               className="input-base pl-9"
             />
           </div>
@@ -85,7 +105,30 @@ export default function ClientsPage() {
         </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {isPending ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="card h-44 animate-pulse bg-cream-soft" />
+          ))}
+        </div>
+      ) : isError ? (
+        <div className="card">
+          <EmptyState
+            Icon={Users}
+            title="Chargement impossible"
+            text={
+              error instanceof Error
+                ? error.message
+                : "Impossible de récupérer les clients depuis l'API."
+            }
+          />
+          <div className="flex justify-center pb-5">
+            <button onClick={() => refetch()} className="btn btn-navy">
+              <RotateCw className="h-4 w-4" /> Réessayer
+            </button>
+          </div>
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="card">
           <EmptyState
             Icon={Users}
@@ -114,9 +157,9 @@ export default function ClientsPage() {
                     <p className="truncate font-display text-base font-bold text-navy">
                       {c.name}
                     </p>
-                    <p className="flex items-center gap-1 text-xs text-ink-soft">
-                      <MapPin className="h-3 w-3" />
-                      {c.address.city}
+                    <p className="flex items-center gap-1 truncate text-xs text-ink-soft">
+                      <MapPin className="h-3 w-3 shrink-0" />
+                      {c.city ?? c.email}
                     </p>
                   </div>
                   <Badge tone={clientTone[c.status]}>
@@ -125,11 +168,14 @@ export default function ClientsPage() {
                 </div>
 
                 <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl bg-cream-soft p-3 text-center">
-                  <Cell label="Sessions" value={c.ordersCount} />
-                  <Cell label="Dépensé" value={euros(c.totalSpent)} />
+                  <Cell label="Sessions" value={c.ordersCount ?? DASH} />
+                  <Cell
+                    label="Dépensé"
+                    value={c.totalSpent != null ? euros(c.totalSpent) : DASH}
+                  />
                   <Cell
                     label="Foyer"
-                    value={`${c.household.adults + c.household.kids}`}
+                    value={c.householdSize != null ? `${c.householdSize}` : DASH}
                   />
                 </div>
 
@@ -159,7 +205,7 @@ export default function ClientsPage() {
                   <span className="text-[11px] text-ink-soft">
                     {c.lastOrderAt
                       ? `Dernière session ${formatDate(c.lastOrderAt)}`
-                      : "Aucune session"}
+                      : "Profil client"}
                   </span>
                   <ArrowRight className="h-4 w-4 text-terra" />
                 </div>
@@ -199,16 +245,16 @@ export default function ClientsPage() {
                   </div>
                   <p className="flex items-center gap-1 text-xs text-ink-mid">
                     <MapPin className="h-3 w-3 text-ink-soft" />
-                    {c.address.city}
+                    {c.city ?? DASH}
                   </p>
                   <p className="text-sm font-semibold text-navy">
-                    {c.ordersCount}
+                    {c.ordersCount ?? DASH}
                     <span className="ml-1 text-[11px] font-normal text-ink-soft lg:hidden">
                       sessions
                     </span>
                   </p>
                   <p className="text-sm font-semibold text-navy">
-                    {euros(c.totalSpent)}
+                    {c.totalSpent != null ? euros(c.totalSpent) : DASH}
                   </p>
                   <Badge tone={clientTone[c.status]}>
                     {clientLabel[c.status]}
