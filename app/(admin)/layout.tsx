@@ -9,14 +9,22 @@ import Topbar from "@/components/admin/Topbar";
 import MobileNav from "@/components/admin/MobileNav";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
-  const { isAuthenticated, isReady } = useAuth();
+  const { isAuthenticated, isReady, isAdmin, signOut } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (isReady && !isAuthenticated) router.replace("/login");
-  }, [isReady, isAuthenticated, router]);
+    if (!isReady) return;
+    // Le middleware protège déjà ces routes ; on double la garde côté client et
+    // on refuse les comptes authentifiés qui n'ont pas le rôle admin.
+    if (!isAuthenticated) {
+      router.replace("/login");
+    } else if (!isAdmin) {
+      signOut();
+      router.replace("/login?error=forbidden");
+    }
+  }, [isReady, isAuthenticated, isAdmin, signOut, router]);
 
-  if (!isReady || !isAuthenticated) {
+  if (!isReady || !isAuthenticated || !isAdmin) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-cream">
         <div className="flex flex-col items-center gap-3">

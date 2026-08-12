@@ -1,16 +1,17 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
+import { useUser, useClerk } from "@clerk/nextjs";
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Authentification simulée (mock). Aucun backend : la session est stockée
-   dans le localStorage. À remplacer par une vraie auth (NextAuth, JWT…).
+   Authentification admin adossée à Clerk.
+
+   La console réutilise l'instance Clerk de l'espace client. L'accès est réservé
+   aux comptes dont `publicMetadata.role === "admin"` (garde appliquée par le
+   middleware et par le layout `(admin)`).
+
+   Ce hook conserve volontairement l'ancienne interface `useAuth()` — `user`,
+   `signOut`, `isAuthenticated`, `isReady` — pour que la Sidebar, la Topbar et le
+   layout restent inchangés. Il ajoute `isAdmin`.
    ───────────────────────────────────────────────────────────────────────────── */
 
 export interface AdminUser {
@@ -23,76 +24,31 @@ interface AuthState {
   user: AdminUser | null;
   isAuthenticated: boolean;
   isReady: boolean;
-  signIn: (email: string, password: string) => { ok: boolean; error?: string };
+  isAdmin: boolean;
   signOut: () => void;
 }
 
-const STORAGE_KEY = "labsfood-admin-session";
-
-const DEMO_USER: AdminUser = {
-  name: "Ivy Siyaptze",
-  email: "admin@labsfood.fr",
-  role: "Administratrice",
-};
-
-const AuthContext = createContext<AuthState | null>(null);
-
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AdminUser | null>(null);
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (raw) setUser(JSON.parse(raw) as AdminUser);
-    } catch {
-      /* localStorage indisponible — on ignore */
-    }
-    setIsReady(true);
-  }, []);
-
-  const signIn = (email: string, password: string) => {
-    // Mock : on accepte n'importe quel email/mot de passe non vides.
-    if (!email.trim() || !password.trim()) {
-      return { ok: false, error: "Renseigne ton email et ton mot de passe." };
-    }
-    const next: AdminUser = { ...DEMO_USER, email: email.trim() };
-    setUser(next);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      /* ignore */
-    }
-    return { ok: true };
-  };
-
-  const signOut = () => {
-    setUser(null);
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      /* ignore */
-    }
-  };
-
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isAuthenticated: !!user,
-        isReady,
-        signIn,
-        signOut,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
-}
-
 export function useAuth(): AuthState {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth doit être utilisé dans <AuthProvider>");
-  return ctx;
+  const { isLoaded, isSignedIn, user } = useUser();
+  const clerk = useClerk();
+
+  const role =
+    (user?.publicMetadata?.role as string | undefined) ?? undefined;
+  const email = user?.primaryEmailAddress?.emailAddress ?? "";
+
+  const mapped: AdminUser | null = user
+    ? {
+        name: user.fullName?.trim() || email || "Admin",
+        email,
+        role: role ?? "Administrateur",
+      }
+    : null;
+
+  return {
+    user: mapped,
+    isAuthenticated: !!isSignedIn,
+    isReady: isLoaded,
+    isAdmin: role === "admin",
+    signOut: () => clerk.signOut({ redirectUrl: "/login" }),
+  };
 }

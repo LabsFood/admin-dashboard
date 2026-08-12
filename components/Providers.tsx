@@ -1,8 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { AuthProvider } from "@/lib/auth";
 
+/* Le contexte d'authentification est désormais fourni par <ClerkProvider>
+   (voir app/layout.tsx). Ce composant reste le point d'accroche pour de
+   futurs providers côté client. */
 export default function Providers({ children }: { children: ReactNode }) {
-  return <AuthProvider>{children}</AuthProvider>;
+  return <>{children}</>;
 }
