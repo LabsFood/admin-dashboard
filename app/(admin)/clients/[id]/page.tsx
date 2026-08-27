@@ -15,13 +15,14 @@ import {
   Mail,
   MapPin,
   MessageCircle,
-  Pencil,
   Phone,
   RotateCw,
+  ShieldCheck,
   Sparkles,
   Wallet,
 } from "lucide-react";
 import Badge from "@/components/ui/Badge";
+import RoleEditor from "@/components/admin/RoleEditor";
 import { cn, euros, initials } from "@/lib/utils";
 import { clientTone, clientLabel } from "@/lib/status";
 import { useClient, useUpdateClient } from "@/lib/api/admin";
@@ -213,18 +214,25 @@ function ClientDetail({ id, client }: { id: string; client: ClientView }) {
                   onClick={() => changeStatus("active")}
                 />
               )}
-              <ActionButton
-                Icon={Pencil}
-                label="Modifier la fiche"
-                tone="neutral"
-                onClick={() => {}}
-              />
             </div>
             {update.isError && (
               <p className="mt-2 text-xs text-danger">
                 Échec de la mise à jour du statut.
               </p>
             )}
+          </section>
+
+          {/* Rôle applicatif — droits d'accès (users.role) */}
+          <section className="card p-5">
+            <h4 className="mb-1 flex items-center gap-2 font-display text-base font-bold text-navy">
+              <ShieldCheck className="h-4 w-4 text-terra" />
+              Rôle & accès
+            </h4>
+            <p className="mb-3 text-xs leading-relaxed text-ink-mid">
+              Détermine les droits du compte. Passer quelqu&apos;un en{" "}
+              <strong>admin</strong> lui ouvre cette console.
+            </p>
+            <RoleEditor userId={client.userId} role={client.role} />
           </section>
 
           <Link

@@ -6,8 +6,9 @@
     "dev": "next dev -p 8035",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "prepare": "husky"
+    "lint": "eslint .",
+    "prepare": "husky",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@clerk/localizations": "^4.13.10",

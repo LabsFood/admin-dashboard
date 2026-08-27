@@ -217,3 +217,20 @@ button:disabled {
 /* Masquage de la scrollbar pour les rangées de filtres */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ── Intégration du <SignIn> Clerk ────────────────────────────────────────────
+   Le composant Clerk applique ses propres styles avec une spécificité élevée :
+   les classes utilitaires passées via `appearance` (shadow-none, hidden…) ne
+   suffisent pas à les neutraliser. On fond donc la carte Clerk dans la carte de
+   la page (pas de double carte), et on masque son pied « Secured by / Development
+   mode ». Le `!important` est nécessaire pour battre les styles internes Clerk. */
+.cl-cardBox,
+.cl-card {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  padding: 0 !important; /* la carte de la page gère déjà les marges internes */
+}
+.cl-footer {
+  display: none !important;
+}
