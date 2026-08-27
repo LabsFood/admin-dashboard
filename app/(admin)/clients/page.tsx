@@ -16,6 +16,8 @@ import {
 import Badge from "@/components/ui/Badge";
 import FilterTabs from "@/components/ui/FilterTabs";
 import EmptyState from "@/components/ui/EmptyState";
+import Drawer from "@/components/ui/Drawer";
+import UserForm from "@/components/admin/UserForm";
 import { cn, euros, formatDate, initials } from "@/lib/utils";
 import { clientTone, clientLabel } from "@/lib/status";
 import { useClients } from "@/lib/api/admin";
@@ -32,6 +34,7 @@ export default function ClientsPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [view, setView] = useState<View>("card");
+  const [createOpen, setCreateOpen] = useState(false);
 
   const { data, isPending, isError, error, refetch } = useClients();
 
@@ -98,7 +101,10 @@ export default function ClientsPage() {
             />
           </div>
           <ViewToggle view={view} onChange={setView} />
-          <button className="btn btn-primary shrink-0">
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="btn btn-primary shrink-0"
+          >
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">Client</span>
           </button>
@@ -266,6 +272,19 @@ export default function ClientsPage() {
           </ul>
         </div>
       )}
+
+      <Drawer
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        eyebrow="Comptes & accès"
+        title="Nouveau compte"
+      >
+        <p className="mb-5 text-xs leading-relaxed text-ink-mid">
+          Le compte est créé dans Clerk et en base. Il rejoindra ce fichier
+          clients après sa première connexion à l&apos;espace client.
+        </p>
+        <UserForm onCancel={() => setCreateOpen(false)} />
+      </Drawer>
     </div>
   );
 }

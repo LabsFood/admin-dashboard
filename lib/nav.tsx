@@ -13,6 +13,7 @@ import {
   Star,
   ChefHat,
   Settings,
+  UserCog,
   type LucideIcon,
 } from "lucide-react";
 
@@ -157,6 +158,14 @@ export const NAV_SECTIONS: NavSection[] = [
         eyebrow: "Ressources",
         title: "Équipe & chefs",
         subtitle: "Chefs, staff et zones de service.",
+      },
+      {
+        href: "/utilisateurs",
+        label: "Utilisateurs",
+        Icon: UserCog,
+        eyebrow: "Comptes & accès",
+        title: "Utilisateurs",
+        subtitle: "Création de comptes et attribution des rôles.",
       },
       {
         href: "/parametres",

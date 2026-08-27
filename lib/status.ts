@@ -1,4 +1,5 @@
 import type { BadgeTone } from "@/components/ui/Badge";
+import type { Role } from "@/lib/api/types";
 import type {
   ReservationStatus,
   DemandeStatus,
@@ -76,6 +77,27 @@ export const clientLabel: Record<ClientStatus, string> = {
   active: "Actif",
   prospect: "Prospect",
   inactive: "Inactif",
+};
+
+/* Rôle applicatif (`users.role`) — RBAC côté API. */
+
+export const roleTone: Record<Role, BadgeTone> = {
+  admin: "terra",
+  chef: "navy",
+  client: "teal",
+};
+
+export const roleLabel: Record<Role, string> = {
+  admin: "Admin",
+  chef: "Chef·fe",
+  client: "Client",
+};
+
+/** Ce que chaque rôle autorise — affiché sous le sélecteur de rôle. */
+export const roleHint: Record<Role, string> = {
+  admin: "Accès complet à la console d'administration.",
+  chef: "Personnel de cuisine — pas d'accès à la console.",
+  client: "Compte client standard — espace client uniquement.",
 };
 
 export const mealTone: Record<MealStatus, BadgeTone> = {

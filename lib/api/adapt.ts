@@ -1,4 +1,4 @@
-import type { ClientProfile, ClientStatus } from "./types";
+import type { ClientProfile, ClientStatus, Role } from "./types";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Adaptation `client_profiles` (API) → modèle d'affichage de la console.
@@ -12,10 +12,13 @@ import type { ClientProfile, ClientStatus } from "./types";
 export interface ClientView {
   /** id du profil (`client_profiles.id`) — sert de clé de route. */
   id: string;
+  /** uuid `users.id` — attendu par `PATCH /admin/users/{id}/role`. */
   userId: string;
   name: string;
   email: string;
   phone: string | null;
+  /** Rôle applicatif (`users.role`), source de vérité RBAC. */
+  role: Role;
   status: ClientStatus;
   dietaryPreferences: string[];
   allergies: string[];
@@ -38,6 +41,7 @@ export function toClientView(p: ClientProfile): ClientView {
     name: p.user?.fullName?.trim() || p.user?.email || "Client",
     email: p.user?.email ?? "",
     phone: p.user?.phone ?? null,
+    role: p.user?.role ?? "client",
     status: p.status ?? "prospect",
     dietaryPreferences: p.dietaryPreferences ?? [],
     allergies: p.allergies ?? [],
