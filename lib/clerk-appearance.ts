@@ -1,10 +1,15 @@
 /**
- * Habillage du composant <SignIn /> de Clerk pour la console admin.
+ * Habillage du <SignIn> Clerk — console admin.
  *
- * On réutilise les classes maison définies dans app/globals.css (`input-base`,
- * `btn btn-primary`) afin que les champs Clerk soient indiscernables des autres
- * formulaires de l'admin. Le titre et le sous-titre sont masqués : la page de
- * connexion les rend déjà elle-même avec la typo Fraunces.
+ * Principe : on thématise via les **variables** de Clerk et on le laisse gérer
+ * sa mise en page. On n'injecte volontairement PAS nos classes maison
+ * (`input-base`, `btn btn-primary`) sur `formFieldInput` / `formButtonPrimary` :
+ * ces sélecteurs visent *tous* les champs, y compris les cases à cocher et les
+ * champs de code — ce qui déformait les écrans « mot de passe oublié »,
+ * « vérification » et « réinitialisation ».
+ *
+ * Les ajustements restants (carte à plat, boutons en pilule, masquage des
+ * connexions sociales) sont faits en CSS ciblé dans app/globals.css.
  */
 export const clerkAuthAppearance = {
   variables: {
@@ -13,30 +18,18 @@ export const clerkAuthAppearance = {
     colorTextSecondary: "#3A4A5A", // --color-ink-mid
     colorBackground: "transparent",
     colorInputBackground: "#FFFFFF",
-    colorDanger: "#D14545", // --color-danger
+    colorInputText: "#0F1F2E",
+    colorDanger: "#D14545",
     borderRadius: "0.75rem",
     fontFamily: "var(--font-montserrat)",
+    fontSize: "0.875rem",
   },
   elements: {
-    rootBox: "w-full",
-    cardBox: "w-full shadow-none border-none",
-    card: "w-full bg-transparent shadow-none border-none p-0 gap-4",
+    // La page rend déjà son titre et son sous-titre.
     header: "hidden",
     footer: "hidden",
-    formFieldLabel:
-      "font-mono text-[11px] uppercase tracking-[0.16em] text-ink-soft mb-1.5",
-    formFieldInput: "input-base",
-    formButtonPrimary:
-      "btn btn-primary w-full normal-case tracking-normal text-sm shadow-none",
-    formFieldAction: "text-sm text-terra hover:underline font-medium",
-    identityPreviewEditButton: "text-terra",
-    formResendCodeLink: "text-terra font-medium",
-    otpCodeFieldInput: "input-base text-center",
-    dividerRow: "hidden",
-    socialButtons: "hidden",
   },
   layout: {
-    socialButtonsPlacement: "bottom" as const,
     showOptionalFields: false,
   },
 };
