@@ -6,6 +6,17 @@ RUN npm ci
 
 FROM node:20-alpine AS builder
 WORKDIR /app
+
+# Variables consommées AU BUILD :
+#  - NEXT_PUBLIC_API_URL est inlinée dans le bundle client par Next (le .env
+#    n'est pas copié dans l'image, cf. .dockerignore) ;
+#  - API_PROXY_TARGET est figée dans le routes-manifest par le rewrite.
+# Les deux ont un défaut sain, ces ARG ne servent qu'à surcharger.
+ARG NEXT_PUBLIC_API_URL
+ARG API_PROXY_TARGET
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} \
+    API_PROXY_TARGET=${API_PROXY_TARGET:-https://lf-api.labsfood.fr}
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build

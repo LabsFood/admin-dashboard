@@ -11,7 +11,12 @@
 import { useCallback } from "react";
 import { useAuth } from "@clerk/nextjs";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
+// Résolue au build : les `NEXT_PUBLIC_*` sont inlinées par Next, elles ne sont
+// PAS relues au runtime. On retombe donc sur le proxy same-origin `/lf-api`
+// (rewrite dans `next.config.ts`) pour ne rien casser si la variable n'est pas
+// fournie au `docker build`. `||` et non `??` : une valeur vide doit aussi
+// déclencher le fallback.
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "/lf-api";
 
 /** Erreur typée levée sur réponse non-2xx. `status` reflète le code HTTP. */
 export class ApiError extends Error {
@@ -42,13 +47,6 @@ export async function apiFetch<T>(
   path: string,
   { token, method = "GET", body, signal }: ApiFetchOptions,
 ): Promise<T> {
-  if (!BASE_URL) {
-    throw new ApiError(
-      0,
-      "NEXT_PUBLIC_API_URL n'est pas configurée.",
-    );
-  }
-
   const headers: Record<string, string> = { Accept: "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) headers["Content-Type"] = "application/json";
