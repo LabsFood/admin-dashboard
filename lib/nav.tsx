@@ -12,6 +12,8 @@ import {
   Mail,
   Star,
   ChefHat,
+  ClipboardCheck,
+  Receipt,
   Settings,
   UserCog,
   type LucideIcon,
@@ -151,6 +153,22 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: "Organisation",
     items: [
+      {
+        href: "/transactions",
+        label: "Transactions",
+        Icon: Receipt,
+        eyebrow: "Finances",
+        title: "Transactions",
+        subtitle: "Encaissements, commissions et versements, tous circuits confondus.",
+      },
+      {
+        href: "/batchcookers",
+        label: "Batch cookers",
+        Icon: ClipboardCheck,
+        eyebrow: "Recrutement & conformité",
+        title: "Batch cookers",
+        subtitle: "Dossiers, pièces justificatives et validation des comptes.",
+      },
       {
         href: "/equipe",
         label: "Équipe & chefs",

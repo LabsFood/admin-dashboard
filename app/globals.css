@@ -61,12 +61,25 @@
 }
 
 @keyframes fade-up {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
+
 @keyframes fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 /* ─── Base ──────────────────────────────────────────────────────────────────── */
@@ -100,25 +113,46 @@ button:not(:disabled),
 label:has(> input[type="file"]) {
   cursor: pointer;
 }
+
 button:disabled {
   cursor: not-allowed;
 }
 
 /* Scrollbars */
-::-webkit-scrollbar { width: 9px; height: 9px; }
-::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 ::-webkit-scrollbar-thumb {
   background: rgba(0, 35, 75, 0.18);
   border-radius: 999px;
 }
-::-webkit-scrollbar-thumb:hover { background: rgba(0, 35, 75, 0.32); }
 
-.scroll-thin::-webkit-scrollbar { width: 5px; }
-.scroll-thin::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); }
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 35, 75, 0.32);
+}
+
+.scroll-thin::-webkit-scrollbar {
+  width: 5px;
+}
+
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+}
 
 /* ─── Typographie ───────────────────────────────────────────────────────────── */
-.font-display { font-family: var(--font-display); }
-.font-mono    { font-family: var(--font-mono); }
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
 
 .eyebrow {
   display: inline-flex;
@@ -131,13 +165,6 @@ button:disabled {
   text-transform: uppercase;
   color: var(--color-terra);
 }
-.eyebrow::before {
-  content: '';
-  width: 22px;
-  height: 1px;
-  background: currentColor;
-  opacity: 0.7;
-}
 
 /* ─── Composants utilitaires ───────────────────────────────────────────────── */
 .card {
@@ -149,6 +176,7 @@ button:disabled {
 .card-hover {
   transition: border-color 0.25s ease, box-shadow 0.3s ease, transform 0.3s ease;
 }
+
 .card-hover:hover {
   border-color: rgba(217, 105, 65, 0.45);
   box-shadow: 0 24px 50px -28px rgba(0, 35, 75, 0.30);
@@ -167,7 +195,12 @@ button:disabled {
   outline: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
-.input-base::placeholder { color: var(--color-ink-soft); opacity: 0.75; }
+
+.input-base::placeholder {
+  color: var(--color-ink-soft);
+  opacity: 0.75;
+}
+
 .input-base:focus {
   border-color: var(--color-terra);
   box-shadow: 0 0 0 4px rgba(217, 105, 65, 0.12);
@@ -189,34 +222,69 @@ button:disabled {
   transition: background-color 0.25s ease, color 0.25s ease,
     border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
 }
-.btn:active { transform: translateY(1px); }
 
-.btn-primary { background: var(--color-terra); color: #fff; }
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn-primary {
+  background: var(--color-terra);
+  color: #fff;
+}
+
 .btn-primary:hover {
   background: var(--color-terra-deep);
   box-shadow: 0 14px 28px -12px rgba(217, 105, 65, 0.6);
 }
 
-.btn-navy { background: var(--color-navy); color: #fff; }
-.btn-navy:hover { background: var(--color-navy-mid); }
+.btn-navy {
+  background: var(--color-navy);
+  color: #fff;
+}
+
+.btn-navy:hover {
+  background: var(--color-navy-mid);
+}
 
 .btn-outline {
   background: transparent;
   border-color: rgba(0, 35, 75, 0.18);
   color: var(--color-navy);
 }
-.btn-outline:hover { border-color: var(--color-terra); color: var(--color-terra); }
 
-.btn-ghost { background: transparent; color: var(--color-ink-mid); }
-.btn-ghost:hover { background: rgba(0, 35, 75, 0.05); color: var(--color-navy); }
+.btn-outline:hover {
+  border-color: var(--color-terra);
+  color: var(--color-terra);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-ink-mid);
+}
+
+.btn-ghost:hover {
+  background: rgba(0, 35, 75, 0.05);
+  color: var(--color-navy);
+}
 
 /* Animations de page */
-.animate-fade-up { animation: var(--animate-fade-up); }
-.animate-fade-in { animation: var(--animate-fade-in); }
+.animate-fade-up {
+  animation: var(--animate-fade-up);
+}
+
+.animate-fade-in {
+  animation: var(--animate-fade-in);
+}
 
 /* Masquage de la scrollbar pour les rangées de filtres */
-.no-scrollbar::-webkit-scrollbar { display: none; }
-.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
 
 /* ── Intégration du <SignIn> Clerk ────────────────────────────────────────────
    Le composant Clerk applique ses propres styles avec une spécificité élevée :
@@ -229,8 +297,32 @@ button:disabled {
   background: transparent !important;
   box-shadow: none !important;
   border: none !important;
-  padding: 0 !important; /* la carte de la page gère déjà les marges internes */
+  padding: 3px !important;
 }
+
 .cl-footer {
   display: none !important;
+}
+
+/* Connexions sociales desactivees : email + mot de passe uniquement.
+   (A desactiver aussi cote dashboard Clerk pour couper les endpoints OAuth.) */
+.cl-socialButtons,
+.cl-socialButtonsBlockButton,
+.cl-dividerRow {
+  display: none !important;
+}
+
+/* Boutons principaux en pilule, comme le reste du design system. */
+.cl-formButtonPrimary {
+  border-radius: 9999px !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  font-weight: 600 !important;
+}
+
+
+/* Les rangees de champs Clerk ne s'etirent pas toujours a la largeur du
+   formulaire (champ mot de passe + bouton oeil) : on force l'alignement. */
+.cl-formFieldRow {
+  width: 100% !important;
 }
