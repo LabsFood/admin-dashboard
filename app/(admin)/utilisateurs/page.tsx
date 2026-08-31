@@ -31,7 +31,7 @@ export default function UtilisateursPage() {
   const { data, isPending, isError, error, refetch } = useClients();
 
   const existing = useMemo(() => {
-    const rows = (data ?? []).map(toClientView);
+    const rows = (data?.data ?? []).map(toClientView);
     const q = query.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter(

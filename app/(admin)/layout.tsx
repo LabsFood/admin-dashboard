@@ -2,13 +2,14 @@
 
 import { useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { ChefHat, ShieldAlert, RotateCw, LogOut } from "lucide-react";
+import { ShieldAlert, RotateCw, LogOut } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useMe } from "@/lib/api/me";
 import { ApiError } from "@/lib/api/client";
 import Sidebar from "@/components/admin/Sidebar";
 import Topbar from "@/components/admin/Topbar";
 import MobileNav from "@/components/admin/MobileNav";
+import Splash from "@/components/admin/Splash";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const { isAuthenticated, isReady, signOut } = useAuth();
@@ -36,7 +37,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   // ── Chargement (Clerk ou /me en cours) ───────────────────────────────────
   if (!isReady || !isAuthenticated || me.isPending) {
-    return <FullscreenState label="Chargement de la console…" />;
+    return <Splash label="Chargement de la console…" />;
   }
 
   // ── Erreur API (401 token rejeté, 503, réseau…) : état terminal, pas de
@@ -45,7 +46,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     const is401 = me.error instanceof ApiError && me.error.status === 401;
     return (
       <FullscreenState
-        variant="error"
         label={
           is401
             ? "Session non reconnue par l'API"
@@ -74,7 +74,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   // ── Rôle non admin (redirection en cours via l'effet) ────────────────────
   if (!isAdmin) {
-    return <FullscreenState label="Redirection…" />;
+    return <Splash label="Redirection…" />;
   }
 
   return (
@@ -91,42 +91,23 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   );
 }
 
+/** État terminal d'erreur (accès non vérifiable) — le chargement passe par `Splash`. */
 function FullscreenState({
   label,
   detail,
-  variant = "loading",
   actions,
 }: {
   label: string;
   detail?: string;
-  variant?: "loading" | "error";
   actions?: ReactNode;
 }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-cream px-6">
       <div className="flex max-w-sm flex-col items-center gap-3 text-center">
-        <span
-          className={
-            variant === "error"
-              ? "flex h-12 w-12 items-center justify-center rounded-2xl bg-danger-soft text-danger"
-              : "flex h-12 w-12 animate-pulse items-center justify-center rounded-2xl bg-navy text-white"
-          }
-        >
-          {variant === "error" ? (
-            <ShieldAlert className="h-6 w-6" />
-          ) : (
-            <ChefHat className="h-6 w-6" />
-          )}
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-danger-soft text-danger">
+          <ShieldAlert className="h-6 w-6" />
         </span>
-        <p
-          className={
-            variant === "error"
-              ? "font-display text-lg font-bold text-navy"
-              : "font-mono text-xs uppercase tracking-[0.2em] text-ink-soft"
-          }
-        >
-          {label}
-        </p>
+        <p className="font-display text-lg font-bold text-navy">{label}</p>
         {detail && <p className="text-sm text-ink-mid">{detail}</p>}
         {actions && <div className="mt-2 flex flex-wrap justify-center gap-2">{actions}</div>}
       </div>

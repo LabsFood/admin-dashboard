@@ -39,9 +39,13 @@ export default function ClientsPage() {
   const { data, isPending, isError, error, refetch } = useClients();
 
   const clients = useMemo<ClientView[]>(
-    () => (data ?? []).map(toClientView),
+    () => (data?.data ?? []).map(toClientView),
     [data],
   );
+
+  // `meta.total` = nombre réel de clients côté API ; `clients` ne contient que
+  // la page courante.
+  const total = data?.meta.total ?? clients.length;
 
   const counts = useMemo(
     () =>
@@ -69,7 +73,7 @@ export default function ClientsPage() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-        <MiniStat label="Clients" value={isPending ? DASH : clients.length} />
+        <MiniStat label="Clients" value={isPending ? DASH : total} />
         <MiniStat label="VIP" value={isPending ? DASH : counts.vip ?? 0} />
         <MiniStat label="Actifs" value={isPending ? DASH : counts.active ?? 0} />
         <MiniStat
@@ -211,7 +215,9 @@ export default function ClientsPage() {
                   <span className="text-[11px] text-ink-soft">
                     {c.lastOrderAt
                       ? `Dernière session ${formatDate(c.lastOrderAt)}`
-                      : "Profil client"}
+                      : c.createdAt
+                        ? `Client depuis ${formatDate(c.createdAt)}`
+                        : "Profil client"}
                   </span>
                   <ArrowRight className="h-4 w-4 text-terra" />
                 </div>

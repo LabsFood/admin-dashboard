@@ -127,7 +127,7 @@ function ClientDetail({ id, client }: { id: string; client: ClientView }) {
                 </p>
                 <p className="flex items-start gap-2">
                   <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-terra-soft" />
-                  {client.city ?? "Adresse non renseignée"}
+                  {client.address ?? "Adresse non renseignée"}
                 </p>
               </div>
             </div>
