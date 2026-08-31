@@ -11,19 +11,38 @@ import type {
   ClientProfilePatch,
   ClientStatus,
   Me,
+  Paginated,
   Role,
 } from "./types";
 
 /* ── Clients (client_profiles) ─────────────────────────────────────────────── */
 
-/** `GET /admin/clients` — liste des profils clients, filtrable par statut CRM. */
-export function useClients(status?: ClientStatus) {
+export interface ClientsQuery {
+  status?: ClientStatus;
+  page?: number;
+  limit?: number;
+}
+
+/**
+ * `GET /admin/clients` — liste paginée des profils clients.
+ *
+ * La réponse est l'enveloppe `{ data, meta }` : sans `page`/`limit`, l'API
+ * applique ses valeurs par défaut (page 1, 20 éléments) et `meta.total` porte
+ * le nombre réel de clients.
+ */
+export function useClients({ status, page, limit }: ClientsQuery = {}) {
   const apiFetch = useApiFetch();
-  const query = status ? `?status=${encodeURIComponent(status)}` : "";
+
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  if (page != null) params.set("page", String(page));
+  if (limit != null) params.set("limit", String(limit));
+  const qs = params.toString();
+  const query = qs ? `?${qs}` : "";
 
   return useQuery({
-    queryKey: ["clients", status ?? "all"],
-    queryFn: () => apiFetch<ClientProfile[]>(`/admin/clients${query}`),
+    queryKey: ["clients", { status: status ?? "all", page, limit }],
+    queryFn: () => apiFetch<Paginated<ClientProfile>>(`/admin/clients${query}`),
   });
 }
 
@@ -33,7 +52,14 @@ export function useClient(id: string | undefined) {
 
   return useQuery({
     queryKey: ["clients", "detail", id],
-    queryFn: () => apiFetch<ClientProfile>(`/admin/clients/${id}`),
+    queryFn: async () => {
+      const res = await apiFetch<ClientProfile | { data: ClientProfile }>(
+        `/admin/clients/${id}`,
+      );
+      // Tolérant : l'API enveloppe les listes dans `{ data, meta }`, on accepte
+      // la même enveloppe sur la ressource unitaire si elle arrive un jour.
+      return "data" in res ? res.data : res;
+    },
     enabled: !!id,
   });
 }

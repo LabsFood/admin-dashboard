@@ -2,6 +2,25 @@
 
 export type Role = "client" | "chef" | "admin";
 
+/** Métadonnées de pagination accompagnant les endpoints de liste. */
+export interface PageMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+/**
+ * Enveloppe renvoyée par les endpoints de liste (`GET /admin/clients`, …).
+ * Les listes ne sont plus des tableaux nus : `{ data, meta }`.
+ */
+export interface Paginated<T> {
+  data: T[];
+  meta: PageMeta;
+}
+
 /** Réponse de `GET /me` — utilisateur applicatif persisté. */
 export interface Me {
   id: string;
@@ -24,6 +43,13 @@ export interface ClientProfile {
   favorites: string[];
   spiceLevel: number;
   kitchenNotes: string | null;
+  householdAdults?: number | null;
+  householdKids?: number | null;
+  addressStreet?: string | null;
+  addressCity?: string | null;
+  addressPostalCode?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
   status?: ClientStatus;
   user?: {
     id: string;

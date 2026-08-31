@@ -103,10 +103,15 @@ function LoginInner() {
         )}
 
         <div className="mt-7">
+          {/* `withSignUp={false}` coupe le flux combiné « sign-in-or-up » : sans
+              lui, saisir un identifiant inconnu fait basculer le composant en
+              création de compte. Les comptes de la console sont provisionnés
+              par POST /admin/users, jamais en self-service. */}
           <SignIn
             appearance={clerkAuthAppearance}
             signInUrl="/login"
             forceRedirectUrl="/"
+            withSignUp={false}
           />
         </div>
       </motion.div>
