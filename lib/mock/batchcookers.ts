@@ -84,13 +84,14 @@ export const workStatusLabel: Record<WorkStatus, string> = {
   other: "Autre situation",
 };
 
-export type LegalForm = "micro" | "ei" | "company" | "not-registered";
+/* Trois statuts, alignés sur le formulaire de candidature. La forme juridique
+   exacte (EURL, SASU…) se lit sur le justificatif d'immatriculation. */
+export type LegalForm = "micro" | "other-company" | "not-registered";
 
 export const legalFormLabel: Record<LegalForm, string> = {
-  micro: "Micro-entreprise",
-  ei: "Entreprise individuelle",
-  company: "Société",
-  "not-registered": "Pas encore immatriculé",
+  micro: "Micro ou auto-entrepreneur",
+  "other-company": "Autre forme d'entreprise",
+  "not-registered": "Je n'ai pas d'entreprise",
 };
 
 /** Zone d'intervention : une région entière, ou des villes précises. */
@@ -306,7 +307,7 @@ export const BATCH_COOKERS: BatchCooker[] = [
     missionsCount: 21,
     address: "5 chemin des Combes, 06600 Antibes",
     workStatus: "eu-citizen",
-    legalForm: "company",
+    legalForm: "other-company",
     siret: "83422751900017",
     sapDeclarationNumber: "SAP834227519",
     zones: [
@@ -335,7 +336,7 @@ export const BATCH_COOKERS: BatchCooker[] = [
     missionsCount: 8,
     address: "30 boulevard Gambetta, 06000 Nice",
     workStatus: "renewal-pending",
-    legalForm: "ei",
+    legalForm: "other-company",
     siret: "51234567800029",
     zones: [
       { regionCode: "93", regionLabel: "Provence-Alpes-Côte d'Azur", scope: "cities", cities: ["Nice"] },
