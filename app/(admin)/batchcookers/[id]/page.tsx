@@ -41,6 +41,8 @@ import {
   menusOf,
   paymentMethodLabel,
   sapPathLabel,
+  legalFormLabel,
+  workStatusLabel,
   sessionsOf,
   transactionsOf,
   txStatusLabel,
@@ -54,16 +56,23 @@ import {
 } from "@/lib/mock/batchcookers";
 
 const FAMILY_ORDER: DocFamily[] = ["blocking", "conditional", "recommended"];
-const TABS = ["dossier", "profil", "menus", "agenda", "prestations", "finances"] as const;
+const TABS = ["candidature", "dossier", "profil", "menus", "agenda", "prestations", "finances"] as const;
 type Tab = (typeof TABS)[number];
 
 const TAB_LABEL: Record<Tab, string> = {
-  dossier: "Dossier & pièces",
+  candidature: "Candidature",
+  dossier: "Documents",
   profil: "Profil & vitrine",
   menus: "Menus & recettes",
   agenda: "Agenda",
   prestations: "Prestations",
   finances: "Finances",
+};
+
+/** SIRET par groupes, comme sur l'avis de situation. */
+const formatSiret = (raw: string) => {
+  const d = raw.replace(/\D/g, "");
+  return [d.slice(0, 3), d.slice(3, 6), d.slice(6, 9), d.slice(9)].filter(Boolean).join(" ");
 };
 
 const daysUntil = (iso: string) =>
@@ -103,6 +112,8 @@ function Detail({ initial }: { initial: BatchCooker }) {
   const pendingCount = documents.filter(
     (d) => d.status === "submitted" || d.status === "reviewing",
   ).length;
+  // Pièces appelées par la situation déclarée à la candidature.
+  const conditionalDocs = documents.filter((d) => d.family === "conditional");
 
   const setStatus = (id: string, status: DocStatus, rejectionReason?: string) =>
     setDocuments((prev) =>
@@ -162,7 +173,7 @@ function Detail({ initial }: { initial: BatchCooker }) {
 
           <section className="card p-5">
             <div className="mb-1 flex justify-between text-xs text-ink-mid">
-              <span>Pièces bloquantes validées</span>
+              <span>Pièces obligatoires validées</span>
               <span className="font-semibold text-navy">{score} %</span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-cream-deep">
@@ -170,6 +181,8 @@ function Detail({ initial }: { initial: BatchCooker }) {
             </div>
             <div className="mt-4 space-y-2 text-xs">
               <Row label="Voie SAP" value={sapPathLabel[bc.sapPath]} />
+              {bc.workStatus && <Row label="Situation" value={workStatusLabel[bc.workStatus]} />}
+              {bc.legalForm && <Row label="Statut" value={legalFormLabel[bc.legalForm]} />}
               <Row label="CESU" value={bc.acceptsCesu ? "Accepté" : "Non"} />
               <Row label="Immatriculé" value={bc.registered ? "Oui" : "Pas encore"} />
               <Row label="Prestations" value={`${bc.missionsCount}`} />
@@ -223,6 +236,78 @@ function Detail({ initial }: { initial: BatchCooker }) {
             ))}
           </div>
 
+          {tab === "candidature" && (
+            <section className="card space-y-6 p-6">
+              <div>
+                <h3 className="font-display text-lg font-bold text-navy">Ce qui a été déclaré</h3>
+                <p className="mt-1 text-xs text-ink-soft">
+                  Réponses du formulaire « Nous rejoindre », envoyées le {shortDate(bc.appliedAt)}.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <Block title="Identité">
+                  <Row label="Nom" value={bc.name} />
+                  <Row label="Email" value={bc.email} />
+                  <Row label="Téléphone" value={bc.phone} />
+                  <Row label="Adresse" value={bc.address ?? "—"} />
+                </Block>
+
+                <Block title="Activité">
+                  <Row label="Statut" value={bc.legalForm ? legalFormLabel[bc.legalForm] : "—"} />
+                  <Row label="SIRET" value={bc.siret ? formatSiret(bc.siret) : "Pas encore immatriculé"} />
+                  <Row label="Voie SAP" value={sapPathLabel[bc.sapPath]} />
+                  <Row label="N° de déclaration" value={bc.sapDeclarationNumber ?? "Portée par la coopérative"} />
+                </Block>
+              </div>
+
+              {/* Situation déclarée : c'est elle qui commande la pièce attendue. */}
+              <div>
+                <h4 className="mb-2 text-sm font-semibold text-navy">Situation déclarée</h4>
+                <p className="text-sm text-ink-mid">
+                  {bc.workStatus ? workStatusLabel[bc.workStatus] : "Non renseignée"}
+                </p>
+                {bc.workStatusDetails && (
+                  <p className="mt-2 rounded-xl bg-cream-soft px-4 py-3 text-[13px] leading-relaxed text-ink">
+                    {bc.workStatusDetails}
+                  </p>
+                )}
+                {conditionalDocs.length > 0 && (
+                  <p className="mt-2 text-xs text-ink-soft">
+                    Pièce attendue de ce fait :{" "}
+                    <span className="font-semibold text-navy">
+                      {conditionalDocs.map((d) => d.label).join(", ")}
+                    </span>
+                    . Elle est facultative à la candidature.
+                  </p>
+                )}
+              </div>
+
+              {/* Zones d'intervention */}
+              <div>
+                <h4 className="mb-2 text-sm font-semibold text-navy">Zones d&apos;intervention</h4>
+                {(bc.zones ?? []).length === 0 ? (
+                  <p className="text-sm text-ink-soft">{bc.zone}</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {(bc.zones ?? []).map((z) => (
+                      <li
+                        key={z.regionCode}
+                        className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-[rgba(0,35,75,0.08)] px-3 py-2.5"
+                      >
+                        <MapPin className="h-3.5 w-3.5 shrink-0 text-terra" />
+                        <span className="text-sm font-semibold text-navy">{z.regionLabel}</span>
+                        <span className="text-xs text-ink-soft">
+                          {z.scope === "region" ? "toute la région" : z.cities.join(", ")}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </section>
+          )}
+
           {tab === "dossier" &&
             FAMILY_ORDER.map((family) => {
               const items = documents.filter((d) => d.family === family);
@@ -232,10 +317,10 @@ function Detail({ initial }: { initial: BatchCooker }) {
                   <div className="mb-4 flex items-center gap-2">
                     <h3 className="font-display text-lg font-bold text-navy">
                       {family === "blocking"
-                        ? "Pièces bloquantes"
+                        ? "Pièces obligatoires"
                         : family === "conditional"
-                          ? "Pièces conditionnelles"
-                          : "Pièces recommandées"}
+                          ? "Selon la situation déclarée"
+                          : "Pièces facultatives"}
                     </h3>
                     <Badge
                       tone={family === "blocking" ? "danger" : family === "conditional" ? "warning" : "neutral"}
@@ -731,6 +816,15 @@ function Detail({ initial }: { initial: BatchCooker }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function Block({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h4 className="mb-2 text-sm font-semibold text-navy">{title}</h4>
+      <div className="space-y-2 text-xs">{children}</div>
     </div>
   );
 }
