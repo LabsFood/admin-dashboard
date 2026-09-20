@@ -69,10 +69,37 @@ export const dossierStatusTone: Record<DossierStatus, BadgeTone> = {
 export type DocFamily = "blocking" | "recommended" | "conditional";
 
 export const docFamilyLabel: Record<DocFamily, string> = {
-  blocking: "Bloquant",
-  recommended: "Recommandé",
-  conditional: "Conditionnel",
+  blocking: "Obligatoire",
+  recommended: "Facultatif",
+  conditional: "Selon la situation",
 };
+
+/** Situation déclarée à la candidature — commande la pièce d'autorisation de travail. */
+export type WorkStatus = "eu-citizen" | "residence-permit" | "renewal-pending" | "other";
+
+export const workStatusLabel: Record<WorkStatus, string> = {
+  "eu-citizen": "Ressortissant français ou de l'Union européenne",
+  "residence-permit": "Titre de séjour autorisant à travailler",
+  "renewal-pending": "Titre de séjour en cours de renouvellement",
+  other: "Autre situation",
+};
+
+export type LegalForm = "micro" | "ei" | "company" | "not-registered";
+
+export const legalFormLabel: Record<LegalForm, string> = {
+  micro: "Micro-entreprise",
+  ei: "Entreprise individuelle",
+  company: "Société",
+  "not-registered": "Pas encore immatriculé",
+};
+
+/** Zone d'intervention : une région entière, ou des villes précises. */
+export interface BcZone {
+  regionCode: string;
+  regionLabel: string;
+  scope: "region" | "cities";
+  cities: string[];
+}
 
 export type SapPath = "type-a" | "type-b";
 
@@ -103,6 +130,16 @@ export interface BatchCooker {
   phone: string;
   city: string;
   zone: string;
+  // ── Candidature (formulaire « Nous rejoindre ») ─────────────────────
+  address?: string;
+  workStatus?: WorkStatus;
+  /** Renseigné quand la situation déclarée est « Autre ». */
+  workStatusDetails?: string;
+  legalForm?: LegalForm;
+  siret?: string;
+  /** Numéro de déclaration SAP (voie Type A uniquement). */
+  sapDeclarationNumber?: string;
+  zones?: BcZone[];
   sapPath: SapPath;
   acceptsCesu: boolean;
   registered: boolean;
@@ -212,17 +249,19 @@ export const BATCH_COOKERS: BatchCooker[] = [
     appliedAt: iso(-40),
     rating: 4.8,
     missionsCount: 37,
+    address: "18 rue Gioffredo, 06000 Nice",
+    workStatus: "eu-citizen",
+    legalForm: "micro",
+    siret: "44306184100047",
+    zones: [
+      { regionCode: "93", regionLabel: "Provence-Alpes-Côte d'Azur", scope: "cities", cities: ["Nice", "Cannes", "Antibes"] },
+    ],
     documents: [
       { id: "identity", label: "Pièce d'identité", family: "blocking", status: "valid", submittedAt: iso(-40), expiresAt: iso(540) },
-      { id: "registration", label: "Justificatif d'immatriculation", family: "blocking", status: "valid", submittedAt: iso(-38) },
-      { id: "cgu", label: "CGU + mandat de facturation", family: "blocking", status: "valid", submittedAt: iso(-38) },
-      { id: "sepa-b2b", label: "Mandat SEPA B2B", family: "blocking", status: "valid", submittedAt: iso(-38) },
-      { id: "psp-kyc", label: "Vérification d'identité PSP", family: "blocking", status: "reviewing", submittedAt: iso(-2) },
-      { id: "sap-coop", label: "Rattachement à la coopérative", family: "conditional", status: "valid", submittedAt: iso(-30) },
-      { id: "crcesu", label: "Affiliation CRCESU", family: "conditional", status: "submitted", submittedAt: iso(-1) },
-      { id: "haccp", label: "Formation HACCP", family: "recommended", status: "expiring", submittedAt: iso(-700), expiresAt: iso(24) },
-      { id: "rc-pro", label: "Assurance RC Pro", family: "recommended", status: "valid", submittedAt: iso(-160), expiresAt: iso(200) },
-      { id: "ddpp", label: "Récépissé DDPP", family: "recommended", status: "rejected", submittedAt: iso(-6), rejectionReason: "Document illisible — scan incomplet." },
+      { id: "registration", label: "Justificatif d'immatriculation", family: "blocking", status: "reviewing", submittedAt: iso(-2) },
+      { id: "haccp", label: "Formation hygiène alimentaire (HACCP)", family: "recommended", status: "expiring", submittedAt: iso(-700), expiresAt: iso(24) },
+      { id: "rc-pro", label: "Assurance responsabilité civile professionnelle", family: "recommended", status: "valid", submittedAt: iso(-160), expiresAt: iso(200) },
+      { id: "ddpp", label: "Récépissé de déclaration DDPP", family: "recommended", status: "rejected", submittedAt: iso(-6), rejectionReason: "Document illisible — scan incomplet." },
     ],
   },
   {
@@ -239,13 +278,16 @@ export const BATCH_COOKERS: BatchCooker[] = [
     appliedAt: iso(-9),
     rating: null,
     missionsCount: 0,
+    address: "12 avenue de Vallauris, 06400 Cannes",
+    workStatus: "residence-permit",
+    legalForm: "not-registered",
+    zones: [
+      { regionCode: "93", regionLabel: "Provence-Alpes-Côte d'Azur", scope: "cities", cities: ["Cannes", "Fréjus"] },
+    ],
     documents: [
       { id: "identity", label: "Pièce d'identité", family: "blocking", status: "valid", submittedAt: iso(-9), expiresAt: iso(900) },
       { id: "registration", label: "Justificatif d'immatriculation", family: "blocking", status: "missing" },
-      { id: "cgu", label: "CGU + mandat de facturation", family: "blocking", status: "valid", submittedAt: iso(-8) },
-      { id: "sepa-b2b", label: "Mandat SEPA B2B", family: "blocking", status: "valid", submittedAt: iso(-8) },
-      { id: "psp-kyc", label: "Vérification d'identité PSP", family: "blocking", status: "valid", submittedAt: iso(-7) },
-      { id: "sap-coop", label: "Rattachement à la coopérative", family: "conditional", status: "submitted", submittedAt: iso(-3) },
+      { id: "residence-permit", label: "Titre de séjour", family: "conditional", status: "submitted", submittedAt: iso(-3), expiresAt: iso(400) },
     ],
   },
   {
@@ -262,15 +304,19 @@ export const BATCH_COOKERS: BatchCooker[] = [
     appliedAt: iso(-120),
     rating: 4.6,
     missionsCount: 21,
+    address: "5 chemin des Combes, 06600 Antibes",
+    workStatus: "eu-citizen",
+    legalForm: "company",
+    siret: "83422751900017",
+    sapDeclarationNumber: "SAP834227519",
+    zones: [
+      { regionCode: "93", regionLabel: "Provence-Alpes-Côte d'Azur", scope: "cities", cities: ["Antibes", "Cannes"] },
+    ],
     documents: [
       { id: "identity", label: "Pièce d'identité", family: "blocking", status: "valid", submittedAt: iso(-120), expiresAt: iso(700) },
       { id: "registration", label: "Justificatif d'immatriculation", family: "blocking", status: "valid", submittedAt: iso(-118) },
-      { id: "cgu", label: "CGU + mandat de facturation", family: "blocking", status: "valid", submittedAt: iso(-118) },
-      { id: "sepa-b2b", label: "Mandat SEPA B2B", family: "blocking", status: "valid", submittedAt: iso(-118) },
-      { id: "psp-kyc", label: "Vérification d'identité PSP", family: "blocking", status: "valid", submittedAt: iso(-117) },
-      { id: "sap-coop", label: "Rattachement à la coopérative", family: "conditional", status: "valid", submittedAt: iso(-110) },
-      { id: "crcesu", label: "Affiliation CRCESU", family: "conditional", status: "valid", submittedAt: iso(-100) },
-      { id: "haccp", label: "Formation HACCP", family: "recommended", status: "valid", submittedAt: iso(-90), expiresAt: iso(600) },
+      { id: "sap-declaration", label: "Récépissé de déclaration SAP", family: "conditional", status: "valid", submittedAt: iso(-110), expiresAt: iso(500) },
+      { id: "haccp", label: "Formation hygiène alimentaire (HACCP)", family: "recommended", status: "valid", submittedAt: iso(-90), expiresAt: iso(600) },
     ],
   },
   {
@@ -287,13 +333,17 @@ export const BATCH_COOKERS: BatchCooker[] = [
     appliedAt: iso(-300),
     rating: 4.2,
     missionsCount: 8,
+    address: "30 boulevard Gambetta, 06000 Nice",
+    workStatus: "renewal-pending",
+    legalForm: "ei",
+    siret: "51234567800029",
+    zones: [
+      { regionCode: "93", regionLabel: "Provence-Alpes-Côte d'Azur", scope: "cities", cities: ["Nice"] },
+    ],
     documents: [
       { id: "identity", label: "Pièce d'identité", family: "blocking", status: "expired", submittedAt: iso(-300), expiresAt: iso(-12) },
       { id: "registration", label: "Justificatif d'immatriculation", family: "blocking", status: "valid", submittedAt: iso(-298) },
-      { id: "cgu", label: "CGU + mandat de facturation", family: "blocking", status: "valid", submittedAt: iso(-298) },
-      { id: "sepa-b2b", label: "Mandat SEPA B2B", family: "blocking", status: "valid", submittedAt: iso(-298) },
-      { id: "psp-kyc", label: "Vérification d'identité PSP", family: "blocking", status: "valid", submittedAt: iso(-297) },
-      { id: "sap-coop", label: "Rattachement à la coopérative", family: "conditional", status: "valid", submittedAt: iso(-290) },
+      { id: "renewal-receipt", label: "Récépissé de renouvellement", family: "conditional", status: "valid", submittedAt: iso(-60), expiresAt: iso(90) },
     ],
   },
   {
@@ -310,13 +360,20 @@ export const BATCH_COOKERS: BatchCooker[] = [
     appliedAt: iso(-4),
     rating: null,
     missionsCount: 0,
+    address: "7 traverse des Lavandes, 06130 Grasse",
+    workStatus: "other",
+    workStatusDetails:
+      "Étudiante étrangère autorisée à travailler à temps partiel, titre en cours d'instruction.",
+    legalForm: "micro",
+    siret: "90123456700014",
+    zones: [
+      { regionCode: "93", regionLabel: "Provence-Alpes-Côte d'Azur", scope: "cities", cities: ["Grasse", "Cannes"] },
+      { regionCode: "84", regionLabel: "Auvergne-Rhône-Alpes", scope: "region", cities: [] },
+    ],
     documents: [
       { id: "identity", label: "Pièce d'identité", family: "blocking", status: "valid", submittedAt: iso(-4), expiresAt: iso(1200) },
       { id: "registration", label: "Justificatif d'immatriculation", family: "blocking", status: "rejected", submittedAt: iso(-3), rejectionReason: "SIRET illisible sur le document fourni." },
-      { id: "cgu", label: "CGU + mandat de facturation", family: "blocking", status: "missing" },
-      { id: "sepa-b2b", label: "Mandat SEPA B2B", family: "blocking", status: "missing" },
-      { id: "psp-kyc", label: "Vérification d'identité PSP", family: "blocking", status: "missing" },
-      { id: "sap-coop", label: "Rattachement à la coopérative", family: "conditional", status: "missing" },
+      { id: "status-proof", label: "Justificatif de situation", family: "conditional", status: "submitted", submittedAt: iso(-2) },
     ],
   },
 ];
@@ -325,7 +382,7 @@ export function batchCookerById(id: string): BatchCooker | undefined {
   return BATCH_COOKERS.find((b) => b.id === id);
 }
 
-/** Score de complétude sur les seules pièces bloquantes. */
+/** Score de complétude sur les seules pièces obligatoires. */
 export function completion(bc: BatchCooker): number {
   const blocking = bc.documents.filter((d) => d.family === "blocking");
   if (blocking.length === 0) return 0;
