@@ -26,7 +26,7 @@ export default function FilterTabs<T extends string>({
             key={o.id}
             onClick={() => onChange(o.id)}
             className={cn(
-              "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-semibold transition-colors",
+              "inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-3.5 py-2 text-xs font-semibold transition-colors",
               active
                 ? "bg-navy text-white"
                 : "border border-[rgba(0,35,75,0.1)] bg-paper text-ink-mid hover:border-terra",

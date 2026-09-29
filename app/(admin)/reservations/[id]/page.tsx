@@ -177,7 +177,7 @@ export default function ReservationDetailPage() {
                 <button
                   key={s}
                   onClick={() => setStatus(s)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
                     s === status
                       ? "bg-navy text-white"
                       : "bg-cream-soft text-ink-mid hover:bg-cream-deep"

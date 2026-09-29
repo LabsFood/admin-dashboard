@@ -70,7 +70,7 @@ export default function Splash({ label }: { label: string }) {
           <motion.span
             animate={still ? undefined : { scale: [1, 1.05, 1] }}
             transition={{ duration: 1.9, ease: "easeInOut", repeat: Infinity }}
-            className="flex h-[74px] w-[74px] items-center justify-center rounded-3xl bg-paper p-3 shadow-[0_10px_30px_-12px_rgba(0,35,75,0.35)]"
+            className="flex h-[74px] w-[74px] items-center justify-center p-3"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img

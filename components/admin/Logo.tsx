@@ -10,17 +10,17 @@ export default function Logo({
   const light = variant === "light";
   return (
     <div className={cn("flex items-center gap-2.5", className)}>
-      <span
-        className={cn(
-          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl p-1",
-          light ? "bg-white/10" : "bg-cream-soft",
-        )}
-      >
+      {/* Pas de cartouche autour de la marque : sur le navy elle se suffit,
+          blanchie comme sur le site. */}
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/LogoOrange.png"
           alt="Lab's Food"
-          className="h-full w-full object-contain"
+          className={cn(
+            "h-full w-full object-contain",
+            light && "brightness-0 invert",
+          )}
         />
       </span>
       <div className="leading-none">

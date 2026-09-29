@@ -100,7 +100,7 @@ export default function OverviewPage() {
                   </div>
                   <Link
                     href={`/reservations/${next.id}`}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-terra px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-terra-deep"
+                    className="inline-flex items-center gap-1.5 rounded-md bg-terra px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-terra-deep"
                   >
                     Détail <ArrowRight className="h-3.5 w-3.5" />
                   </Link>

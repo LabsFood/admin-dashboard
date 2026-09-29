@@ -190,7 +190,7 @@ export default function MenuForm({ menu }: { menu?: WeeklyMenu }) {
                     type="button"
                     onClick={() => setStatus(s.id)}
                     className={cn(
-                      "rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
+                      "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
                       s.id === status
                         ? "bg-navy text-white"
                         : "bg-cream-soft text-ink-mid hover:bg-cream-deep",

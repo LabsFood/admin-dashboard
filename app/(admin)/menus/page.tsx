@@ -107,7 +107,7 @@ export default function MenusPage() {
             type="button"
             onClick={() => setTab(id)}
             className={cn(
-              "flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors sm:flex-none",
+              "flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors sm:flex-none",
               tab === id
                 ? "bg-navy text-white"
                 : "text-ink-mid hover:text-navy",
