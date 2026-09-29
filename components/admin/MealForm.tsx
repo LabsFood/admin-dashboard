@@ -269,7 +269,7 @@ export default function MealForm({
                     type="button"
                     onClick={() => setStatus(s.id)}
                     className={cn(
-                      "rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
+                      "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
                       s.id === status
                         ? "bg-navy text-white"
                         : "bg-cream-soft text-ink-mid hover:bg-cream-deep",
@@ -379,7 +379,7 @@ function ImagePicker({
             type="button"
             onClick={() => setMode(id)}
             className={cn(
-              "flex flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1.5 transition-colors",
+              "flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 transition-colors",
               mode === id ? "bg-navy text-white" : "text-ink-soft hover:text-navy",
             )}
           >
@@ -487,7 +487,7 @@ function ChipGroup({
             type="button"
             onClick={() => onToggle(opt)}
             className={cn(
-              "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+              "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
               active
                 ? tone === "teal"
                   ? "bg-teal-pale text-teal"

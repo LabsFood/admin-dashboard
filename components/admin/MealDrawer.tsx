@@ -119,7 +119,7 @@ export default function MealDrawer({
                   key={s}
                   onClick={() => onStatusChange(s)}
                   className={cn(
-                    "rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
+                    "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
                     s === status
                       ? "bg-navy text-white"
                       : "bg-cream-soft text-ink-mid hover:bg-cream-deep",

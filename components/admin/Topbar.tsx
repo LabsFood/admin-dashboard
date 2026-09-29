@@ -85,11 +85,16 @@ export default function Topbar() {
                 className="absolute right-0 mt-2 w-56 rounded-2xl border border-[rgba(0,35,75,0.08)] bg-paper p-2 shadow-[0_20px_60px_-20px_rgba(0,35,75,0.3)]"
                 onMouseLeave={() => setMenuOpen(false)}
               >
-                <div className="border-b border-[rgba(0,35,75,0.07)] px-3 pb-2 pt-1">
-                  <p className="text-sm font-semibold text-navy">
+                {/* Qui est connecté, et à quel titre : c'est ce que disait
+                    l'encart de la barre latérale, posé là où on va déjà. */}
+                <div className="border-b border-[rgba(0,35,75,0.07)] px-3 pb-2.5 pt-1">
+                  <p className="truncate text-sm font-semibold text-navy">
                     {user?.name}
                   </p>
-                  <p className="truncate text-[11px] text-ink-soft">
+                  <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-terra">
+                    {user?.role ?? "Console admin"}
+                  </p>
+                  <p className="mt-0.5 truncate text-[11px] text-ink-soft">
                     {user?.email}
                   </p>
                 </div>

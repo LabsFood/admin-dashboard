@@ -225,7 +225,7 @@ export default function MessageriePage() {
                 key={q}
                 type="button"
                 onClick={() => setDraft(q)}
-                className="rounded-full bg-cream-soft px-2.5 py-1 text-[11px] text-ink-mid transition-colors hover:bg-terra-pale/50 hover:text-terra-deep"
+                className="rounded-md bg-cream-soft px-2.5 py-1 text-[11px] text-ink-mid transition-colors hover:bg-terra-pale/50 hover:text-terra-deep"
               >
                 {q}
               </button>

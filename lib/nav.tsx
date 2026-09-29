@@ -8,7 +8,6 @@ import {
   BookOpen,
   Tags,
   Milk,
-  UserPlus,
   Mail,
   Star,
   ChefHat,
@@ -125,14 +124,6 @@ export const NAV_SECTIONS: NavSection[] = [
         subtitle: "Suivi des commandes de la boisson Kossam.",
       },
       {
-        href: "/candidatures",
-        label: "Candidatures chef",
-        Icon: UserPlus,
-        eyebrow: "Recrutement",
-        title: "Candidatures chef",
-        subtitle: "Candidatures reçues via « Devenir chef ».",
-      },
-      {
         href: "/contact",
         label: "Messages contact",
         Icon: Mail,
@@ -167,7 +158,8 @@ export const NAV_SECTIONS: NavSection[] = [
         Icon: ClipboardCheck,
         eyebrow: "Recrutement & conformité",
         title: "Batch cookers",
-        subtitle: "Dossiers, pièces justificatives et validation des comptes.",
+        subtitle:
+          "Candidatures, pièces justificatives et validation des comptes.",
       },
       {
         href: "/equipe",

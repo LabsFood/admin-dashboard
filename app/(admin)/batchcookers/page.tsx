@@ -1,13 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { AlertTriangle, ArrowRight, ChefHat, MapPin, Search, Star } from "lucide-react";
 import Badge from "@/components/ui/Badge";
 import FilterTabs from "@/components/ui/FilterTabs";
 import EmptyState from "@/components/ui/EmptyState";
-import { initials } from "@/lib/utils";
+import ChefApplicationsList from "@/components/admin/ChefApplicationsList";
+import { cn, initials } from "@/lib/utils";
 import {
   BATCH_COOKERS,
   completion,
@@ -20,7 +22,26 @@ import {
 
 type Filter = "all" | DossierStatus;
 
+/**
+ * Deux stades d'une meme vie : on candidate, puis on cuisine. Les separer en
+ * deux entrees de menu obligeait a chercher la meme personne a deux endroits
+ * selon l'avancement de son dossier.
+ */
+type Stage = "candidatures" | "reseau";
+
 export default function BatchCookersPage() {
+  return (
+    <Suspense fallback={null}>
+      <BatchCookers />
+    </Suspense>
+  );
+}
+
+function BatchCookers() {
+  // `?vue=candidatures` : l'ancienne route /candidatures redirige ici.
+  const initialStage: Stage =
+    useSearchParams().get("vue") === "candidatures" ? "candidatures" : "reseau";
+  const [stage, setStage] = useState<Stage>(initialStage);
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
 
@@ -49,6 +70,82 @@ export default function BatchCookersPage() {
     return matchStatus && matchQuery;
   });
 
+  return (
+    <div className="space-y-6">
+      {/* Stade du dossier */}
+      <div role="tablist" aria-label="Stade" className="flex items-center">
+        <StageTab
+          active={stage === "candidatures"}
+          onClick={() => setStage("candidatures")}
+        >
+          Candidatures
+        </StageTab>
+        <StageTab active={stage === "reseau"} onClick={() => setStage("reseau")}>
+          Réseau en activité
+        </StageTab>
+      </div>
+
+      {stage === "candidatures" ? (
+        <ChefApplicationsList />
+      ) : (
+        <ReseauView
+          filter={filter}
+          setFilter={setFilter}
+          query={query}
+          setQuery={setQuery}
+          counts={counts}
+          toReview={toReview}
+          filtered={filtered}
+        />
+      )}
+    </div>
+  );
+}
+
+function StageTab({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={cn(
+        "border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors",
+        active
+          ? "border-terra text-navy"
+          : "border-transparent text-ink-soft hover:text-navy",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function ReseauView({
+  filter,
+  setFilter,
+  query,
+  setQuery,
+  counts,
+  toReview,
+  filtered,
+}: {
+  filter: Filter;
+  setFilter: (f: Filter) => void;
+  query: string;
+  setQuery: (q: string) => void;
+  counts: Record<string, number>;
+  toReview: number;
+  filtered: typeof BATCH_COOKERS;
+}) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">

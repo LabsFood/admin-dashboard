@@ -77,3 +77,133 @@ export interface ClientProfilePatch {
   kitchenNotes?: string;
   status?: ClientStatus;
 }
+
+/* ── Candidatures batch cooker ─────────────────────────────────────────────── */
+
+export type ChefApplicationStatus =
+  | "submitted"
+  | "changes-requested"
+  | "approved"
+  | "rejected";
+
+/**
+ * Ligne de la file d'attente — `GET /admin/chef-applications`.
+ * Champs relevés sur une réponse réelle de la pré-production (PR 38).
+ */
+export interface ChefApplicationRow {
+  id: string;
+  reference: string;
+  name: string;
+  city: string;
+  status: ChefApplicationStatus;
+  /** Candidature rouverte après refus, en attente d'un nouveau regard. */
+  reactivatedPendingReview: boolean;
+  pendingDocuments: number;
+  submittedAt: string;
+  /** Ce qui rend la promesse « réponse sous 48 h ouvrées » triable. */
+  waitingSinceHours: number;
+}
+
+export type ChefDocumentType =
+  | "identity"
+  | "registration"
+  | "residence-permit"
+  | "renewal-receipt"
+  | "status-proof"
+  | "sap-declaration"
+  | "rc-pro"
+  | "haccp"
+  | "ddpp"
+  | "vigilance";
+
+/** Famille d'une pièce, telle que l'API la classe. */
+export type ChefDocumentFamily = "blocking" | "conditional" | "recommended";
+
+export type ChefDocumentStatus =
+  | "missing"
+  | "submitted"
+  | "valid"
+  | "rejected"
+  | "expired";
+
+/** Pièce du dossier. Champs relevés sur une réponse réelle (PR 37). */
+export interface ChefApplicationDocument {
+  type: ChefDocumentType;
+  /** Libellé fourni par l'API — fait foi sur notre table locale. */
+  label: string;
+  family: ChefDocumentFamily;
+  required: boolean;
+  status: ChefDocumentStatus;
+  /** 0 tant qu'aucun fichier n'a été déposé. */
+  version: number;
+  fileName: string | null;
+  sizeBytes: number | null;
+  submittedAt: string | null;
+  expiresOn: string | null;
+  /** Motif de refus, lu verbatim par le candidat. */
+  reason: string | null;
+  reasonCode: string | null;
+}
+
+/**
+ * `GET /admin/chef-applications/{id}`.
+ *
+ * Relevé sur une réponse réelle : le détail **ne reprend pas** les champs
+ * calculés de la liste (`name`, `city`, `pendingDocuments`,
+ * `waitingSinceHours`, `reactivatedPendingReview`). Le nom se recompose depuis
+ * `identity`, la ville depuis `address`.
+ */
+export interface ChefApplicationDetail {
+  id: string;
+  reference: string;
+  status: ChefApplicationStatus;
+  identity: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+  };
+  address: {
+    street: string;
+    line2: string | null;
+    postcode: string;
+    city: string;
+    country: string;
+  };
+  interventionZones: {
+    regionCode: string;
+    regionLabel: string;
+    scope: "region" | "cities";
+    cities: { name: string; dept: string; insee: string }[];
+  }[];
+  workAuthorization: { status: string; details: string | null };
+  company: {
+    legalForm: string;
+    siret: string | null;
+    sap: { path: string; declarationNumber: string | null };
+  };
+  consent: { privacyPolicy: boolean; terms: boolean; acceptedAt: string };
+  submittedAt: string;
+  decidedAt: string | null;
+  /** Profil chef créé dès la soumission, avant toute validation. */
+  chefProfileId: string;
+  /** Statut dérivé du dossier : `draft` tant que les pièces manquent. */
+  dossierStatus: string;
+  /** L'API dit elle-même si l'approbation est possible. */
+  canApprove: boolean;
+  documents: ChefApplicationDocument[];
+  /** Présent sur un dossier refusé. */
+  refusal?: {
+    reason?: string;
+    reasonCode?: string;
+    allowReapplyAfter?: string;
+  };
+}
+
+export interface ChefApplicationsQuery {
+  page?: number;
+  limit?: number;
+  status?: ChefApplicationStatus;
+  hasPendingDocuments?: boolean;
+  q?: string;
+}

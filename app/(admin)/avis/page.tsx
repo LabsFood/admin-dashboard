@@ -108,7 +108,7 @@ export default function AvisPage() {
                 onClick={() =>
                   setPublished((p) => ({ ...p, [a.id]: !p[a.id] }))
                 }
-                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
                   published[a.id]
                     ? "bg-success-soft text-success"
                     : "bg-cream-deep text-ink-mid hover:bg-warning-soft hover:text-[#9A6E15]"

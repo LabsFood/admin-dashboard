@@ -7,6 +7,9 @@ import {
 } from "@tanstack/react-query";
 import { useApiFetch } from "./client";
 import type {
+  ChefApplicationDetail,
+  ChefApplicationRow,
+  ChefApplicationsQuery,
   ClientProfile,
   ClientProfilePatch,
   ClientStatus,
@@ -135,5 +138,63 @@ export function useSetUserRole() {
       // Le rôle de l'admin courant peut avoir changé (auto-rétrogradation).
       qc.invalidateQueries({ queryKey: ["me"] });
     },
+  });
+}
+
+/* ── Candidatures batch cooker ─────────────────────────────────────────────── */
+
+/**
+ * `GET /admin/chef-applications` — file d'attente, la plus vieille d'abord.
+ *
+ * Enveloppe `{ data, meta }` comme les autres listes. Les filtres sont ceux de
+ * l'API : statut, dossiers avec pièces en attente, recherche libre sur nom,
+ * email, ville et référence.
+ */
+export function useChefApplications({
+  page,
+  limit,
+  status,
+  hasPendingDocuments,
+  q,
+}: ChefApplicationsQuery = {}) {
+  const apiFetch = useApiFetch();
+
+  const params = new URLSearchParams();
+  if (page != null) params.set("page", String(page));
+  if (limit != null) params.set("limit", String(limit));
+  if (status) params.set("status", status);
+  if (hasPendingDocuments) params.set("hasPendingDocuments", "true");
+  if (q?.trim()) params.set("q", q.trim());
+  const qs = params.toString();
+
+  return useQuery({
+    queryKey: [
+      "chef-applications",
+      { page, limit, status: status ?? "all", hasPendingDocuments, q: q?.trim() ?? "" },
+    ],
+    queryFn: () =>
+      apiFetch<Paginated<ChefApplicationRow>>(
+        `/admin/chef-applications${qs ? `?${qs}` : ""}`,
+      ),
+    // Une file d'attente vieillit : `waitingSinceHours` n'a de sens que frais.
+    staleTime: 30_000,
+  });
+}
+
+/** `GET /admin/chef-applications/{id}` — dossier complet d'une candidature. */
+export function useChefApplication(id: string | undefined) {
+  const apiFetch = useApiFetch();
+
+  return useQuery({
+    queryKey: ["chef-applications", "detail", id],
+    queryFn: async () => {
+      const res = await apiFetch<
+        ChefApplicationDetail | { data: ChefApplicationDetail }
+      >(`/admin/chef-applications/${id}`);
+      // Tolérant : la ressource unitaire pourrait arriver enveloppée comme
+      // les listes.
+      return res && typeof res === "object" && "data" in res ? res.data : res;
+    },
+    enabled: !!id,
   });
 }

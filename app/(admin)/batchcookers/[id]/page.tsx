@@ -215,7 +215,7 @@ function Detail({ initial }: { initial: BatchCooker }) {
                 key={t}
                 onClick={() => setTab(t)}
                 className={cn(
-                  "rounded-full px-4 py-2 text-sm font-semibold transition-colors",
+                  "rounded-md px-4 py-2 text-sm font-semibold transition-colors",
                   tab === t
                     ? "bg-navy text-white"
                     : "border border-[rgba(0,35,75,0.1)] bg-paper text-ink-mid hover:text-navy",

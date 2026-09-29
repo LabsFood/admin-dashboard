@@ -1,587 +1,504 @@
 "use client";
 
-import { useState } from "react";
+import { use, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { motion } from "framer-motion";
-import {
-  ArrowLeft,
-  Award,
-  BadgeCheck,
-  Calendar,
-  Car,
-  Check,
-  Download,
-  FileText,
-  Globe2,
-  Image as ImageIcon,
-  Mail,
-  MapPin,
-  Maximize2,
-  Phone,
-  ShieldCheck,
-  Sparkles,
-  Wallet,
-  X,
-} from "lucide-react";
-import Badge from "@/components/ui/Badge";
-import { formatDate, initials } from "@/lib/utils";
-import { candidatureTone } from "@/lib/status";
-import {
-  candidatureById,
-  CANDIDATURE_STATUS_LABEL,
-  DOCUMENT_LABEL,
-} from "@/lib/mock/candidatures";
+import { ArrowLeft, ChevronDown, RotateCw, Users } from "lucide-react";
+import Badge, { type BadgeTone } from "@/components/ui/Badge";
+import EmptyState from "@/components/ui/EmptyState";
+import { cn, formatDate, initials } from "@/lib/utils";
+import { useChefApplication } from "@/lib/api/admin";
 import type {
-  CandidatureStatus,
-  CandidatureDocument,
-} from "@/lib/mock/types";
+  ChefApplicationDocument,
+  ChefApplicationStatus,
+  ChefDocumentFamily,
+  ChefDocumentStatus,
+} from "@/lib/api/types";
 
-const PIPELINE: CandidatureStatus[] = [
-  "new",
-  "reviewing",
-  "interview",
-  "accepted",
+/* ─────────────────────────────────────────────────────────────────────────────
+   Dossier d'une candidature — `GET /admin/chef-applications/{id}`.
+
+   Le détail ne reprend pas les champs calculés de la liste : ni `name`, ni
+   `city`. Le nom se recompose depuis `identity`, la ville depuis `address`.
+   Les libellés des pièces viennent de l'API et font foi sur notre table.
+
+   Les décisions (valider une pièce, demander des compléments, approuver,
+   refuser) passent par des `PATCH` et `POST` que le CORS de la pré-production
+   refuse encore : elles ne sont pas branchées, et l'écran le dit.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+const STATUS_LABEL: Record<ChefApplicationStatus, string> = {
+  submitted: "À instruire",
+  "changes-requested": "Compléments demandés",
+  approved: "Approuvée",
+  rejected: "Refusée",
+};
+
+const STATUS_TONE: Record<ChefApplicationStatus, BadgeTone> = {
+  submitted: "info",
+  "changes-requested": "warning",
+  approved: "success",
+  rejected: "danger",
+};
+
+/** Familles de pièces, dans l'ordre où on les instruit. */
+const FAMILIES: { id: ChefDocumentFamily; label: string; hint: string }[] = [
+  {
+    id: "blocking",
+    label: "Obligatoires",
+    hint: "L’approbation est refusée tant qu’elles ne sont pas validées.",
+  },
+  {
+    id: "conditional",
+    label: "Selon la situation",
+    hint: "Demandées d’après les réponses du candidat.",
+  },
+  {
+    id: "recommended",
+    label: "Facultatives",
+    hint: "Elles renforcent le dossier sans le bloquer.",
+  },
 ];
 
-export default function CandidatureDetailPage() {
-  const params = useParams<{ id: string }>();
-  const candidate = candidatureById(params.id);
+const DOC_TONE: Record<ChefDocumentStatus, BadgeTone> = {
+  valid: "success",
+  submitted: "info",
+  rejected: "danger",
+  expired: "warning",
+  missing: "neutral",
+};
 
-  const [status, setStatus] = useState<CandidatureStatus>(
-    candidate?.status ?? "new",
-  );
-  const [notes, setNotes] = useState(candidate?.internalNotes ?? "");
-  const [notesSaved, setNotesSaved] = useState(false);
-  const [activeDocId, setActiveDocId] = useState(
-    candidate?.documents[0]?.id ?? "",
-  );
-  const [zoom, setZoom] = useState(false);
+const DOC_STATUS_LABEL: Record<ChefDocumentStatus, string> = {
+  valid: "Validée",
+  submitted: "À examiner",
+  rejected: "Refusée",
+  expired: "Expirée",
+  missing: "Non déposée",
+};
 
-  if (!candidate) {
+const WORK_STATUS_LABEL: Record<string, string> = {
+  "eu-citizen": "Ressortissant français ou de l’UE",
+  "residence-permit": "Titre de séjour autorisant à travailler",
+  "renewal-pending": "Titre de séjour en cours de renouvellement",
+  other: "Autre situation",
+};
+
+const LEGAL_FORM_LABEL: Record<string, string> = {
+  micro: "Micro ou auto-entrepreneur",
+  "other-company": "Autre forme d’entreprise",
+  "not-registered": "Pas d’entreprise",
+};
+
+const DOSSIER_STATUS_LABEL: Record<string, string> = {
+  draft: "Incomplet",
+  complete: "Complet",
+  reviewing: "En vérification",
+  validated: "Validé",
+};
+
+/**
+ * Clés que cette page sait rendre. Tout ce que l'API renvoie en plus est listé
+ * en bas de l'écran : tant que le contrat n'est pas publié, c'est le dossier
+ * lui-même qui nous apprend ce qu'il contient.
+ */
+const RENDERED_KEYS = new Set([
+  "id",
+  "reference",
+  "status",
+  "identity",
+  "address",
+  "interventionZones",
+  "workAuthorization",
+  "company",
+  "consent",
+  "submittedAt",
+  "decidedAt",
+  "chefProfileId",
+  "dossierStatus",
+  "canApprove",
+  "documents",
+  "refusal",
+]);
+
+const formatSiret = (s: string) =>
+  s.replace(/\D/g, "").replace(/(\d{3})(\d{3})(\d{3})(\d{5})/, "$1 $2 $3 $4");
+
+const formatSize = (bytes: number) =>
+  bytes < 1024 * 1024
+    ? `${Math.max(1, Math.round(bytes / 1024))} Ko`
+    : `${(bytes / 1024 / 1024).toFixed(1).replace(".", ",")} Mo`;
+
+export default function CandidatureDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+  const { data, isPending, isError, error, refetch } = useChefApplication(id);
+  const [rawOpen, setRawOpen] = useState(false);
+
+  if (isPending) {
     return (
-      <div className="mx-auto max-w-md py-20 text-center">
-        <p className="mb-3 text-5xl">🧑‍🍳</p>
-        <h2 className="font-display text-2xl font-bold text-navy">
-          Candidature introuvable
-        </h2>
-        <Link href="/candidatures" className="btn btn-primary mt-6">
-          <ArrowLeft className="h-4 w-4" /> Retour aux candidatures
-        </Link>
+      <div className="space-y-4">
+        <div className="h-24 animate-pulse rounded-lg bg-cream-soft" />
+        <div className="h-64 animate-pulse rounded-lg bg-cream-soft" />
       </div>
     );
   }
 
-  const activeDoc =
-    candidate.documents.find((d) => d.id === activeDocId) ??
-    candidate.documents[0];
-  const stepIndex = PIPELINE.indexOf(status);
-  const age = new Date().getFullYear() - candidate.birthYear;
+  if (isError || !data) {
+    return (
+      <div className="rounded-lg bg-paper py-12">
+        <EmptyState
+          Icon={Users}
+          title="Dossier introuvable"
+          text={
+            error instanceof Error
+              ? error.message
+              : "Cette candidature n'existe pas, ou l'API n'a pas répondu."
+          }
+        />
+        <div className="flex justify-center gap-2">
+          <button onClick={() => refetch()} className="btn btn-navy">
+            <RotateCw className="h-4 w-4" /> Réessayer
+          </button>
+          <Link href="/batchcookers?vue=candidatures" className="btn btn-outline">
+            Toutes les candidatures
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const { identity, address, company, workAuthorization, interventionZones } = data;
+  const fullName = `${identity.firstName} ${identity.lastName}`.trim();
+  const documents = data.documents ?? [];
+  const blockingLeft = documents.filter(
+    (d) => d.family === "blocking" && d.status !== "valid",
+  );
+
+  // Champs présents dans la réponse mais pas encore à l'écran. Une valeur nulle
+  // ou vide ne compte pas : elle n'apprend rien.
+  const unrendered = Object.entries(data as unknown as Record<string, unknown>)
+    .filter(([k, v]) => {
+      if (RENDERED_KEYS.has(k)) return false;
+      if (v == null) return false;
+      if (Array.isArray(v)) return v.length > 0;
+      if (typeof v === "object") return Object.keys(v as object).length > 0;
+      return v !== "";
+    })
+    .map(([k, v]) => ({
+      key: k,
+      preview:
+        typeof v === "object" ? (Array.isArray(v) ? "tableau" : "objet") : String(v),
+    }));
 
   return (
     <div className="space-y-6">
       <Link
-        href="/candidatures"
+        href="/batchcookers?vue=candidatures"
         className="inline-flex items-center gap-2 text-xs text-ink-mid hover:text-navy"
       >
-        <ArrowLeft className="h-3.5 w-3.5" /> Toutes les candidatures
+        <ArrowLeft className="h-3.5 w-3.5" />
+        Toutes les candidatures
       </Link>
 
-      {/* En-tête */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="relative overflow-hidden rounded-3xl bg-navy p-6 text-white lg:p-8"
-      >
-        <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-terra/25 blur-3xl" />
-        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-4">
-            <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-terra font-display text-xl font-bold text-white">
-              {initials(candidate.name)}
-            </span>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="font-display text-2xl font-bold lg:text-3xl">
-                  {candidate.name}
-                </h2>
-                {candidate.hasHaccp && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-success/20 px-2 py-0.5 text-[10px] font-semibold uppercase text-success-soft">
-                    <ShieldCheck className="h-3 w-3" /> HACCP
-                  </span>
-                )}
-              </div>
-              <p className="mt-1 text-sm text-white/65">
-                {candidate.currentRole} · {age} ans
-              </p>
-              <p className="mt-0.5 flex items-center gap-1.5 text-xs text-white/55">
-                <MapPin className="h-3.5 w-3.5 text-terra-soft" />
-                {candidate.city} · candidature du{" "}
-                {formatDate(candidate.createdAt)}
-              </p>
-            </div>
-          </div>
-          <Badge tone={candidatureTone[status]} dot>
-            {CANDIDATURE_STATUS_LABEL[status]}
-          </Badge>
-        </div>
-      </motion.div>
-
-      {/* Pipeline de recrutement */}
-      <section className="card p-6">
-        <h3 className="mb-5 font-display text-lg font-bold text-navy">
-          Processus de recrutement
-        </h3>
-        {status === "rejected" ? (
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-danger-soft px-4 py-3">
-            <p className="text-sm font-semibold text-danger">
-              Candidature refusée.
+      {/* ── En-tête ────────────────────────────────────────────────────── */}
+      <header className="flex flex-wrap items-start justify-between gap-4 border-b border-[rgba(0,35,75,0.1)] pb-5">
+        <div className="flex items-start gap-4">
+          <span
+            aria-hidden
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-navy text-sm font-bold text-white"
+          >
+            {initials(fullName)}
+          </span>
+          <div>
+            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-soft">
+              {data.reference}
             </p>
-            <button
-              onClick={() => setStatus("new")}
-              className="text-xs font-semibold text-danger underline"
-            >
-              Rouvrir
-            </button>
+            <h1 className="mt-0.5 font-display text-2xl font-bold text-navy">{fullName}</h1>
+            <p className="mt-1 text-sm text-ink-mid">
+              {[address.city, identity.email, identity.phone].filter(Boolean).join(" · ")}
+            </p>
           </div>
-        ) : (
-          <>
-            <div className="relative grid grid-cols-4 gap-2">
-              <div className="absolute left-0 right-0 top-4 h-0.5 bg-cream-deep" />
-              <div
-                className="absolute left-0 top-4 h-0.5 bg-terra transition-all"
-                style={{
-                  width: `${(stepIndex / (PIPELINE.length - 1)) * 100}%`,
-                }}
-              />
-              {PIPELINE.map((step, i) => {
-                const reached = i <= stepIndex;
-                return (
-                  <div
-                    key={step}
-                    className="relative flex flex-col items-center text-center"
-                  >
-                    <span
-                      className={`relative z-10 flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
-                        reached
-                          ? "bg-terra text-white"
-                          : "bg-cream-deep text-ink-soft"
-                      }`}
-                    >
-                      {reached ? (
-                        <Check className="h-4 w-4" strokeWidth={3} />
-                      ) : (
-                        <span className="h-2 w-2 rounded-full bg-current" />
-                      )}
-                    </span>
-                    <p
-                      className={`mt-2 text-[10px] font-semibold uppercase tracking-[0.08em] ${
-                        reached ? "text-navy" : "text-ink-soft"
-                      }`}
-                    >
-                      {CANDIDATURE_STATUS_LABEL[step]}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
+        </div>
+        <div className="flex flex-col items-end gap-1.5">
+          <Badge tone={STATUS_TONE[data.status]}>{STATUS_LABEL[data.status]}</Badge>
+          <p className="text-xs text-ink-soft">Déposée le {formatDate(data.submittedAt)}</p>
+          {data.decidedAt && (
+            <p className="text-xs text-ink-soft">Décidée le {formatDate(data.decidedAt)}</p>
+          )}
+          <Link
+            href={`/batchcookers/${data.chefProfileId}`}
+            className="text-xs font-semibold text-terra underline-offset-4 hover:underline"
+          >
+            Voir le profil batch cooker
+          </Link>
+        </div>
+      </header>
 
-            {status === "interview" && (
-              <div className="mt-5 flex flex-wrap items-center gap-2 rounded-xl bg-terra-pale/40 px-4 py-3">
-                <Calendar className="h-4 w-4 text-terra-deep" />
-                <span className="text-sm text-navy">
-                  Entretien{" "}
-                  {candidate.interviewDate
-                    ? `prévu le ${formatDate(candidate.interviewDate)}`
-                    : "à programmer"}
-                </span>
-                <input
-                  type="date"
-                  defaultValue={candidate.interviewDate ?? ""}
-                  className="input-base ml-auto w-auto py-1.5 text-xs"
-                />
-              </div>
-            )}
-
-            <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-[rgba(0,35,75,0.06)] pt-4">
-              <span className="mr-1 text-xs font-semibold text-ink-soft">
-                Faire avancer :
-              </span>
-              {PIPELINE.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setStatus(s)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    s === status
-                      ? "bg-navy text-white"
-                      : "bg-cream-soft text-ink-mid hover:bg-cream-deep"
-                  }`}
-                >
-                  {CANDIDATURE_STATUS_LABEL[s]}
-                </button>
-              ))}
-              <button
-                onClick={() => setStatus("rejected")}
-                className="ml-auto rounded-full bg-danger-soft px-3 py-1.5 text-xs font-semibold text-danger transition-colors hover:bg-danger hover:text-white"
-              >
-                Refuser
-              </button>
-            </div>
-          </>
+      {/* ── Ce qui empêche d'approuver ─────────────────────────────────── */}
+      <section
+        className={cn(
+          "rounded-lg px-5 py-4",
+          data.canApprove ? "bg-success-soft" : "bg-warning-soft",
         )}
+      >
+        <p className="text-sm font-semibold text-navy">
+          {data.canApprove
+            ? "Ce dossier peut être approuvé."
+            : blockingLeft.length > 0
+              ? `Approbation impossible : ${blockingLeft.length} pièce${blockingLeft.length > 1 ? "s" : ""} obligatoire${blockingLeft.length > 1 ? "s" : ""} non validée${blockingLeft.length > 1 ? "s" : ""}.`
+              : "Approbation impossible en l’état."}
+        </p>
+        <p className="mt-1 text-xs leading-relaxed text-ink-mid">
+          Dossier{" "}
+          <span className="font-semibold text-navy">
+            {DOSSIER_STATUS_LABEL[data.dossierStatus] ?? data.dossierStatus}
+          </span>
+          {blockingLeft.length > 0 && <> — {blockingLeft.map((d) => d.label).join(", ")}.</>}{" "}
+          C’est l’API qui tranche : elle refuse l’approbation tant que la pièce
+          d’identité et le justificatif d’immatriculation ne sont pas validés.
+        </p>
       </section>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Colonne principale */}
-        <div className="space-y-6 lg:col-span-2">
-          {/* Profil */}
-          <section className="card p-6">
-            <h3 className="mb-4 font-display text-lg font-bold text-navy">
-              Profil du candidat
-            </h3>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              <Fact Icon={Award} label="Expérience" value={`${candidate.experienceYears} ans`} />
-              <Fact Icon={Wallet} label="Tarif souhaité" value={`${candidate.expectedRate} €/h`} />
-              <Fact
-                Icon={Car}
-                label="Véhicule"
-                value={candidate.hasVehicle ? "Oui" : "Non"}
-              />
-              <Fact Icon={Calendar} label="Disponibilité" value={candidate.availability} />
-              <Fact
-                Icon={ShieldCheck}
-                label="HACCP"
-                value={candidate.hasHaccp ? "Certifié" : "Non certifié"}
-              />
-              <Fact Icon={Globe2} label="Langues" value={candidate.languages.join(", ")} />
-            </div>
+      {data.refusal?.reason && (
+        <section className="rounded-lg bg-danger-soft px-5 py-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-danger">
+            Motif du refus, lu par le candidat
+          </p>
+          <p className="mt-1.5 text-sm leading-relaxed text-ink">{data.refusal.reason}</p>
+          {data.refusal.allowReapplyAfter && (
+            <p className="mt-2 text-xs text-ink-mid">
+              Peut recandidater à partir du {formatDate(data.refusal.allowReapplyAfter)}
+            </p>
+          )}
+        </section>
+      )}
 
-            <div className="mt-4">
-              <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-soft">
-                Cuisines maîtrisées
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {candidate.cuisines.map((c) => (
-                  <span
-                    key={c}
-                    className="rounded-full bg-teal-pale px-2.5 py-1 text-[11px] font-medium text-teal"
-                  >
-                    {c}
-                  </span>
-                ))}
-              </div>
-            </div>
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_20rem]">
+        {/* ── Ce qui a été déclaré ─────────────────────────────────────── */}
+        <section className="space-y-6">
+          <Block title="Identité et adresse">
+            <Row label="Nom" value={fullName} />
+            <Row label="Email" value={identity.email} mono />
+            <Row label="Téléphone" value={identity.phone} mono />
+            <Row
+              label="Adresse"
+              value={[
+                address.street,
+                address.line2,
+                [address.postcode, address.city].filter(Boolean).join(" "),
+              ]
+                .filter(Boolean)
+                .join(", ")}
+            />
+          </Block>
 
-            <div className="mt-4">
-              <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-soft">
-                Lettre de motivation
-              </p>
-              <p className="rounded-2xl bg-cream-soft p-4 text-sm leading-relaxed text-ink-mid">
-                {candidate.motivation}
-              </p>
-            </div>
-          </section>
+          <Block title="Autorisation de travail">
+            <Row
+              label="Situation"
+              value={WORK_STATUS_LABEL[workAuthorization.status] ?? workAuthorization.status}
+            />
+            <Row label="Précision" value={workAuthorization.details || undefined} />
+          </Block>
 
-          {/* Documents */}
-          <section className="card p-6">
-            <h3 className="mb-4 flex items-center gap-2 font-display text-lg font-bold text-navy">
-              <FileText className="h-4 w-4 text-terra" /> Documents joints (
-              {candidate.documents.length})
-            </h3>
+          <Block title="Activité">
+            <Row
+              label="Statut"
+              value={LEGAL_FORM_LABEL[company.legalForm] ?? company.legalForm}
+            />
+            <Row
+              label="SIRET"
+              value={company.siret ? formatSiret(company.siret) : undefined}
+              mono
+            />
+            <Row
+              label="Services à la personne"
+              value={
+                company.sap?.path === "type-a"
+                  ? `Déclaration propre${company.sap.declarationNumber ? ` · ${company.sap.declarationNumber}` : ""}`
+                  : company.sap?.path === "type-b"
+                    ? "Portés par la coopérative"
+                    : undefined
+              }
+            />
+          </Block>
 
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[230px_1fr]">
-              {/* Liste des documents */}
-              <ul className="space-y-2">
-                {candidate.documents.map((doc) => (
-                  <li key={doc.id}>
-                    <button
-                      onClick={() => setActiveDocId(doc.id)}
-                      className={`flex w-full items-center gap-2.5 rounded-xl border p-2.5 text-left transition-colors ${
-                        doc.id === activeDoc?.id
-                          ? "border-terra bg-terra-pale/30"
-                          : "border-[rgba(0,35,75,0.08)] hover:border-terra/40"
-                      }`}
-                    >
-                      <span
-                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                          doc.format === "pdf"
-                            ? "bg-danger-soft text-danger"
-                            : "bg-info-soft text-info"
-                        }`}
-                      >
-                        {doc.format === "pdf" ? (
-                          <FileText className="h-4 w-4" />
-                        ) : (
-                          <ImageIcon className="h-4 w-4" />
-                        )}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-semibold text-navy">
-                          {DOCUMENT_LABEL[doc.type]}
-                        </p>
-                        <p className="truncate font-mono text-[10px] text-ink-soft">
-                          {doc.format.toUpperCase()} ·{" "}
-                          {(doc.sizeKb / 1024).toFixed(1)} Mo
-                        </p>
-                      </div>
-                    </button>
+          {interventionZones.length > 0 && (
+            <section>
+              <h2 className="mb-3 font-display text-base font-bold text-navy">
+                Zones d’intervention
+              </h2>
+              <ul className="space-y-2 border-t border-[rgba(0,35,75,0.08)] pt-3">
+                {interventionZones.map((z, i) => (
+                  <li key={z.regionCode ?? i} className="text-sm">
+                    <span className="font-semibold text-navy">
+                      {z.regionLabel ?? z.regionCode}
+                    </span>
+                    <span className="block text-xs text-ink-mid">
+                      {z.scope === "cities" && z.cities.length > 0
+                        ? z.cities.map((c) => c.name).join(", ")
+                        : "Toute la région"}
+                    </span>
                   </li>
                 ))}
               </ul>
+            </section>
+          )}
 
-              {/* Visionneuse */}
-              {activeDoc && (
-                <div className="overflow-hidden rounded-2xl border border-[rgba(0,35,75,0.08)]">
-                  <div className="flex items-center justify-between gap-2 border-b border-[rgba(0,35,75,0.08)] bg-cream-soft px-3 py-2">
-                    <p className="truncate text-xs font-semibold text-navy">
-                      {activeDoc.name}
-                    </p>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setZoom(true)}
-                        className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-mid hover:bg-cream-deep"
-                        title="Agrandir"
-                      >
-                        <Maximize2 className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        className="flex h-7 items-center gap-1 rounded-lg bg-navy px-2 text-[11px] font-semibold text-white"
-                        title="Télécharger"
-                      >
-                        <Download className="h-3 w-3" /> Télécharger
-                      </button>
-                    </div>
-                  </div>
-                  <div className="bg-cream-deep/40 p-4">
-                    <DocPreview doc={activeDoc} candidateName={candidate.name} />
-                  </div>
-                </div>
-              )}
-            </div>
-          </section>
-        </div>
-
-        {/* Sidebar */}
-        <aside className="space-y-4">
-          {/* Contact */}
-          <section className="card p-5">
-            <h4 className="mb-3 font-display text-base font-bold text-navy">
-              Contact
-            </h4>
-            <div className="space-y-1.5 text-xs text-ink-mid">
-              <p className="flex items-center gap-1.5">
-                <Mail className="h-3.5 w-3.5 text-ink-soft" />
-                {candidate.email}
-              </p>
-              <p className="flex items-center gap-1.5">
-                <Phone className="h-3.5 w-3.5 text-ink-soft" />
-                {candidate.phone}
-              </p>
-            </div>
-            <div className="mt-3 flex gap-2">
-              <a
-                href={`mailto:${candidate.email}`}
-                className="btn btn-primary flex-1"
-              >
-                <Mail className="h-4 w-4" /> Écrire
-              </a>
-              <a href={`tel:${candidate.phone}`} className="btn btn-outline">
-                <Phone className="h-4 w-4" />
-              </a>
-            </div>
-          </section>
-
-          {/* Notes internes */}
-          <section className="card p-5">
-            <h4 className="mb-2 flex items-center gap-2 font-display text-base font-bold text-navy">
-              <Sparkles className="h-4 w-4 text-terra" /> Notes internes
-            </h4>
-            <textarea
-              value={notes}
-              onChange={(e) => {
-                setNotes(e.target.value);
-                setNotesSaved(false);
-              }}
-              rows={5}
-              placeholder="Impressions, points à vérifier, retour d'entretien…"
-              className="input-base resize-none text-sm"
+          <Block title="Consentement">
+            <Row
+              label="Politique de confidentialité"
+              value={data.consent.privacyPolicy ? "Acceptée" : "Refusée"}
             />
-            <button
-              onClick={() => setNotesSaved(true)}
-              className="btn btn-primary mt-2 w-full"
-            >
-              {notesSaved ? (
-                <>
-                  <Check className="h-4 w-4" /> Note enregistrée
-                </>
-              ) : (
-                "Enregistrer la note"
-              )}
-            </button>
-          </section>
+            <Row label="Conditions" value={data.consent.terms ? "Acceptées" : "Refusées"} />
+            <Row label="Horodatage" value={formatDate(data.consent.acceptedAt)} />
+          </Block>
+        </section>
 
-          {/* Décision rapide */}
-          <section className="card p-5">
-            <h4 className="mb-3 font-display text-base font-bold text-navy">
-              Décision
-            </h4>
-            <div className="space-y-2">
-              <button
-                onClick={() => setStatus("accepted")}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-success-soft py-2.5 text-sm font-semibold text-success transition-colors hover:bg-success hover:text-white"
-              >
-                <BadgeCheck className="h-4 w-4" /> Recruter
-              </button>
-              <button
-                onClick={() => setStatus("rejected")}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-danger-soft py-2.5 text-sm font-semibold text-danger transition-colors hover:bg-danger hover:text-white"
-              >
-                <X className="h-4 w-4" /> Refuser
-              </button>
-            </div>
-          </section>
-        </aside>
-      </div>
-
-      {/* Modale plein écran */}
-      {zoom && activeDoc && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-navy/70 p-4 backdrop-blur-sm"
-          onClick={() => setZoom(false)}
-        >
-          <div
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-cream-deep/60 p-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-semibold text-white">
-                {activeDoc.name}
-              </p>
-              <button
-                onClick={() => setZoom(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-white"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <DocPreview doc={activeDoc} candidateName={candidate.name} large />
+        {/* ── Pièces ───────────────────────────────────────────────────── */}
+        <aside className="space-y-5 lg:sticky lg:top-6 lg:self-start">
+          <div>
+            <h2 className="font-display text-lg font-bold text-navy">Pièces du dossier</h2>
+            <p className="mt-1 text-xs leading-relaxed text-ink-mid">
+              {documents.filter((d) => d.status === "valid").length} validée
+              {documents.filter((d) => d.status === "valid").length > 1 ? "s" : ""} sur{" "}
+              {documents.length}
+            </p>
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
-function Fact({
-  Icon,
-  label,
-  value,
-}: {
-  Icon: typeof Award;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-2xl bg-cream-soft p-3">
-      <p className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-soft">
-        <Icon className="h-3 w-3" /> {label}
-      </p>
-      <p className="mt-1 text-sm font-semibold text-navy">{value}</p>
-    </div>
-  );
-}
-
-/* ── Visionneuse de document ──────────────────────────────────────────────── */
-function DocPreview({
-  doc,
-  candidateName,
-  large = false,
-}: {
-  doc: CandidatureDocument;
-  candidateName: string;
-  large?: boolean;
-}) {
-  if (doc.format === "image") {
-    return (
-      <div className="overflow-hidden rounded-lg bg-white shadow-sm">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={doc.previewUrl}
-          alt={doc.name}
-          className={`w-full object-cover ${large ? "max-h-[70vh]" : "max-h-80"}`}
-        />
-      </div>
-    );
-  }
-
-  // Aperçu PDF simulé — feuille A4 avec contenu factice selon le type.
-  const isCertificate = doc.type === "haccp" || doc.type === "diploma";
-  return (
-    <div
-      className={`mx-auto rounded-lg bg-white p-6 shadow-sm ${
-        large ? "max-w-md" : ""
-      }`}
-      style={{ aspectRatio: "1 / 1.414" }}
-    >
-      {isCertificate ? (
-        <div className="flex h-full flex-col items-center justify-center text-center">
-          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-terra-pale text-terra-deep">
-            <ShieldCheck className="h-7 w-7" />
-          </span>
-          <p className="mt-3 font-display text-base font-bold text-navy">
-            {doc.type === "haccp"
-              ? "Certificat HACCP"
-              : "Diplôme de cuisine"}
-          </p>
-          <p className="mt-1 text-xs text-ink-soft">Délivré à</p>
-          <p className="text-sm font-semibold text-navy">{candidateName}</p>
-          <div className="mt-4 w-full space-y-1.5">
-            {[80, 60, 70].map((w, i) => (
-              <div
-                key={i}
-                className="mx-auto h-1.5 rounded-full bg-cream-deep"
-                style={{ width: `${w}%` }}
-              />
-            ))}
-          </div>
-          <div className="mt-5 h-9 w-9 rounded-full border-2 border-dashed border-terra/50" />
-        </div>
-      ) : (
-        <div className="flex h-full flex-col">
-          <p className="font-display text-sm font-bold text-navy">
-            {candidateName}
-          </p>
-          <div className="mt-1 h-1 w-16 rounded-full bg-terra" />
-          <div className="mt-3 space-y-1.5">
-            {[95, 88].map((w, i) => (
-              <div
-                key={i}
-                className="h-1.5 rounded-full bg-cream-deep"
-                style={{ width: `${w}%` }}
-              />
-            ))}
-          </div>
-          <div className="mt-4 space-y-2">
-            {[0, 1, 2].map((block) => (
-              <div key={block}>
-                <div className="h-1.5 w-1/3 rounded-full bg-terra-pale" />
-                <div className="mt-1.5 space-y-1">
-                  {[100, 92, 78].map((w, i) => (
-                    <div
-                      key={i}
-                      className="h-1 rounded-full bg-cream-deep"
-                      style={{ width: `${w}%` }}
-                    />
+          {FAMILIES.map(({ id: family, label, hint }) => {
+            const docs = documents.filter((d) => d.family === family);
+            if (docs.length === 0) return null;
+            return (
+              <div key={family}>
+                <h3 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-navy">
+                  {label}
+                </h3>
+                <p className="mb-2 mt-0.5 text-[11px] leading-snug text-ink-soft">{hint}</p>
+                <ul className="divide-y divide-[rgba(0,35,75,0.08)] border-y border-[rgba(0,35,75,0.08)]">
+                  {docs.map((doc) => (
+                    <DocumentRow key={doc.type} doc={doc} />
                   ))}
-                </div>
+                </ul>
               </div>
+            );
+          })}
+
+          {documents.length === 0 && (
+            <p className="rounded-lg bg-cream-soft px-4 py-6 text-center text-sm text-ink-soft">
+              Aucune pièce dans la réponse de l&apos;API pour ce dossier.
+            </p>
+          )}
+
+          <p className="rounded-lg bg-cream-soft px-4 py-3 text-xs leading-relaxed text-ink-mid">
+            <span className="font-semibold text-navy">Décisions non branchées :</span>{" "}
+            valider ou refuser une pièce, demander des compléments, approuver ou refuser
+            passent par des <code className="font-mono">PATCH</code> et{" "}
+            <code className="font-mono">POST</code> que le CORS de la pré-production
+            n&apos;autorise pas encore.
+          </p>
+        </aside>
+
+
+      </div>
+
+      {/* ── Ce que l'API renvoie et qu'on n'affiche pas encore ─────────── */}
+      {unrendered.length > 0 && (
+        <section className="rounded-lg bg-warning-soft px-5 py-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#9A6E15]">
+            {unrendered.length} champ{unrendered.length > 1 ? "s" : ""} non affiché
+            {unrendered.length > 1 ? "s" : ""}
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-ink-mid">
+            L&apos;API renvoie ces champs, l&apos;écran ne les rend pas encore.
+          </p>
+          <ul className="mt-2.5 flex flex-wrap gap-1.5">
+            {unrendered.map(({ key, preview }) => (
+              <li
+                key={key}
+                className="rounded-full bg-paper px-2.5 py-1 font-mono text-[11px] text-navy"
+              >
+                {key}
+                <span className="ml-1.5 text-ink-soft">{preview}</span>
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        </section>
       )}
-      <p className="mt-3 text-center font-mono text-[9px] uppercase tracking-wider text-ink-soft">
-        Page 1 / {doc.pages ?? 1} · aperçu
-      </p>
+
+      {/* ── Réponse brute ──────────────────────────────────────────────── */}
+      <section>
+        <button
+          type="button"
+          onClick={() => setRawOpen((v) => !v)}
+          aria-expanded={rawOpen}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-mid hover:text-navy"
+        >
+          <ChevronDown
+            className={cn("h-3.5 w-3.5 transition-transform", rawOpen && "rotate-180")}
+          />
+          Réponse brute de l’API
+        </button>
+        {rawOpen && (
+          <pre className="mt-3 max-h-96 overflow-auto rounded-lg bg-navy p-4 font-mono text-[11px] leading-relaxed text-white/80">
+            {JSON.stringify(data, null, 2)}
+          </pre>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function DocumentRow({ doc }: { doc: ChefApplicationDocument }) {
+  const meta = [
+    doc.fileName,
+    doc.sizeBytes ? formatSize(doc.sizeBytes) : null,
+    doc.submittedAt ? `déposée le ${formatDate(doc.submittedAt)}` : null,
+    doc.expiresOn ? `expire le ${formatDate(doc.expiresOn)}` : null,
+    doc.version > 1 ? `version ${doc.version}` : null,
+  ].filter(Boolean);
+
+  return (
+    <li className="flex items-start gap-3 py-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] font-semibold leading-snug text-navy">{doc.label}</p>
+        <p className="mt-0.5 text-[11px] leading-snug text-ink-soft">
+          {meta.length > 0 ? meta.join(" · ") : "Aucun dépôt"}
+        </p>
+        {doc.reason && (
+          <p className="mt-1 text-[11px] leading-snug text-danger">{doc.reason}</p>
+        )}
+      </div>
+      <Badge className="shrink-0" tone={DOC_TONE[doc.status] ?? "neutral"}>
+        {DOC_STATUS_LABEL[doc.status] ?? doc.status}
+      </Badge>
+    </li>
+  );
+}
+
+function Block({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <h2 className="mb-3 font-display text-base font-bold text-navy">{title}</h2>
+      <dl className="space-y-2.5 border-t border-[rgba(0,35,75,0.08)] pt-3">{children}</dl>
+    </section>
+  );
+}
+
+function Row({ label, value, mono }: { label: string; value?: string; mono?: boolean }) {
+  if (!value) return null;
+  return (
+    <div className="flex items-baseline justify-between gap-4 text-sm">
+      <dt className="shrink-0 text-xs text-ink-soft">{label}</dt>
+      <dd
+        className={cn(
+          "min-w-0 text-right leading-snug text-navy",
+          mono && "font-mono text-[12px]",
+        )}
+      >
+        {value}
+      </dd>
     </div>
   );
 }
