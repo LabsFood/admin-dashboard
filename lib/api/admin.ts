@@ -198,3 +198,108 @@ export function useChefApplication(id: string | undefined) {
     enabled: !!id,
   });
 }
+
+/* ── Décisions sur une candidature ─────────────────────────────────────────── */
+
+/**
+ * Ces routes passent par le proxy same-origin `/lf-api/*` : pas de préflight,
+ * donc le `PATCH` d'une pièce fonctionne malgré le CORS de la pré-production
+ * qui n'annonce que `GET, HEAD, POST`.
+ */
+function useApplicationMutation<TInput>(
+  build: (input: TInput) => { path: string; method: "POST" | "PATCH"; body?: unknown },
+  id: string,
+) {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: TInput) => {
+      const { path, method, body } = build(input);
+      return apiFetch<unknown>(path, { method, body });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chef-applications"] });
+      qc.invalidateQueries({ queryKey: ["chef-applications", "detail", id] });
+    },
+  });
+}
+
+export interface DocumentDecision {
+  type: string;
+  decision: "valid" | "rejected";
+  /** Obligatoire sur un refus : le candidat le lit mot pour mot. */
+  reason?: string;
+  reasonCode?: string;
+}
+
+/** `PATCH /admin/chef-applications/{id}/documents/{type}` */
+export function useDecideDocument(id: string) {
+  return useApplicationMutation<DocumentDecision>(
+    ({ type, decision, reason, reasonCode }) => ({
+      path: `/admin/chef-applications/${id}/documents/${type}`,
+      method: "PATCH",
+      body: {
+        decision,
+        ...(reason ? { reason } : {}),
+        ...(reasonCode ? { reasonCode } : {}),
+      },
+    }),
+    id,
+  );
+}
+
+/** `POST /admin/chef-applications/{id}/request-changes` */
+export function useRequestChanges(id: string) {
+  return useApplicationMutation<{ message: string; documentTypes: string[] }>(
+    (body) => ({
+      path: `/admin/chef-applications/${id}/request-changes`,
+      method: "POST",
+      body,
+    }),
+    id,
+  );
+}
+
+/** `POST /admin/chef-applications/{id}/approve` */
+export function useApproveApplication(id: string) {
+  return useApplicationMutation<{ isActive?: boolean; note?: string }>(
+    (body) => ({
+      path: `/admin/chef-applications/${id}/approve`,
+      method: "POST",
+      body,
+    }),
+    id,
+  );
+}
+
+/** `POST /admin/chef-applications/{id}/reject` */
+export function useRejectApplication(id: string) {
+  return useApplicationMutation<{
+    reason: string;
+    reasonCode?: string;
+    allowReapplyAfter?: string;
+  }>(
+    (body) => ({
+      path: `/admin/chef-applications/${id}/reject`,
+      method: "POST",
+      body,
+    }),
+    id,
+  );
+}
+
+/**
+ * `GET /admin/chef-applications/{id}/documents/{type}/download-url`
+ * URL signée valable 5 minutes. Chaque consultation est journalisée côté API :
+ * on ne la demande donc qu'au moment où l'admin clique, jamais en avance.
+ */
+export function useDocumentDownload(id: string) {
+  const apiFetch = useApiFetch();
+  return useMutation({
+    mutationFn: (type: string) =>
+      apiFetch<{ url: string; expiresAt?: string }>(
+        `/admin/chef-applications/${id}/documents/${type}/download-url`,
+      ),
+  });
+}
