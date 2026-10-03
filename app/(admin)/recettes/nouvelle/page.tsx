@@ -1,21 +1,12 @@
 "use client";
 
 import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import MealForm from "@/components/admin/MealForm";
-import { mealById } from "@/lib/mock/menus";
-
-function NouvelleRecetteForm() {
-  const params = useSearchParams();
-  const id = params.get("id");
-  const meal = id ? mealById(id) : undefined;
-  return <MealForm meal={meal} variant="recette" backHref="/recettes" />;
-}
+import MealFormRoute from "@/components/admin/MealFormRoute";
 
 export default function NouvelleRecettePage() {
   return (
-    <Suspense fallback={null}>
-      <NouvelleRecetteForm />
+    <Suspense fallback={<div className="h-96 animate-pulse rounded-3xl bg-paper" />}>
+      <MealFormRoute variant="recette" backHref="/recettes" backLabel="Toutes les recettes" />
     </Suspense>
   );
 }

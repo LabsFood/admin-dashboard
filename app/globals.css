@@ -329,6 +329,38 @@ button:disabled {
     color: var(--color-navy);
   }
 
+  /* ── Pastilles de fiche ── Un régime informe, un allergène avertit : la
+     couleur sépare les deux d'un coup d'œil, sur une fiche comme dans une
+     liste. `italic` les distingue quand la valeur a été tapée à la main par
+     un batch cooker et ne vient d'aucun référentiel. */
+  .chip-teal,
+  .chip-danger,
+  .chip-muted {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    line-height: 1.5;
+  }
+
+  .chip-teal {
+    background: var(--color-teal-pale);
+    color: var(--color-teal);
+  }
+
+  .chip-danger {
+    background: var(--color-danger-soft);
+    color: var(--color-danger);
+  }
+
+  .chip-muted {
+    background: var(--color-cream-deep);
+    color: var(--color-ink-mid);
+  }
+
   /* ── Tableaux ── Une ligne se lit à l'horizontale : un seul filet entre
      les lignes, aucune verticale, aucun cadre autour. */
   .table {

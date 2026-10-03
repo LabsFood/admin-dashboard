@@ -8,7 +8,6 @@ import type {
   ContactStatus,
   PaymentStatus,
   ClientStatus,
-  MealStatus,
 } from "@/lib/mock/types";
 
 /* Correspondance statut → couleur de badge, centralisée. */
@@ -98,16 +97,4 @@ export const roleHint: Record<Role, string> = {
   admin: "Accès complet à la console d'administration.",
   chef: "Personnel de cuisine — pas d'accès à la console.",
   client: "Compte client standard — espace client uniquement.",
-};
-
-export const mealTone: Record<MealStatus, BadgeTone> = {
-  published: "success",
-  draft: "warning",
-  archived: "neutral",
-};
-
-export const mealLabel: Record<MealStatus, string> = {
-  published: "Publié",
-  draft: "Brouillon",
-  archived: "Archivé",
 };

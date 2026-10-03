@@ -1,21 +1,12 @@
 "use client";
 
 import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import MealForm from "@/components/admin/MealForm";
-import { mealById } from "@/lib/mock/menus";
-
-function NouveauPlatForm() {
-  const params = useSearchParams();
-  const id = params.get("id");
-  const meal = id ? mealById(id) : undefined;
-  return <MealForm meal={meal} variant="menu" backHref="/menus" />;
-}
+import MealFormRoute from "@/components/admin/MealFormRoute";
 
 export default function NouveauPlatPage() {
   return (
-    <Suspense fallback={null}>
-      <NouveauPlatForm />
+    <Suspense fallback={<div className="h-96 animate-pulse rounded-3xl bg-paper" />}>
+      <MealFormRoute variant="menu" backHref="/menus" backLabel="Tous les plats" />
     </Suspense>
   );
 }

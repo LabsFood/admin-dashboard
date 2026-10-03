@@ -3,7 +3,6 @@
 import { use, useState } from "react";
 import Link from "next/link";
 import {
-  AlertTriangle,
   ArrowLeft,
   Check,
   ChevronDown,
@@ -16,6 +15,7 @@ import {
 import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
 import SignedDocDialog, { type SignedDoc } from "@/components/admin/SignedDocDialog";
+import ReasonDialog from "@/components/ui/ReasonDialog";
 import { cn, formatDate, initials } from "@/lib/utils";
 import {
   useApproveApplication,
@@ -40,8 +40,9 @@ import type {
    Les libellés des pièces viennent de l'API et font foi sur notre table.
 
    Les décisions (valider une pièce, demander des compléments, approuver,
-   refuser) passent par des `PATCH` et `POST` que le CORS de la pré-production
-   refuse encore : elles ne sont pas branchées, et l'écran le dit.
+   refuser) passent par le proxy same-origin `/lf-api/*` : aucun préflight,
+   donc le `PATCH` d'une pièce fonctionne malgré le CORS de l'API qui
+   n'annonce que `GET, HEAD, POST`.
    ───────────────────────────────────────────────────────────────────────────── */
 
 const STATUS_LABEL: Record<ChefApplicationStatus, string> = {
@@ -464,113 +465,6 @@ export default function CandidatureDetailPage({
           </pre>
         )}
       </section>
-    </div>
-  );
-}
-
-/**
- * Boite de dialogue d'une decision ecrite. Le motif part tel quel au candidat,
- * d'ou le minimum de 15 caracteres impose par l'API : « non » tout seul n'aide
- * personne a corriger son dossier.
- */
-function ReasonDialog({
-  open,
-  onClose,
-  title,
-  lead,
-  placeholder,
-  confirmLabel,
-  minLength = 15,
-  maxLength = 500,
-  pending,
-  error,
-  onConfirm,
-  children,
-}: {
-  open: boolean;
-  onClose: () => void;
-  title: string;
-  lead: string;
-  placeholder: string;
-  confirmLabel: string;
-  minLength?: number;
-  maxLength?: number;
-  pending: boolean;
-  error: string | null;
-  onConfirm: (text: string) => void;
-  children?: React.ReactNode;
-}) {
-  const [text, setText] = useState("");
-  if (!open) return null;
-
-  const tooShort = text.trim().length > 0 && text.trim().length < minLength;
-  const ready = text.trim().length >= minLength && !pending;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy/50 p-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        className="w-full max-w-lg rounded-lg bg-paper p-6"
-      >
-        <div className="flex items-start justify-between gap-4">
-          <h2 className="font-display text-lg font-bold text-navy">{title}</h2>
-          <button
-            onClick={onClose}
-            disabled={pending}
-            aria-label="Fermer"
-            className="text-ink-soft hover:text-navy"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <p className="mt-1.5 text-sm leading-relaxed text-ink-mid">{lead}</p>
-
-        {children}
-
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value.slice(0, maxLength))}
-          placeholder={placeholder}
-          rows={4}
-          className="input-base mt-4 resize-y"
-        />
-        <p className="mt-1 flex items-center justify-between text-[11px] text-ink-soft">
-          <span className={tooShort ? "text-danger" : ""}>
-            {tooShort ? `Encore ${minLength - text.trim().length} caractères` : "Lu tel quel par le candidat"}
-          </span>
-          <span className="tabular-nums">
-            {text.length}/{maxLength}
-          </span>
-        </p>
-
-        {error && (
-          <p role="alert" className="mt-3 flex items-start gap-2 text-[13px] text-danger">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            {error}
-          </p>
-        )}
-
-        <div className="mt-5 flex gap-2">
-          <button
-            onClick={() => onConfirm(text.trim())}
-            disabled={!ready}
-            className="btn btn-primary flex-1 justify-center"
-          >
-            {pending ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Envoi…
-              </>
-            ) : (
-              confirmLabel
-            )}
-          </button>
-          <button onClick={onClose} disabled={pending} className="btn btn-outline">
-            Annuler
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

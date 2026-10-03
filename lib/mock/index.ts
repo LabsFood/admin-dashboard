@@ -2,7 +2,6 @@
 export * from "./types";
 export * from "./team";
 export * from "./clients";
-export * from "./menus";
 export * from "./formules";
 export * from "./reservations";
 export * from "./demandes";
