@@ -14,6 +14,7 @@ import {
   ClipboardCheck,
   Receipt,
   Settings,
+  ShieldCheck,
   UserCog,
   type LucideIcon,
 } from "lucide-react";
@@ -90,9 +91,10 @@ export const NAV_SECTIONS: NavSection[] = [
         href: "/menus",
         label: "Plats & menus",
         Icon: UtensilsCrossed,
-        eyebrow: "Catalogue",
+        eyebrow: "Catalogue Lab's Food",
         title: "Plats & menus",
-        subtitle: "Le menu de la semaine et la bibliothèque de plats.",
+        subtitle:
+          "La bibliothèque de la maison, les menus assemblés et les semaines à l'ardoise.",
       },
       {
         href: "/recettes",
@@ -100,7 +102,16 @@ export const NAV_SECTIONS: NavSection[] = [
         Icon: BookOpen,
         eyebrow: "Inspiration",
         title: "Recettes du monde",
-        subtitle: "La carte des cuisines proposées par les chefs.",
+        subtitle: "Les plats de la maison, rangés par région culinaire.",
+      },
+      {
+        href: "/moderation",
+        label: "Modération",
+        Icon: ShieldCheck,
+        eyebrow: "Catalogue des batch cookers",
+        title: "Modération",
+        subtitle:
+          "Les plats et menus publiés par les batch cookers, à relire ou à retirer.",
       },
       {
         href: "/formules",

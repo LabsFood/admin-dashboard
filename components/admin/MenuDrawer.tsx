@@ -1,48 +1,109 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { CalendarRange, Pencil, UtensilsCrossed } from "lucide-react";
+import {
+  Loader2,
+  Pencil,
+  ShieldAlert,
+  ShoppingBasket,
+  Trash2,
+  UserMinus,
+  UtensilsCrossed,
+} from "lucide-react";
 import Drawer from "@/components/ui/Drawer";
 import Badge from "@/components/ui/Badge";
-import { cn, formatDate } from "@/lib/utils";
-import { mealTone, mealLabel } from "@/lib/status";
-import { mealById } from "@/lib/mock/menus";
-import type { MealStatus, WeeklyMenu } from "@/lib/mock/types";
+import { useToast } from "@/components/ui/Toaster";
+import { cn } from "@/lib/utils";
+import { countryLabel } from "@/lib/countries";
+import { catalogLabel, catalogTone, periodLabel } from "@/lib/catalog-labels";
+import {
+  useDeleteLabsFoodMenu,
+  useMeals,
+  useUpdateLabsFoodMenu,
+  useWithdrawLabsFoodMenuOffer,
+  type LabsFoodMenu,
+  type MealStatus,
+} from "@/lib/api/catalog";
+import { ApiError } from "@/lib/api/client";
 
 const STATUSES: MealStatus[] = ["published", "draft", "archived"];
 
+/**
+ * Un menu Lab's Food : un assemblage de plats de la maison, qui devient une
+ * suggestion adoptable par n'importe quel batch cooker dès qu'il est publié —
+ * sauf s'il est réservé à l'un d'eux.
+ */
 export default function MenuDrawer({
   menu,
   open,
   onClose,
-  status,
-  onStatusChange,
 }: {
-  menu: WeeklyMenu | null;
+  menu: LabsFoodMenu | null;
   open: boolean;
   onClose: () => void;
-  status: MealStatus;
-  onStatusChange: (status: MealStatus) => void;
 }) {
-  const meals = menu
-    ? menu.mealIds.map((id) => mealById(id)).filter((m) => m !== undefined)
-    : [];
+  const toast = useToast();
+  const update = useUpdateLabsFoodMenu();
+  const remove = useDeleteLabsFoodMenu();
+  const withdraw = useWithdrawLabsFoodMenuOffer();
+  const meals = useMeals();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const offered = Boolean(menu?.offeredToChefProfileId);
+
+  // L'API peut renvoyer les plats dépliés ou seulement leurs ids : dans le
+  // second cas on les retrouve dans la bibliothèque déjà en cache.
+  const dishes =
+    menu?.dishes ??
+    (menu?.dishIds ?? [])
+      .map((id) => (meals.data ?? []).find((m) => m.id === id))
+      .filter((m): m is NonNullable<typeof m> => m !== undefined);
+
+  const missing = menu?.dishes
+    ? 0
+    : (menu?.dishIds?.length ?? 0) - dishes.length;
+
+  function setStatus(status: MealStatus) {
+    if (!menu || status === menu.status) return;
+    update.mutate(
+      { id: menu.id, patch: { status } },
+      {
+        onSuccess: () =>
+          toast.success(
+            `« ${menu.title} » passe en ${catalogLabel[status].toLowerCase()}`,
+            status === "published"
+              ? "Tous les batch cookers peuvent désormais l'adopter."
+              : undefined,
+          ),
+        onError: (e) =>
+          toast.error(
+            "Le statut n'a pas changé",
+            e instanceof ApiError && e.status === 409
+              ? "Ce menu est réservé à un batch cooker. Retirez l'offre d'abord."
+              : e instanceof Error
+                ? e.message
+                : undefined,
+          ),
+      },
+    );
+  }
 
   return (
     <Drawer
       open={open}
       onClose={onClose}
-      eyebrow={menu ? `Semaine ${menu.weekNumber}` : undefined}
+      eyebrow={menu ? (menu.period ? periodLabel[menu.period] : "Menu Lab's Food") : undefined}
       title={menu?.title}
       footer={
         menu && (
           <div className="flex items-center gap-2">
             <Link
-              href={`/menus/composer?id=${menu.id}`}
+              href={`/menus/composer?menu=${menu.id}`}
               onClick={onClose}
               className="btn btn-primary flex-1"
             >
-              <Pencil className="h-4 w-4" /> Modifier le menu
+              <Pencil className="h-4 w-4" aria-hidden /> Modifier le menu
             </Link>
             <button onClick={onClose} className="btn btn-ghost">
               Fermer
@@ -53,72 +114,203 @@ export default function MenuDrawer({
     >
       {menu && (
         <div className="space-y-5">
+          {menu.pitch && (
+            <p className="text-sm leading-relaxed text-ink-mid">{menu.pitch}</p>
+          )}
+
+          {offered && (
+            <div className="rounded-2xl border border-terra/30 bg-terra/8 p-4">
+              <p className="flex items-center gap-2 text-[13px] font-semibold text-terra-deep">
+                <ShieldAlert className="h-4 w-4" aria-hidden /> Réservé à un batch
+                cooker
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-ink-mid">
+                Lui seul le voit, et l&apos;API refuse de le modifier tant que
+                l&apos;offre tient.
+              </p>
+              <button
+                onClick={() =>
+                  withdraw.mutate(menu.id, {
+                    onSuccess: () => toast.success("Offre retirée"),
+                    onError: () => toast.error("L'offre n'a pas été retirée"),
+                  })
+                }
+                disabled={withdraw.isPending}
+                className="btn btn-sm mt-3 border border-terra/40 text-terra-deep hover:bg-terra/10"
+              >
+                {withdraw.isPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                ) : (
+                  <UserMinus className="h-3 w-3" aria-hidden />
+                )}
+                Retirer l&apos;offre
+              </button>
+            </div>
+          )}
+
           <div className="flex items-center gap-2.5 rounded-2xl bg-paper p-4">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-terra/12 text-terra-deep">
-              <CalendarRange className="h-5 w-5" />
+            <span
+              aria-hidden
+              className={cn(
+                "flex h-10 w-10 items-center justify-center rounded-xl",
+                menu.shoppingIncluded
+                  ? "bg-teal-pale text-teal"
+                  : "bg-cream-deep text-ink-soft",
+              )}
+            >
+              <ShoppingBasket className="h-5 w-5" />
             </span>
             <div>
               <p className="text-[11px] uppercase tracking-wide text-ink-soft">
-                Période
+                Courses
               </p>
               <p className="text-sm font-semibold text-navy">
-                {formatDate(menu.startDate)} → {formatDate(menu.endDate)}
+                {menu.shoppingIncluded
+                  ? "Faites par le batch cooker"
+                  : "À la charge du client"}
               </p>
             </div>
           </div>
 
           <div>
             <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
-              <UtensilsCrossed className="h-3.5 w-3.5" /> Plats ({meals.length})
+              <UtensilsCrossed className="h-3.5 w-3.5" aria-hidden /> Plats (
+              {dishes.length})
             </p>
-            <ul className="space-y-2">
-              {meals.map((m) => (
-                <li
-                  key={m.id}
-                  className="flex items-center gap-3 rounded-xl bg-paper p-2.5"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={m.image}
-                    alt={m.name}
-                    className="h-10 w-10 shrink-0 rounded-lg object-cover"
-                  />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-navy">
-                      {m.name}
-                    </p>
-                    <p className="font-mono text-[10px] text-ink-soft">
-                      {m.country}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            {dishes.length === 0 ? (
+              <p className="rounded-xl bg-cream-soft px-3.5 py-3 text-[13px] text-ink-soft">
+                Aucun plat. Un menu vide ne peut pas être adopté.
+              </p>
+            ) : (
+              <ol className="space-y-2">
+                {dishes.map((m, i) => (
+                  <li
+                    key={m.id}
+                    className="flex items-center gap-3 rounded-xl bg-paper p-2.5"
+                  >
+                    <span
+                      aria-hidden
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-xs bg-cream-deep font-mono text-[10px] font-semibold text-navy"
+                    >
+                      {i + 1}
+                    </span>
+                    {m.imageUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={m.imageUrl}
+                        alt=""
+                        className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <span
+                        aria-hidden
+                        className="h-10 w-10 shrink-0 rounded-lg bg-cream-deep"
+                      />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-navy">{m.name}</p>
+                      <p className="font-mono text-[10px] text-ink-soft">
+                        {countryLabel(m.country) || "—"}
+                      </p>
+                    </div>
+                    {m.status !== "published" && (
+                      <Badge tone={catalogTone[m.status]}>
+                        {catalogLabel[m.status]}
+                      </Badge>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            )}
+            {missing > 0 && (
+              <p className="mt-2 text-[12px] leading-relaxed text-[#8A6212]">
+                {missing} plat{missing > 1 ? "s" : ""} de ce menu
+                {missing > 1 ? " ne sont" : " n'est"} plus dans la bibliothèque.
+              </p>
+            )}
           </div>
 
           <div>
             <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
               Statut de publication
             </p>
-            <div className="mb-3">
-              <Badge tone={mealTone[status]}>{mealLabel[status]}</Badge>
+            <div className="mb-3 flex items-center gap-2">
+              <Badge tone={catalogTone[menu.status]}>{catalogLabel[menu.status]}</Badge>
+              {update.isPending && (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-ink-soft" aria-hidden />
+              )}
             </div>
             <div className="flex flex-wrap gap-2">
               {STATUSES.map((s) => (
                 <button
                   key={s}
-                  onClick={() => onStatusChange(s)}
+                  onClick={() => setStatus(s)}
+                  disabled={update.isPending || offered}
                   className={cn(
-                    "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
-                    s === status
+                    "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50",
+                    s === menu.status
                       ? "bg-navy text-white"
                       : "bg-cream-soft text-ink-mid hover:bg-cream-deep",
                   )}
                 >
-                  {mealLabel[s]}
+                  {catalogLabel[s]}
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="border-t border-[rgba(0,35,75,0.08)] pt-4">
+            {confirmDelete ? (
+              <div className="rounded-md bg-danger-soft p-3.5">
+                <p className="text-[13px] font-semibold text-danger">
+                  Supprimer «&nbsp;{menu.title}&nbsp;» ?
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-ink-mid">
+                  Les plats ne sont pas touchés : seul l&apos;assemblage
+                  disparaît.
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() =>
+                      remove.mutate(menu.id, {
+                        onSuccess: () => {
+                          toast.success(`« ${menu.title} » supprimé`);
+                          setConfirmDelete(false);
+                          onClose();
+                        },
+                        onError: (e) =>
+                          toast.error(
+                            "La suppression a échoué",
+                            e instanceof Error ? e.message : undefined,
+                          ),
+                      })
+                    }
+                    disabled={remove.isPending}
+                    className="btn btn-sm bg-danger text-white hover:bg-danger/90"
+                  >
+                    {remove.isPending ? (
+                      <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                    ) : (
+                      <Trash2 className="h-3 w-3" aria-hidden />
+                    )}
+                    Supprimer
+                  </button>
+                  <button
+                    onClick={() => setConfirmDelete(false)}
+                    className="btn btn-sm btn-ghost"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="btn btn-sm text-danger hover:bg-danger-soft"
+              >
+                <Trash2 className="h-3 w-3" aria-hidden /> Supprimer ce menu
+              </button>
+            )}
           </div>
         </div>
       )}

@@ -46,46 +46,6 @@ export interface Client {
   notes: string;
 }
 
-// ─── Catalogue : plats hebdo & recettes ──────────────────────────────────────
-export type Continent =
-  | "Europe"
-  | "Afrique"
-  | "Asie"
-  | "Amériques"
-  | "Moyen-Orient";
-export type MealStatus = "published" | "draft" | "archived";
-export type Difficulty = "Facile" | "Moyen" | "Difficile";
-
-export interface Meal {
-  id: string;
-  name: string;
-  description: string;
-  image: string;
-  continent: Continent;
-  country: string;
-  portions: number;
-  prepTime: number; // minutes
-  dietaryTags: string[];
-  allergens: string[];
-  calories: number;
-  difficulty: Difficulty;
-  isFeatured: boolean;
-  weekNumber: number;
-  timesOrdered: number;
-  status: MealStatus;
-}
-
-// ─── Menus de la semaine (composition) ───────────────────────────────────────
-export interface WeeklyMenu {
-  id: string;
-  title: string;
-  weekNumber: number;
-  startDate: string;
-  endDate: string;
-  mealIds: string[];
-  status: MealStatus;
-}
-
 // ─── Formules ────────────────────────────────────────────────────────────────
 export interface Formule {
   id: string;
