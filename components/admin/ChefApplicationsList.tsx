@@ -9,7 +9,14 @@ import {
   useReactTable,
   type SortingState,
 } from "@tanstack/react-table";
-import { ChevronLeft, ChevronRight, RotateCw, Search, Users } from "lucide-react";
+import {
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  RotateCw,
+  Search,
+  Users,
+} from "lucide-react";
 import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
 import { DataTable } from "@/components/ui/DataTable";
@@ -62,13 +69,10 @@ const column = createColumnHelper<ChefApplicationRow>();
 const COLUMNS = [
   column.accessor("reference", {
     header: "Référence",
+    // Une référence est un identifiant, pas une destination : l'ouverture se
+    // fait par le nom ou par le bouton de fin de ligne.
     cell: (c) => (
-      <Link
-        href={`/candidatures/${c.row.original.id}`}
-        className="font-mono text-[12px] font-semibold text-navy hover:text-terra"
-      >
-        {c.getValue()}
-      </Link>
+      <span className="font-mono text-[12px] font-semibold text-navy">{c.getValue()}</span>
     ),
   }),
   column.accessor("name", {
@@ -138,6 +142,22 @@ const COLUMNS = [
         {c.getValue() ? formatDate(c.getValue()) : "—"}
       </span>
     ),
+  }),
+  column.display({
+    id: "open",
+    header: "",
+    cell: (c) => (
+      <div className="flex justify-end">
+        <Link
+          href={`/candidatures/${c.row.original.id}`}
+          className="btn btn-outline btn-sm whitespace-nowrap"
+        >
+          Voir le dossier
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
+    ),
+    meta: { width: "1%" },
   }),
 ];
 
