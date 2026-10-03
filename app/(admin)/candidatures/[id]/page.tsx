@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
+import SignedDocDialog, { type SignedDoc } from "@/components/admin/SignedDocDialog";
 import { cn, formatDate, initials } from "@/lib/utils";
 import {
   useApproveApplication,
@@ -294,7 +295,7 @@ export default function CandidatureDetailPage({
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_20rem]">
         {/* ── Ce qui a été déclaré ─────────────────────────────────────── */}
-        <section className="space-y-6">
+        <section className="space-y-6 rounded-lg bg-paper p-5 lg:p-6">
           <Block title="Identité et adresse">
             <Row label="Nom" value={fullName} />
             <Row label="Email" value={identity.email} mono />
@@ -374,7 +375,7 @@ export default function CandidatureDetailPage({
         </section>
 
         {/* ── Pièces ───────────────────────────────────────────────────── */}
-        <aside className="space-y-5 lg:sticky lg:top-6 lg:self-start">
+        <aside className="space-y-5 rounded-lg bg-paper p-5 lg:sticky lg:top-6 lg:self-start">
           <div>
             <h2 className="font-display text-lg font-bold text-navy">Pièces du dossier</h2>
             <p className="mt-1 text-xs leading-relaxed text-ink-mid">
@@ -592,6 +593,7 @@ function DocumentRow({
   const decide = useDecideDocument(appId);
   const download = useDocumentDownload(appId);
   const [refusing, setRefusing] = useState(false);
+  const [preview, setPreview] = useState<SignedDoc | null>(null);
 
   // On ne décide que d'une pièce déposée : rien à juger sur un dossier vide.
   const deposited = doc.version > 0;
@@ -619,13 +621,15 @@ function DocumentRow({
           <button
             type="button"
             disabled={download.isPending}
-            onClick={() =>
+            onClick={() => {
+              // L'URL vit cinq minutes et chaque consultation est journalisée :
+              // on la demande au clic, jamais en avance.
+              setPreview({ label: doc.label, fileName: doc.fileName });
               download.mutate(doc.type, {
-                // L'URL vit cinq minutes et chaque consultation est journalisée :
-                // on la demande au clic, jamais en avance.
-                onSuccess: (r) => window.open(r.url, "_blank", "noopener,noreferrer"),
-              })
-            }
+                onSuccess: (r) =>
+                  setPreview({ label: doc.label, url: r.url, fileName: doc.fileName }),
+              });
+            }}
             className="btn btn-outline btn-sm"
           >
             {download.isPending ? (
@@ -661,11 +665,12 @@ function DocumentRow({
         </div>
       )}
 
-      {download.isError && (
-        <p role="alert" className="mt-1.5 text-[11px] text-danger">
-          Le document n&apos;a pas pu être ouvert.
-        </p>
-      )}
+      <SignedDocDialog
+        doc={preview}
+        loading={download.isPending}
+        error={download.isError}
+        onClose={() => setPreview(null)}
+      />
 
       <ReasonDialog
         open={refusing}
