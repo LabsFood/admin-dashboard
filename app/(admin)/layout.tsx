@@ -10,6 +10,7 @@ import Sidebar from "@/components/admin/Sidebar";
 import Topbar from "@/components/admin/Topbar";
 import MobileNav from "@/components/admin/MobileNav";
 import Splash from "@/components/admin/Splash";
+import AdminSignals from "@/components/admin/AdminSignals";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const { isAuthenticated, isReady, signOut } = useAuth();
@@ -78,16 +79,18 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen bg-cream">
-      <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar />
-        <main className="flex-1 px-4 py-5 pb-28 sm:px-6 lg:px-8 lg:pb-10">
-          {children}
-        </main>
+    <AdminSignals>
+      <div className="flex min-h-screen bg-cream">
+        <Sidebar />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <Topbar />
+          <main className="flex-1 px-4 py-5 pb-28 sm:px-6 lg:px-8 lg:pb-10">
+            {children}
+          </main>
+        </div>
+        <MobileNav />
       </div>
-      <MobileNav />
-    </div>
+    </AdminSignals>
   );
 }
 

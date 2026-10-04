@@ -3,16 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { ChevronDown, LogOut, Menu, Settings, UserCircle2, X } from "lucide-react";
 import {
-  Bell,
-  ChevronDown,
-  LogOut,
-  Menu,
-  Search,
-  Settings,
-  UserCircle2,
-  X,
-} from "lucide-react";
+  PaletteIconTrigger,
+  PaletteTrigger,
+} from "@/components/ui/CommandPalette";
+import { AdminAlertBell } from "./AdminSignals";
 import { navItemByPath, NAV_SECTIONS } from "@/lib/nav";
 import { useAuth } from "@/lib/auth";
 import { cn, initials } from "@/lib/utils";
@@ -54,18 +50,15 @@ export default function Topbar() {
             </p>
           </div>
 
-          <div className="relative hidden xl:block">
-            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
-            <input
-              placeholder="Rechercher un client, une réservation…"
-              className="w-72 rounded-full border border-[rgba(0,35,75,0.1)] bg-paper py-2.5 pl-10 pr-4 text-sm outline-none transition-colors focus:border-terra"
-            />
-          </div>
+          {/* Recherche : écrans, clients, candidatures, catalogue. ⌘K ou « / ». */}
+          <PaletteTrigger
+            label="Un client, une candidature, un plat…"
+            className="hidden w-72 shrink-0 xl:flex"
+          />
+          <PaletteIconTrigger className="xl:hidden" />
 
-          <button className="relative flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(0,35,75,0.1)] bg-paper text-navy transition-colors hover:border-terra">
-            <Bell className="h-4 w-4" />
-            <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-terra" />
-          </button>
+          {/* Les deux files qui demandent du travail. */}
+          <AdminAlertBell />
 
           <div className="relative">
             <button

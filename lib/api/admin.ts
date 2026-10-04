@@ -24,6 +24,12 @@ export interface ClientsQuery {
   status?: ClientStatus;
   page?: number;
   limit?: number;
+  /**
+   * `false` garde la requête en sommeil, sans toucher à la clé de cache : la
+   * palette de recherche s'en sert pour ne charger ses sources qu'à
+   * l'ouverture, tout en partageant le cache des écrans.
+   */
+  enabled?: boolean;
 }
 
 /**
@@ -33,7 +39,7 @@ export interface ClientsQuery {
  * applique ses valeurs par défaut (page 1, 20 éléments) et `meta.total` porte
  * le nombre réel de clients.
  */
-export function useClients({ status, page, limit }: ClientsQuery = {}) {
+export function useClients({ status, page, limit, enabled }: ClientsQuery = {}) {
   const apiFetch = useApiFetch();
 
   const params = new URLSearchParams();
@@ -46,6 +52,7 @@ export function useClients({ status, page, limit }: ClientsQuery = {}) {
   return useQuery({
     queryKey: ["clients", { status: status ?? "all", page, limit }],
     queryFn: () => apiFetch<Paginated<ClientProfile>>(`/admin/clients${query}`),
+    enabled: enabled ?? true,
   });
 }
 
@@ -156,7 +163,8 @@ export function useChefApplications({
   status,
   hasPendingDocuments,
   q,
-}: ChefApplicationsQuery = {}) {
+  enabled,
+}: ChefApplicationsQuery & { enabled?: boolean } = {}) {
   const apiFetch = useApiFetch();
 
   const params = new URLSearchParams();
@@ -178,6 +186,7 @@ export function useChefApplications({
       ),
     // Une file d'attente vieillit : `waitingSinceHours` n'a de sens que frais.
     staleTime: 30_000,
+    enabled: enabled ?? true,
   });
 }
 

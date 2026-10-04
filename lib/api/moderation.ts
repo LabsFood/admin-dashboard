@@ -153,6 +153,8 @@ export interface ReviewQueueQuery {
   /** Restreindre à un seul genre. Sans ça, plats et menus arrivent mêlés. */
   type?: ReviewKind;
   chefId?: string;
+  /** `false` garde la requête en sommeil sans changer sa clé de cache. */
+  enabled?: boolean;
 }
 
 const QUEUE = ["admin", "review-queue"] as const;
@@ -168,6 +170,7 @@ export function useReviewQueue({
   review,
   type,
   chefId,
+  enabled,
 }: ReviewQueueQuery = {}) {
   const apiFetch = useApiFetch();
 
@@ -193,6 +196,7 @@ export function useReviewQueue({
         meta: unwrapMeta(res),
       };
     },
+    enabled: enabled ?? true,
   });
 }
 
