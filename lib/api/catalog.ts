@@ -231,12 +231,19 @@ const WEEKS = ["admin", "menu-weeks"] as const;
 
 /* ── Plats Lab's Food ──────────────────────────────────────────────────────── */
 
-/** `GET /admin/meals` — toute la bibliothèque, sans pagination côté API. */
-export function useMeals() {
+/**
+ * `GET /admin/meals` — toute la bibliothèque, sans pagination côté API.
+ *
+ * `enabled: false` garde la requête en sommeil sans changer sa clé : la
+ * palette de recherche s'en sert pour ne charger ses sources qu'à l'ouverture,
+ * tout en partageant le cache des écrans.
+ */
+export function useMeals({ enabled }: { enabled?: boolean } = {}) {
   const apiFetch = useApiFetch();
   return useQuery({
     queryKey: MEALS,
     queryFn: async () => unwrapList<Meal>(await apiFetch<unknown>("/admin/meals"), "meals"),
+    enabled: enabled ?? true,
   });
 }
 
@@ -317,12 +324,13 @@ export function useWithdrawMealOffer() {
 /* ── Menus Lab's Food ──────────────────────────────────────────────────────── */
 
 /** `GET /admin/menus` */
-export function useLabsFoodMenus() {
+export function useLabsFoodMenus({ enabled }: { enabled?: boolean } = {}) {
   const apiFetch = useApiFetch();
   return useQuery({
     queryKey: MENUS,
     queryFn: async () =>
       unwrapList<LabsFoodMenu>(await apiFetch<unknown>("/admin/menus"), "menus"),
+    enabled: enabled ?? true,
   });
 }
 

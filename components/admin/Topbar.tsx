@@ -3,25 +3,24 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { ChevronDown, LogOut, Menu, Settings, UserCircle2, X } from "lucide-react";
 import {
-  Bell,
-  ChevronDown,
-  LogOut,
-  Menu,
-  Search,
-  Settings,
-  UserCircle2,
-  X,
-} from "lucide-react";
+  PaletteIconTrigger,
+  PaletteTrigger,
+} from "@/components/ui/CommandPalette";
+import { AdminAlertBell } from "./AdminSignals";
+import { Avatar, AvatarEditor } from "@/components/ui/Avatar";
+import { useMe } from "@/lib/api/me";
 import { navItemByPath, NAV_SECTIONS } from "@/lib/nav";
 import { useAuth } from "@/lib/auth";
-import { cn, initials } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import Logo from "./Logo";
 
 export default function Topbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, signOut } = useAuth();
+  const me = useMe();
   const [menuOpen, setMenuOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -54,27 +53,26 @@ export default function Topbar() {
             </p>
           </div>
 
-          <div className="relative hidden xl:block">
-            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
-            <input
-              placeholder="Rechercher un client, une réservation…"
-              className="w-72 rounded-full border border-[rgba(0,35,75,0.1)] bg-paper py-2.5 pl-10 pr-4 text-sm outline-none transition-colors focus:border-terra"
-            />
-          </div>
+          {/* Recherche : écrans, clients, candidatures, catalogue. ⌘K ou « / ». */}
+          <PaletteTrigger
+            label="Un client, une candidature, un plat…"
+            className="hidden w-72 shrink-0 xl:flex"
+          />
+          <PaletteIconTrigger className="xl:hidden" />
 
-          <button className="relative flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(0,35,75,0.1)] bg-paper text-navy transition-colors hover:border-terra">
-            <Bell className="h-4 w-4" />
-            <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-terra" />
-          </button>
+          {/* Les deux files qui demandent du travail. */}
+          <AdminAlertBell />
 
           <div className="relative">
             <button
               onClick={() => setMenuOpen((v) => !v)}
               className="flex items-center gap-2 rounded-full border border-[rgba(0,35,75,0.1)] bg-paper py-1 pl-1 pr-2.5 transition-colors hover:border-terra"
             >
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-navy text-xs font-bold text-white">
-                {user ? initials(user.name) : "AD"}
-              </span>
+              <Avatar
+                url={me.data?.avatarUrl}
+                name={me.data?.fullName ?? user?.name}
+                className="h-8 w-8 text-xs"
+              />
               <span className="hidden max-w-[110px] truncate text-xs font-semibold text-navy md:inline">
                 {user?.name.split(" ")[0] ?? "Admin"}
               </span>
@@ -82,21 +80,14 @@ export default function Topbar() {
             </button>
             {menuOpen && (
               <div
-                className="absolute right-0 mt-2 w-56 rounded-2xl border border-[rgba(0,35,75,0.08)] bg-paper p-2 shadow-[0_20px_60px_-20px_rgba(0,35,75,0.3)]"
+                className="absolute right-0 mt-2 w-72 rounded-2xl border border-[rgba(0,35,75,0.08)] bg-paper p-2 shadow-[0_20px_60px_-20px_rgba(0,35,75,0.3)]"
                 onMouseLeave={() => setMenuOpen(false)}
               >
-                {/* Qui est connecté, et à quel titre : c'est ce que disait
-                    l'encart de la barre latérale, posé là où on va déjà. */}
-                <div className="border-b border-[rgba(0,35,75,0.07)] px-3 pb-2.5 pt-1">
-                  <p className="truncate text-sm font-semibold text-navy">
-                    {user?.name}
-                  </p>
-                  <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-terra">
-                    {user?.role ?? "Console admin"}
-                  </p>
-                  <p className="mt-0.5 truncate text-[11px] text-ink-soft">
-                    {user?.email}
-                  </p>
+                {/* Qui est connecté, à quel titre, et sa photo : c'est ce que
+                    disait l'encart de la barre latérale, posé là où on va
+                    déjà. La photo se change ici, pas dans un réglage. */}
+                <div className="border-b border-[rgba(0,35,75,0.07)]">
+                  <AvatarEditor role={user?.role ?? "Console admin"} />
                 </div>
                 <Link
                   href="/parametres"

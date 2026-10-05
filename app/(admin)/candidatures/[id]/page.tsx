@@ -3,6 +3,7 @@
 import { use, useState } from "react";
 import Link from "next/link";
 import {
+  AlertTriangle,
   ArrowLeft,
   Check,
   ChevronDown,
@@ -18,6 +19,8 @@ import SignedDocDialog, { type SignedDoc } from "@/components/admin/SignedDocDia
 import ReasonDialog from "@/components/ui/ReasonDialog";
 import { cn, formatDate, initials } from "@/lib/utils";
 import {
+  useSetChefVerification,
+  verificationMessage,
   useApproveApplication,
   useChefApplication,
   useDecideDocument,
@@ -416,6 +419,8 @@ export default function CandidatureDetailPage({
             canApprove={data.canApprove}
             decided={data.status === "approved" || data.status === "rejected"}
             documents={documents}
+            chefProfileId={data.chefProfileId}
+            approuve={data.status === "approved"}
           />
         </aside>
 
@@ -596,11 +601,15 @@ function DecisionBar({
   canApprove,
   decided,
   documents,
+  chefProfileId,
+  approuve,
 }: {
   appId: string;
   canApprove: boolean;
   decided: boolean;
   documents: ChefApplicationDocument[];
+  chefProfileId: string;
+  approuve: boolean;
 }) {
   const approve = useApproveApplication(appId);
   const reject = useRejectApplication(appId);
@@ -612,12 +621,7 @@ function DecisionBar({
   const [publishNow, setPublishNow] = useState(false);
 
   if (decided) {
-    return (
-      <div className="rounded-lg bg-cream-soft px-4 py-3 text-xs leading-relaxed text-ink-mid">
-        Ce dossier est tranché. Pour revenir en arrière, passez par la fiche du
-        batch cooker.
-      </div>
-    );
+    return <MiseEnLigne chefProfileId={chefProfileId} approuve={approuve} />;
   }
 
   const toggle = (t: string) =>
@@ -625,22 +629,54 @@ function DecisionBar({
 
   return (
     <div className="space-y-3 border-t border-[rgba(0,35,75,0.1)] pt-4">
-      <div>
-        <label className="flex cursor-pointer items-start gap-2 text-[13px] text-ink-mid">
-          <input
-            type="checkbox"
-            checked={publishNow}
-            onChange={(e) => setPublishNow(e.target.checked)}
-            className="mt-0.5"
-          />
-          <span>
-            Publier la vitrine immédiatement.
-            <span className="block text-[11px] text-ink-soft">
-              Sinon le batch cooker est validé mais reste hors ligne.
-            </span>
-          </span>
-        </label>
-      </div>
+      {/*
+       * L'approbation vérifie le batch cooker mais le laisse hors ligne, sauf
+       * si on le dit ici. C'est une vraie décision, pas une option : elle
+       * s'affiche comme telle, et dit ce qui se passe dans les deux cas.
+       */}
+      <fieldset>
+        <legend className="field-label">Après approbation</legend>
+        <div className="grid gap-2">
+          {(
+            [
+              {
+                v: false,
+                t: "Vérifié, hors ligne",
+                d: "Vous relisez sa vitrine, puis vous la mettez en ligne d'ici.",
+              },
+              {
+                v: true,
+                t: "Vérifié et en ligne",
+                d: "Il devient réservable tout de suite par les clients.",
+              },
+            ] as const
+          ).map(({ v, t, d }) => (
+            <label
+              key={String(v)}
+              className={cn(
+                "flex cursor-pointer items-start gap-2.5 rounded-md border px-3 py-2.5 transition-colors",
+                publishNow === v
+                  ? "border-navy bg-cream-soft"
+                  : "border-[rgba(0,35,75,0.12)] hover:border-navy/40",
+              )}
+            >
+              <input
+                type="radio"
+                name="publish-now"
+                checked={publishNow === v}
+                onChange={() => setPublishNow(v)}
+                className="mt-0.5"
+              />
+              <span className="min-w-0">
+                <span className="block text-[13px] font-semibold text-navy">{t}</span>
+                <span className="mt-0.5 block text-[11px] leading-relaxed text-ink-soft">
+                  {d}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
 
       <button
         type="button"
@@ -753,6 +789,98 @@ function DecisionBar({
           reject.mutate({ reason }, { onSuccess: () => setRejecting(false) })
         }
       />
+    </div>
+  );
+}
+
+/**
+ * Le second geste.
+ *
+ * Approuver vérifie le batch cooker ; ça ne le rend pas réservable. L'API
+ * sépare les deux exprès — on relit la vitrine, puis on l'expose. Sans ce
+ * bouton, un dossier approuvé sans cocher « en ligne » restait invisible et
+ * personne ne pouvait plus rien y faire.
+ */
+function MiseEnLigne({
+  chefProfileId,
+  approuve,
+}: {
+  chefProfileId: string;
+  approuve: boolean;
+}) {
+  const verif = useSetChefVerification(chefProfileId);
+  const [dernier, setDernier] = useState<"online" | "offline" | null>(null);
+
+  if (!approuve) {
+    return (
+      <div className="rounded-lg bg-cream-soft px-4 py-3 text-xs leading-relaxed text-ink-mid">
+        Cette candidature a été refusée. Pour revenir en arrière, le candidat
+        doit candidater à nouveau.
+      </div>
+    );
+  }
+
+  const agir = (isActive: boolean) =>
+    verif.mutate(
+      { isActive },
+      { onSuccess: () => setDernier(isActive ? "online" : "offline") },
+    );
+
+  return (
+    <div className="space-y-3 border-t border-[rgba(0,35,75,0.1)] pt-4">
+      <div>
+        <p className="text-[13px] font-semibold text-navy">Vitrine publique</p>
+        <p className="mt-0.5 text-[11px] leading-relaxed text-ink-soft">
+          Approuver vérifie le batch cooker. Tant que sa vitrine n&apos;est pas
+          mise en ligne, aucun client ne le voit ni ne peut le réserver.
+        </p>
+      </div>
+
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => agir(true)}
+          disabled={verif.isPending}
+          className="btn btn-primary btn-sm flex-1 justify-center"
+        >
+          {verif.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Eye className="h-3.5 w-3.5" />
+          )}
+          Mettre en ligne
+        </button>
+        <button
+          type="button"
+          onClick={() => agir(false)}
+          disabled={verif.isPending}
+          className="btn btn-outline btn-sm flex-1 justify-center"
+        >
+          Retirer
+        </button>
+      </div>
+
+      {dernier && !verif.isPending && (
+        <p className="flex items-start gap-1.5 text-[12px] leading-relaxed text-success">
+          <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          {dernier === "online"
+            ? "Vitrine en ligne : les clients peuvent le réserver."
+            : "Vitrine retirée : il n'apparaît plus aux clients."}
+        </p>
+      )}
+
+      {verif.isError && (
+        <p role="alert" className="flex items-start gap-1.5 text-[12px] leading-relaxed text-danger">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          {verificationMessage(verif.error)}
+        </p>
+      )}
+
+      <p className="text-[11px] leading-relaxed text-ink-soft">
+        L&apos;état actuel n&apos;est pas lisible ici : l&apos;API n&apos;expose
+        pas la fiche d&apos;un batch cooker. Ces deux boutons sont sans danger à
+        répéter.
+      </p>
     </div>
   );
 }

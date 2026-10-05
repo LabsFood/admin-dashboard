@@ -6,6 +6,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useApiFetch } from "./client";
+import { adminErrorMessage } from "./errors";
 import type {
   ChefApplicationDetail,
   ChefApplicationRow,
@@ -24,6 +25,12 @@ export interface ClientsQuery {
   status?: ClientStatus;
   page?: number;
   limit?: number;
+  /**
+   * `false` garde la requête en sommeil, sans toucher à la clé de cache : la
+   * palette de recherche s'en sert pour ne charger ses sources qu'à
+   * l'ouverture, tout en partageant le cache des écrans.
+   */
+  enabled?: boolean;
 }
 
 /**
@@ -33,7 +40,7 @@ export interface ClientsQuery {
  * applique ses valeurs par défaut (page 1, 20 éléments) et `meta.total` porte
  * le nombre réel de clients.
  */
-export function useClients({ status, page, limit }: ClientsQuery = {}) {
+export function useClients({ status, page, limit, enabled }: ClientsQuery = {}) {
   const apiFetch = useApiFetch();
 
   const params = new URLSearchParams();
@@ -46,6 +53,7 @@ export function useClients({ status, page, limit }: ClientsQuery = {}) {
   return useQuery({
     queryKey: ["clients", { status: status ?? "all", page, limit }],
     queryFn: () => apiFetch<Paginated<ClientProfile>>(`/admin/clients${query}`),
+    enabled: enabled ?? true,
   });
 }
 
@@ -156,7 +164,8 @@ export function useChefApplications({
   status,
   hasPendingDocuments,
   q,
-}: ChefApplicationsQuery = {}) {
+  enabled,
+}: ChefApplicationsQuery & { enabled?: boolean } = {}) {
   const apiFetch = useApiFetch();
 
   const params = new URLSearchParams();
@@ -178,6 +187,7 @@ export function useChefApplications({
       ),
     // Une file d'attente vieillit : `waitingSinceHours` n'a de sens que frais.
     staleTime: 30_000,
+    enabled: enabled ?? true,
   });
 }
 
@@ -287,6 +297,51 @@ export function useRejectApplication(id: string) {
     }),
     id,
   );
+}
+
+/**
+ * `PATCH /admin/chefs/{id}/verification` — met une vitrine en ligne, ou la retire.
+ *
+ * `{id}` est l'id de la **page du batch cooker** (`chefProfileId` du dossier),
+ * pas celui du compte.
+ *
+ * Approuver une candidature vérifie le batch cooker mais le laisse **hors
+ * ligne**, sauf si l'approbation portait `isActive: true` : c'est ce qui
+ * permet de relire sa page avant de l'exposer aux clients. Cette route est
+ * donc le second geste, celui qui le rend réservable.
+ *
+ * `409 CHEF_NOT_VERIFIED` : on ne met en ligne que quelqu'un de vérifié.
+ * `409 APPLICATION_NOT_APPROVED` : la candidature n'est pas encore approuvée.
+ */
+export function useSetChefVerification(chefProfileId: string | undefined) {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: { isActive?: boolean; isVerified?: boolean }) =>
+      apiFetch<unknown>(`/admin/chefs/${chefProfileId}/verification`, {
+        method: "PATCH",
+        body,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chef-applications"] });
+    },
+  });
+}
+
+/** Le refus de l'API, dit à l'admin qui vient de cliquer. */
+export function verificationMessage(error: unknown): string {
+  const e = error as { status?: number; message?: string; body?: unknown } | null;
+  const code = ((e?.body ?? {}) as { code?: string }).code ?? "";
+  if (e?.status === 409) {
+    if (code === "CHEF_NOT_VERIFIED" || /NOT_VERIFIED/.test(e?.message ?? "")) {
+      return "Ce batch cooker n'est pas vérifié : approuvez d'abord sa candidature.";
+    }
+    if (code === "APPLICATION_NOT_APPROVED" || /NOT_APPROVED/.test(e?.message ?? "")) {
+      return "La candidature n'est pas approuvée : la vitrine ne peut pas être mise en ligne.";
+    }
+  }
+  return adminErrorMessage(error);
 }
 
 /**

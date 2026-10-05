@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -12,6 +12,7 @@ import {
   GripVertical,
   Info,
   Link2,
+  Upload,
   Loader2,
   Plus,
   Save,
@@ -35,6 +36,13 @@ import {
   type MealStatus,
 } from "@/lib/api/catalog";
 import { adminErrorMessage } from "@/lib/api/errors";
+import {
+  PHOTO_MAX_MB,
+  checkPhoto,
+  photoMessage,
+  useDeleteMealPhoto,
+  useMealPhoto,
+} from "@/lib/api/photos";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Écrire un plat Lab's Food — `POST /admin/meals`, `PATCH /admin/meals/{id}`.
@@ -267,11 +275,12 @@ export default function MealForm({
                 </select>
               </Field>
             </div>
-            <Field
-              label="Photo du plat"
-              hint="L'API attend une URL déjà hébergée : il n'y a pas encore d'envoi de fichier côté console."
-            >
-              <ImageField value={imageUrl} onChange={setImageUrl} />
+            <Field label="Photo du plat">
+              <PhotoField
+                mealId={meal?.id}
+                value={imageUrl}
+                onChange={setImageUrl}
+              />
             </Field>
           </section>
 
@@ -723,36 +732,131 @@ function StepRows({
 /* ── Photo ─────────────────────────────────────────────────────────────────── */
 
 /**
- * L'API stocke une URL publique, pas un fichier : il n'existe pas d'endpoint
- * d'envoi pour les plats de la maison (contrairement aux plats des batch
- * cookers, qui ont leur ticket d'upload). On ne propose donc pas un
- * téléversement qui n'irait nulle part.
+ * La photo d'un plat de la maison.
+ *
+ * L'envoi passe par le trio habituel — ticket, transfert direct, confirmation —
+ * mais il lui faut l'id du plat. À la création, le plat n'en a pas encore : on
+ * garde alors le champ URL, que `POST /admin/meals` accepte, et on dit que
+ * l'envoi d'un fichier sera possible une fois le plat enregistré.
+ *
+ * Un plat adopté par un batch cooker montre la même photo. La retirer ici ne
+ * supprime le fichier que si plus aucune copie ne s'en sert.
  */
-function ImageField({
+function PhotoField({
+  mealId,
   value,
   onChange,
 }: {
+  mealId?: string;
   value: string;
   onChange: (v: string) => void;
 }) {
+  const envoi = useMealPhoto<{ imageUrl?: string | null }>();
+  const retrait = useDeleteMealPhoto<{ imageUrl?: string | null }>();
+  const [erreur, setErreur] = useState<string | null>(null);
+  const champ = useRef<HTMLInputElement>(null);
+
   const broken = value.startsWith("data:");
+
+  function choisir(file: File | null) {
+    setErreur(null);
+    if (!file || !mealId) return;
+    const probleme = checkPhoto(file);
+    if (probleme) {
+      setErreur(probleme);
+      return;
+    }
+    envoi.mutate(
+      { id: mealId, file },
+      {
+        onSuccess: (r) => {
+          if (r?.imageUrl) onChange(r.imageUrl);
+          if (champ.current) champ.current.value = "";
+        },
+        onError: (e) => setErreur(photoMessage(e)),
+      },
+    );
+  }
 
   return (
     <div className="space-y-3">
-      <div className="relative">
-        <Link2
-          className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft"
-          aria-hidden
-        />
-        <input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="https://…"
-          inputMode="url"
-          aria-invalid={broken || undefined}
-          className="input-base pl-9"
-        />
-      </div>
+      {mealId ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            ref={champ}
+            id={`photo-${mealId}`}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="sr-only"
+            onChange={(e) => choisir(e.target.files?.[0] ?? null)}
+          />
+          <label
+            htmlFor={`photo-${mealId}`}
+            className={cn(
+              "btn btn-outline btn-sm cursor-pointer",
+              envoi.isPending && "pointer-events-none opacity-50",
+            )}
+          >
+            {envoi.isPending ? (
+              <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+            ) : (
+              <Upload className="h-3 w-3" aria-hidden />
+            )}
+            {value ? "Remplacer la photo" : "Envoyer une photo"}
+          </label>
+          {value && !broken && (
+            <button
+              type="button"
+              onClick={() =>
+                retrait.mutate(mealId, {
+                  onSuccess: () => onChange(""),
+                  onError: (e) => setErreur(photoMessage(e)),
+                })
+              }
+              disabled={retrait.isPending}
+              className="btn btn-sm text-danger hover:bg-danger-soft"
+            >
+              {retrait.isPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+              ) : (
+                <X className="h-3 w-3" aria-hidden />
+              )}
+              Retirer
+            </button>
+          )}
+          <span className="text-[11px] text-ink-soft">
+            JPG, PNG ou WebP, {PHOTO_MAX_MB} Mo au plus
+          </span>
+        </div>
+      ) : (
+        <>
+          <div className="relative">
+            <Link2
+              className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft"
+              aria-hidden
+            />
+            <input
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder="https://…"
+              inputMode="url"
+              aria-invalid={broken || undefined}
+              className="input-base pl-9"
+            />
+          </div>
+          <p className="text-[11px] leading-relaxed text-ink-soft">
+            Vous pouvez coller une URL déjà hébergée. Pour envoyer un fichier,
+            enregistrez d&apos;abord le plat : l&apos;envoi a besoin de son
+            identifiant.
+          </p>
+        </>
+      )}
+
+      {erreur && (
+        <p role="alert" className="text-[12px] leading-relaxed text-danger">
+          {erreur}
+        </p>
+      )}
 
       {broken && (
         <p role="alert" className="text-[12px] leading-relaxed text-danger">
@@ -769,14 +873,6 @@ function ImageField({
             alt="Aperçu de la photo du plat"
             className="aspect-[16/9] w-full object-cover"
           />
-          <button
-            type="button"
-            onClick={() => onChange("")}
-            aria-label="Retirer l'image"
-            className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-navy/80 text-white transition-colors hover:bg-navy"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
         </div>
       )}
     </div>
