@@ -172,6 +172,73 @@ export function useDeleteLabsFoodMenuPhoto<T>() {
   });
 }
 
+/* ── Ma propre photo de profil ─────────────────────────────────────────────── */
+
+/**
+ * `/me/avatar` suit le même trio, sans le segment `/photo` : les routes sont
+ * `/me/avatar/upload-url`, `/me/avatar/confirm` et `DELETE /me/avatar`.
+ * La photo apparaît ensuite en `avatarUrl` sur `GET /me`.
+ */
+export interface AvatarResponse {
+  avatarUrl?: string | null;
+}
+
+export function useUploadAvatar() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const probleme = checkPhoto(file);
+      if (probleme) throw new PhotoError("ticket", probleme);
+
+      let ticket: PhotoTicket;
+      try {
+        ticket = await apiFetch<PhotoTicket>("/me/avatar/upload-url", {
+          method: "POST",
+          body: { contentType: file.type, sizeBytes: file.size },
+        });
+      } catch (e) {
+        throw new PhotoError("ticket", photoMessage(e));
+      }
+
+      let res: Response;
+      try {
+        res = await fetch(ticket.url, {
+          method: ticket.method || "PUT",
+          headers: ticket.headers ?? { "Content-Type": file.type },
+          body: file,
+        });
+      } catch {
+        throw new PhotoError("transfer", "Le transfert s'est interrompu.");
+      }
+      if (!res.ok) {
+        throw new PhotoError(
+          "transfer",
+          res.status === 403
+            ? "Le stockage a refusé le fichier : sa taille ne correspond pas à celle annoncée."
+            : `Le transfert a échoué (${res.status}).`,
+        );
+      }
+
+      return apiFetch<AvatarResponse>("/me/avatar/confirm", {
+        method: "POST",
+        body: { uploadId: ticket.uploadId, contentType: file.type },
+      });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["me"] }),
+  });
+}
+
+export function useRemoveAvatar() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch<AvatarResponse>("/me/avatar", { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["me"] }),
+  });
+}
+
 /** `DELETE /admin/users/{id}/avatar` — retirer la photo de profil de quelqu'un. */
 export function useRemoveUserAvatar() {
   const apiFetch = useApiFetch();
