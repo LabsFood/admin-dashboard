@@ -72,7 +72,7 @@ export const NAV_SECTIONS: NavSection[] = [
         Icon: MessageCircle,
         eyebrow: "Communication",
         title: "Messagerie",
-        subtitle: "Conversations avec les clients.",
+        subtitle: "Support, fils clients ↔ batch cookers, signalements.",
       },
       {
         href: "/clients",

@@ -5,7 +5,6 @@ export * from "./clients";
 export * from "./formules";
 export * from "./reservations";
 export * from "./demandes";
-export * from "./messages";
 export * from "./kossam";
 export * from "./candidatures";
 export * from "./contact";

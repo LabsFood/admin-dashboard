@@ -9,13 +9,12 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { RESERVATIONS } from "@/lib/mock/reservations";
 import { DEMANDES } from "@/lib/mock/demandes";
-import { THREADS } from "@/lib/mock/messages";
+import { useAdminConversationCounts } from "@/lib/api/messaging";
 import { CONTACT_MESSAGES } from "@/lib/mock/contact";
 
 const BADGES: Record<string, number> = {
   "/reservations": RESERVATIONS.filter((r) => r.status === "pending").length,
   "/demandes": DEMANDES.filter((d) => d.status === "submitted").length,
-  "/messagerie": THREADS.reduce((n, t) => n + t.unreadCount, 0),
   "/contact": CONTACT_MESSAGES.filter((c) => c.status === "new").length,
 };
 
@@ -23,6 +22,9 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { signOut } = useAuth();
+  // Ce qui attend l'équipe : messages support non lus et conversations signalées.
+  const messaging = useAdminConversationCounts().data;
+  const messagingBadge = (messaging?.unread ?? 0) + (messaging?.flagged ?? 0);
 
   const handleLogout = () => {
     signOut();
@@ -50,7 +52,8 @@ export default function Sidebar() {
               <ul className="space-y-0.5">
                 {section.items.map(({ href, label, Icon }) => {
                   const active = isActive(href);
-                  const badge = BADGES[href];
+                  const badge =
+                    href === "/messagerie" ? messagingBadge : BADGES[href];
                   return (
                     <li key={href}>
                       <Link

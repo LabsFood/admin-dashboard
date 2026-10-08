@@ -130,25 +130,6 @@ export interface Demande {
   quote: { amountTTC: number; amountAfterTax: number; note?: string } | null;
 }
 
-// ─── Messagerie ──────────────────────────────────────────────────────────────
-export interface ChatMessage {
-  id: string;
-  from: "client" | "admin";
-  text: string;
-  at: string;
-  read: boolean;
-}
-
-export interface ChatThread {
-  id: string;
-  clientId: string;
-  clientName: string;
-  topic: string;
-  lastMessageAt: string;
-  unreadCount: number;
-  messages: ChatMessage[];
-}
-
 // ─── Commandes produit Kossam (site principal) ───────────────────────────────
 export type KossamStatus =
   | "new"
