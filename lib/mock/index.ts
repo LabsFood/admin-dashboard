@@ -7,6 +7,5 @@ export * from "./reservations";
 export * from "./demandes";
 export * from "./kossam";
 export * from "./candidatures";
-export * from "./contact";
 export * from "./avis";
 export * from "./stats";
