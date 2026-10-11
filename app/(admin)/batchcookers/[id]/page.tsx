@@ -1,131 +1,106 @@
 "use client";
 
-import { useState } from "react";
+import { use, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { motion } from "framer-motion";
 import {
+  AlertTriangle,
   ArrowLeft,
-  Ban,
-  CalendarClock,
+  CalendarRange,
   Check,
-  FileWarning,
-  Globe2,
-  Mail,
+  Eye,
+  FileText,
+  IdCard,
+  LayoutList,
+  Loader2,
   MapPin,
-  Phone,
-  RotateCcw,
-  CalendarDays,
-  Clock,
-  ShoppingBasket,
+  RotateCw,
   UtensilsCrossed,
-  X,
-  ZoomIn,
 } from "lucide-react";
 import Badge from "@/components/ui/Badge";
-import DocPreview from "@/components/admin/DocPreview";
-import { cn, euros, initials } from "@/lib/utils";
+import EmptyState from "@/components/ui/EmptyState";
+import { cn, formatDate, initials } from "@/lib/utils";
+import { countryLabel } from "@/lib/countries";
+import { moderatedLabel, moderatedTone } from "@/lib/catalog-labels";
 import {
-  BC_SHOWCASE,
-  batchCookerById,
-  completion,
-  docFamilyLabel,
-  docStatusLabel,
-  docStatusTone,
-  dossierStatusLabel,
-  dossierStatusTone,
-  availabilityOf,
-  contentStatusLabel,
-  contentStatusTone,
-  financials,
-  menusOf,
-  paymentMethodLabel,
-  sapPathLabel,
-  legalFormLabel,
-  workStatusLabel,
-  sessionsOf,
-  transactionsOf,
-  txStatusLabel,
-  txStatusTone,
-  txTypeLabel,
-  type BatchCooker,
-  type BcDocument,
-  type ContentStatus,
-  type DocFamily,
-  type DocStatus,
-} from "@/lib/mock/batchcookers";
+  useChefApplication,
+  useChefShowcase,
+  useSetChefVerification,
+  verificationMessage,
+} from "@/lib/api/admin";
+import { useChefDishes, useChefMenus, type ReviewItem } from "@/lib/api/moderation";
+import { adminErrorMessage } from "@/lib/api/errors";
 
-const FAMILY_ORDER: DocFamily[] = ["blocking", "conditional", "recommended"];
-const TABS = ["candidature", "dossier", "profil", "menus", "agenda", "prestations", "finances"] as const;
-type Tab = (typeof TABS)[number];
+/* ─────────────────────────────────────────────────────────────────────────────
+   La fiche d'un batch cooker.
 
-const TAB_LABEL: Record<Tab, string> = {
-  candidature: "Candidature",
-  dossier: "Documents",
-  profil: "Profil & vitrine",
-  menus: "Menus & recettes",
-  agenda: "Agenda",
-  prestations: "Prestations",
-  finances: "Finances",
+   Le paramètre de route est l'id de **candidature**, parce que c'est par là
+   qu'on arrive — aucune route ne liste les batch cookers, et la liste du
+   réseau est bâtie sur les candidatures approuvées. Le détail de la
+   candidature porte `chefProfileId`, qui ouvre ensuite ses plats, ses menus
+   et sa vitrine.
+
+   Ce que l'API ne sait pas dire, l'écran le nomme au lieu de l'inventer :
+   l'agenda n'existe nulle part, les prestations ne se filtrent pas par chef,
+   et il n'y a pas d'avis.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+type Onglet = "profil" | "plats" | "menus" | "vitrine";
+
+const WORK_STATUS_LABEL: Record<string, string> = {
+  "eu-citizen": "Ressortissant français ou de l'Union européenne",
+  "residence-permit": "Titre de séjour autorisant à travailler",
+  "renewal-pending": "Titre de séjour en cours de renouvellement",
+  other: "Autre situation",
 };
 
-/** SIRET par groupes, comme sur l'avis de situation. */
-const formatSiret = (raw: string) => {
-  const d = raw.replace(/\D/g, "");
-  return [d.slice(0, 3), d.slice(3, 6), d.slice(6, 9), d.slice(9)].filter(Boolean).join(" ");
+const LEGAL_FORM_LABEL: Record<string, string> = {
+  micro: "Micro ou auto-entrepreneur",
+  "other-company": "Autre forme d'entreprise",
+  "not-registered": "Pas d'entreprise",
 };
 
-const daysUntil = (iso: string) =>
-  Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
-const shortDate = (iso: string) => new Date(iso).toLocaleDateString("fr-FR");
+export default function BatchCookerPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+  const app = useChefApplication(id);
+  const [onglet, setOnglet] = useState<Onglet>("profil");
 
-export default function BatchCookerDetailPage() {
-  const params = useParams<{ id: string }>();
-  const bc = batchCookerById(params.id);
-
-  if (!bc) {
+  if (app.isPending) {
     return (
-      <div className="mx-auto max-w-md py-20 text-center">
-        <p className="mb-3 text-5xl">👨‍🍳</p>
-        <h2 className="font-display text-2xl font-bold text-navy">Batch cooker introuvable</h2>
-        <Link href="/batchcookers" className="btn btn-primary mt-6">
-          <ArrowLeft className="h-4 w-4" /> Retour à la liste
-        </Link>
+      <div className="space-y-4">
+        <div className="h-32 animate-pulse rounded-lg bg-paper" />
+        <div className="h-96 animate-pulse rounded-lg bg-paper" />
       </div>
     );
   }
 
-  return <Detail key={bc.id} initial={bc} />;
-}
-
-function Detail({ initial }: { initial: BatchCooker }) {
-  const [documents, setDocuments] = useState<BcDocument[]>(initial.documents);
-  const [tab, setTab] = useState<Tab>("dossier");
-  const [rejecting, setRejecting] = useState<string | null>(null);
-  const [reason, setReason] = useState("");
-  // Statut de publication des menus, surchargé par les décisions admin.
-  const [menuStatus, setMenuStatus] = useState<Record<string, ContentStatus>>({});
-
-  const bc = { ...initial, ...(BC_SHOWCASE[initial.id] ?? {}), documents };
-  const score = completion(bc);
-  const fin = financials(bc.id);
-  const pendingCount = documents.filter(
-    (d) => d.status === "submitted" || d.status === "reviewing",
-  ).length;
-  // Pièces appelées par la situation déclarée à la candidature.
-  const conditionalDocs = documents.filter((d) => d.family === "conditional");
-
-  const setStatus = (id: string, status: DocStatus, rejectionReason?: string) =>
-    setDocuments((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, status, rejectionReason } : d)),
+  if (app.isError || !app.data) {
+    return (
+      <section className="card mx-auto max-w-lg p-6 text-center">
+        <p className="font-display text-lg font-bold text-navy">Fiche introuvable</p>
+        <p className="mt-2 text-sm leading-relaxed text-ink-mid">
+          {adminErrorMessage(app.error)}
+        </p>
+        <div className="mt-5 flex flex-wrap justify-center gap-2">
+          <button onClick={() => app.refetch()} className="btn btn-outline btn-sm">
+            <RotateCw className="h-3 w-3" /> Réessayer
+          </button>
+          <Link href="/batchcookers" className="btn btn-primary btn-sm">
+            Le réseau
+          </Link>
+        </div>
+      </section>
     );
+  }
 
-  const confirmReject = (id: string) => {
-    if (!reason.trim()) return;
-    setStatus(id, "rejected", reason.trim());
-    setRejecting(null);
-    setReason("");
-  };
+  const d = app.data;
+  const nom = `${d.identity?.firstName ?? ""} ${d.identity?.lastName ?? ""}`.trim() ||
+    d.reference;
+  const ville = d.address?.city ?? null;
+  const approuve = d.status === "approved";
 
   return (
     <div className="space-y-6">
@@ -133,720 +108,471 @@ function Detail({ initial }: { initial: BatchCooker }) {
         href="/batchcookers"
         className="inline-flex items-center gap-2 text-xs text-ink-mid hover:text-navy"
       >
-        <ArrowLeft className="h-3.5 w-3.5" /> Tous les batch cookers
+        <ArrowLeft className="h-3.5 w-3.5" /> Le réseau
       </Link>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
-        {/* ── Colonne identité ─────────────────────────────────────────── */}
-        <aside className="space-y-4">
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            className="relative overflow-hidden rounded-3xl bg-navy p-6 text-white"
-          >
-            <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-terra/25 blur-3xl" />
-            <div className="relative flex flex-col items-center text-center">
-              <span className="flex h-20 w-20 items-center justify-center rounded-full bg-terra font-display text-2xl font-bold text-white">
-                {initials(bc.name)}
-              </span>
-              <p className="mt-3 font-display text-xl font-bold">{bc.name}</p>
-              {bc.displayName && (
-                <p className="text-xs text-white/55">« {bc.displayName} »</p>
-              )}
-              <Badge tone={dossierStatusTone[bc.dossier]} className="mt-2" dot>
-                {dossierStatusLabel[bc.dossier]}
-              </Badge>
-              <div className="mt-4 w-full space-y-2 text-left text-xs text-white/70">
-                <p className="flex items-center gap-2">
-                  <Mail className="h-3.5 w-3.5 text-terra-soft" /> {bc.email}
-                </p>
-                <p className="flex items-center gap-2">
-                  <Phone className="h-3.5 w-3.5 text-terra-soft" /> {bc.phone}
-                </p>
-                <p className="flex items-start gap-2">
-                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-terra-soft" /> {bc.zone}
-                </p>
-              </div>
-            </div>
-          </motion.div>
-
-          <section className="card p-5">
-            <div className="mb-1 flex justify-between text-xs text-ink-mid">
-              <span>Pièces obligatoires validées</span>
-              <span className="font-semibold text-navy">{score} %</span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-cream-deep">
-              <div className="h-full rounded-full bg-terra" style={{ width: `${score}%` }} />
-            </div>
-            <div className="mt-4 space-y-2 text-xs">
-              <Row label="Voie SAP" value={sapPathLabel[bc.sapPath]} />
-              {bc.workStatus && <Row label="Situation" value={workStatusLabel[bc.workStatus]} />}
-              {bc.legalForm && <Row label="Statut" value={legalFormLabel[bc.legalForm]} />}
-              <Row label="CESU" value={bc.acceptsCesu ? "Accepté" : "Non"} />
-              <Row label="Immatriculé" value={bc.registered ? "Oui" : "Pas encore"} />
-              <Row label="Prestations" value={`${bc.missionsCount}`} />
-              <Row label="Candidature" value={shortDate(bc.appliedAt)} />
-            </div>
-          </section>
-
-          <section className="card p-5">
-            <h4 className="mb-3 font-display text-base font-bold text-navy">Actions</h4>
-            {bc.dossier === "suspended" ? (
-              <button className="flex w-full items-center gap-2.5 rounded-xl border border-[rgba(0,35,75,0.1)] px-3.5 py-2.5 text-sm font-semibold text-success transition-colors hover:bg-success-soft/50">
-                <RotateCcw className="h-4 w-4" /> Réactiver le compte
-              </button>
-            ) : (
-              <button className="flex w-full items-center gap-2.5 rounded-xl border border-[rgba(0,35,75,0.1)] px-3.5 py-2.5 text-sm font-semibold text-danger transition-colors hover:bg-danger-soft/50">
-                <Ban className="h-4 w-4" /> Suspendre le compte
-              </button>
-            )}
-            <p className="mt-3 text-[11px] leading-relaxed text-ink-soft">
-              Toute décision est horodatée et tracée dans le journal d&apos;audit.
-            </p>
-          </section>
-        </aside>
-
-        {/* ── Colonne onglets ──────────────────────────────────────────── */}
-        <div className="space-y-5">
-          <div className="flex flex-wrap gap-2">
-            {TABS.map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={cn(
-                  "rounded-md px-4 py-2 text-sm font-semibold transition-colors",
-                  tab === t
-                    ? "bg-navy text-white"
-                    : "border border-[rgba(0,35,75,0.1)] bg-paper text-ink-mid hover:text-navy",
-                )}
-              >
-                {TAB_LABEL[t]}
-                {t === "dossier" && pendingCount > 0 && (
-                  <span
-                    className={cn(
-                      "ml-2 rounded-full px-1.5 py-0.5 text-[10px]",
-                      tab === t ? "bg-terra text-white" : "bg-warning-soft text-[#9A6E15]",
-                    )}
-                  >
-                    {pendingCount}
+      {/* ── Qui c'est, et dans quel état ──────────────────────────────── */}
+      <section className="card p-5 lg:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-5">
+          <div className="flex min-w-0 items-start gap-4">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-navy text-base font-bold text-white">
+              {initials(nom)}
+            </span>
+            <div className="min-w-0">
+              <h2 className="font-display text-xl font-bold leading-tight text-navy">
+                {nom}
+              </h2>
+              <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-soft">
+                {ville && (
+                  <span className="inline-flex items-center gap-1">
+                    <MapPin className="h-3.5 w-3.5" /> {ville}
                   </span>
                 )}
-              </button>
-            ))}
+                {d.identity?.email && <span>{d.identity.email}</span>}
+                {d.identity?.phone && <span className="font-mono">{d.identity.phone}</span>}
+              </p>
+              <p className="mt-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-soft">
+                {d.reference}
+              </p>
+            </div>
           </div>
 
-          {tab === "candidature" && (
-            <section className="card space-y-6 p-6">
-              <div>
-                <h3 className="font-display text-lg font-bold text-navy">Ce qui a été déclaré</h3>
-                <p className="mt-1 text-xs text-ink-soft">
-                  Réponses du formulaire « Nous rejoindre », envoyées le {shortDate(bc.appliedAt)}.
-                </p>
-              </div>
+          <div className="flex flex-col items-end gap-2">
+            <Badge tone={approuve ? "success" : "warning"} dot>
+              {approuve ? "Candidature approuvée" : "Candidature en cours"}
+            </Badge>
+            <Link
+              href={`/candidatures/${d.id}`}
+              className="btn btn-outline btn-sm"
+            >
+              <FileText className="h-3 w-3" /> Le dossier et ses pièces
+            </Link>
+          </div>
+        </div>
 
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                <Block title="Identité">
-                  <Row label="Nom" value={bc.name} />
-                  <Row label="Email" value={bc.email} />
-                  <Row label="Téléphone" value={bc.phone} />
-                  <Row label="Adresse" value={bc.address ?? "—"} />
-                </Block>
+        {approuve && <MiseEnLigne chefProfileId={d.chefProfileId} />}
+      </section>
 
-                <Block title="Activité">
-                  <Row label="Statut" value={bc.legalForm ? legalFormLabel[bc.legalForm] : "—"} />
-                  <Row label="SIRET" value={bc.siret ? formatSiret(bc.siret) : "Pas encore immatriculé"} />
-                  <Row label="Voie SAP" value={sapPathLabel[bc.sapPath]} />
-                  <Row label="N° de déclaration" value={bc.sapDeclarationNumber ?? "Portée par la coopérative"} />
-                </Block>
-              </div>
+      {/* ── Onglets ───────────────────────────────────────────────────── */}
+      <div
+        role="tablist"
+        aria-label="Fiche du batch cooker"
+        className="hairline inline-flex items-center gap-1 rounded-full border bg-paper p-1"
+      >
+        {(
+          [
+            { id: "profil", Icon: IdCard, label: "Profil" },
+            { id: "plats", Icon: UtensilsCrossed, label: "Ses plats" },
+            { id: "menus", Icon: LayoutList, label: "Ses menus" },
+            { id: "vitrine", Icon: CalendarRange, label: "Sa vitrine" },
+          ] as const
+        ).map(({ id: tid, Icon, label }) => (
+          <button
+            key={tid}
+            type="button"
+            role="tab"
+            aria-selected={onglet === tid}
+            onClick={() => setOnglet(tid)}
+            className={cn(
+              "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors",
+              onglet === tid ? "bg-navy text-white" : "text-ink-mid hover:text-navy",
+            )}
+          >
+            <Icon className="h-4 w-4" />
+            {label}
+          </button>
+        ))}
+      </div>
 
-              {/* Situation déclarée : c'est elle qui commande la pièce attendue. */}
-              <div>
-                <h4 className="mb-2 text-sm font-semibold text-navy">Situation déclarée</h4>
-                <p className="text-sm text-ink-mid">
-                  {bc.workStatus ? workStatusLabel[bc.workStatus] : "Non renseignée"}
-                </p>
-                {bc.workStatusDetails && (
-                  <p className="mt-2 rounded-xl bg-cream-soft px-4 py-3 text-[13px] leading-relaxed text-ink">
-                    {bc.workStatusDetails}
-                  </p>
-                )}
-                {conditionalDocs.length > 0 && (
-                  <p className="mt-2 text-xs text-ink-soft">
-                    Pièce attendue de ce fait :{" "}
-                    <span className="font-semibold text-navy">
-                      {conditionalDocs.map((d) => d.label).join(", ")}
-                    </span>
-                    . Elle est facultative à la candidature.
-                  </p>
-                )}
-              </div>
+      {onglet === "profil" && <Profil app={d} />}
+      {onglet === "plats" && (
+        <Contenu chefProfileId={d.chefProfileId} genre="dish" />
+      )}
+      {onglet === "menus" && (
+        <Contenu chefProfileId={d.chefProfileId} genre="menu" />
+      )}
+      {onglet === "vitrine" && <Vitrine chefProfileId={d.chefProfileId} />}
 
-              {/* Zones d'intervention */}
-              <div>
-                <h4 className="mb-2 text-sm font-semibold text-navy">Zones d&apos;intervention</h4>
-                {(bc.zones ?? []).length === 0 ? (
-                  <p className="text-sm text-ink-soft">{bc.zone}</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {(bc.zones ?? []).map((z) => (
-                      <li
-                        key={z.regionCode}
-                        className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-[rgba(0,35,75,0.08)] px-3 py-2.5"
-                      >
-                        <MapPin className="h-3.5 w-3.5 shrink-0 text-terra" />
-                        <span className="text-sm font-semibold text-navy">{z.regionLabel}</span>
-                        <span className="text-xs text-ink-soft">
-                          {z.scope === "region" ? "toute la région" : z.cities.join(", ")}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </section>
-          )}
+      {/* Ce que la console ne sait pas montrer, nommé plutôt qu'inventé. */}
+      <section className="card p-5">
+        <h3 className="font-display text-base font-bold text-navy">
+          Ce qui manque encore sur cette fiche
+        </h3>
+        <ul className="mt-2 space-y-1.5 text-[13px] leading-relaxed text-ink-mid">
+          <li>
+            <strong>Son agenda et ses disponibilités</strong> — aucune route ne les
+            expose, nulle part dans l&apos;API.
+          </li>
+          <li>
+            <strong>Ses prestations</strong> — <code>GET /bookings</code> renvoie
+            toutes les réservations de la base, sans filtre par batch cooker ni
+            pagination.
+          </li>
+          <li>
+            <strong>Ses avis et sa note</strong> — pas de module d&apos;avis.
+          </li>
+          <li>
+            <strong>S&apos;il est en ligne ou hors ligne</strong> — on peut le
+            changer, pas le lire : aucune route ne rend la fiche d&apos;un batch
+            cooker côté admin.
+          </li>
+        </ul>
+      </section>
+    </div>
+  );
+}
 
-          {tab === "dossier" &&
-            FAMILY_ORDER.map((family) => {
-              const items = documents.filter((d) => d.family === family);
-              if (items.length === 0) return null;
-              return (
-                <section key={family} className="card p-6">
-                  <div className="mb-4 flex items-center gap-2">
-                    <h3 className="font-display text-lg font-bold text-navy">
-                      {family === "blocking"
-                        ? "Pièces obligatoires"
-                        : family === "conditional"
-                          ? "Selon la situation déclarée"
-                          : "Pièces facultatives"}
-                    </h3>
-                    <Badge
-                      tone={family === "blocking" ? "danger" : family === "conditional" ? "warning" : "neutral"}
-                    >
-                      {docFamilyLabel[family]}
-                    </Badge>
-                  </div>
+/* ── Mettre la vitrine en ligne ────────────────────────────────────────────── */
 
-                  <ul className="space-y-3">
-                    {items.map((d) => {
-                      const expiry = d.expiresAt ? daysUntil(d.expiresAt) : null;
-                      const actionable = d.status === "submitted" || d.status === "reviewing";
-                      const hasFile = d.status !== "missing";
-                      return (
-                        <li key={d.id} className="rounded-2xl border border-[rgba(0,35,75,0.08)] p-4">
-                          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[150px_1fr]">
-                            {/* Aperçu */}
-                            {hasFile ? (
-                              <div className="group relative">
-                                <DocPreview doc={d} chefName={bc.name} />
-                                <span className="pointer-events-none absolute inset-0 hidden items-center justify-center rounded-lg bg-navy/40 text-white group-hover:flex">
-                                  <ZoomIn className="h-5 w-5" />
-                                </span>
-                              </div>
-                            ) : (
-                              <div
-                                className="flex items-center justify-center rounded-lg border-2 border-dashed border-[rgba(0,35,75,0.12)] text-[11px] text-ink-soft"
-                                style={{ aspectRatio: "1 / 1.414" }}
-                              >
-                                Non fourni
-                              </div>
-                            )}
+function MiseEnLigne({ chefProfileId }: { chefProfileId: string }) {
+  const verif = useSetChefVerification(chefProfileId);
+  const [dernier, setDernier] = useState<"online" | "offline" | null>(null);
 
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="text-sm font-semibold text-navy">{d.label}</p>
-                                <Badge tone={docStatusTone[d.status]}>
-                                  {docStatusLabel[d.status]}
-                                </Badge>
-                              </div>
+  const agir = (isActive: boolean) =>
+    verif.mutate(
+      { isActive },
+      { onSuccess: () => setDernier(isActive ? "online" : "offline") },
+    );
 
-                              {d.submittedAt && (
-                                <p className="mt-1 text-[11px] text-ink-soft">
-                                  Déposé le {shortDate(d.submittedAt)}
-                                  {d.sizeKb ? ` · ${d.sizeKb} Ko` : ""}
-                                </p>
-                              )}
-
-                              {expiry !== null && d.status !== "missing" && (
-                                <p
-                                  className={cn(
-                                    "mt-1 inline-flex items-center gap-1.5 text-[11px]",
-                                    expiry <= 7
-                                      ? "text-danger"
-                                      : expiry <= 60
-                                        ? "text-[#9A6E15]"
-                                        : "text-ink-soft",
-                                  )}
-                                >
-                                  <CalendarClock className="h-3.5 w-3.5" />
-                                  {expiry > 0
-                                    ? `Expire dans ${expiry} jour${expiry > 1 ? "s" : ""}`
-                                    : `Expirée depuis ${Math.abs(expiry)} jour${Math.abs(expiry) > 1 ? "s" : ""}`}
-                                </p>
-                              )}
-
-                              {d.status === "rejected" && d.rejectionReason && (
-                                <div className="mt-2 flex items-start gap-2 rounded-xl border border-danger/30 bg-danger-soft px-3 py-2">
-                                  <FileWarning className="mt-0.5 h-3.5 w-3.5 shrink-0 text-danger" />
-                                  <p className="text-xs leading-relaxed text-danger">
-                                    <span className="font-semibold">Motif : </span>
-                                    {d.rejectionReason}
-                                  </p>
-                                </div>
-                              )}
-
-                              {actionable && rejecting !== d.id && (
-                                <div className="mt-3 flex gap-2">
-                                  <button
-                                    onClick={() => setStatus(d.id, "valid")}
-                                    className="btn btn-primary px-3 py-2 text-xs"
-                                  >
-                                    <Check className="h-3.5 w-3.5" /> Valider
-                                  </button>
-                                  <button
-                                    onClick={() => setRejecting(d.id)}
-                                    className="btn btn-outline px-3 py-2 text-xs"
-                                  >
-                                    <X className="h-3.5 w-3.5" /> Refuser
-                                  </button>
-                                </div>
-                              )}
-
-                              {rejecting === d.id && (
-                                <motion.div
-                                  initial={{ opacity: 0, height: 0 }}
-                                  animate={{ opacity: 1, height: "auto" }}
-                                  className="mt-3"
-                                >
-                                  <label className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-ink-soft">
-                                    Motif du refus (obligatoire)
-                                  </label>
-                                  <textarea
-                                    rows={2}
-                                    value={reason}
-                                    onChange={(e) => setReason(e.target.value)}
-                                    placeholder="Ce texte est affiché au batch cooker."
-                                    className="input-base resize-none"
-                                  />
-                                  <div className="mt-2 flex gap-2">
-                                    <button
-                                      onClick={() => confirmReject(d.id)}
-                                      disabled={!reason.trim()}
-                                      className="btn btn-primary px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-50"
-                                    >
-                                      Confirmer le refus
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        setRejecting(null);
-                                        setReason("");
-                                      }}
-                                      className="btn btn-ghost px-3 py-2 text-xs"
-                                    >
-                                      Annuler
-                                    </button>
-                                  </div>
-                                </motion.div>
-                              )}
-                            </div>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </section>
-              );
-            })}
-
-          {tab === "profil" && (
-            <section className="card p-6 space-y-5">
-              <div>
-                <p className="eyebrow mb-2">Statut de la vitrine</p>
-                <div className="flex flex-wrap gap-2">
-                  <Badge tone={bc.isVerified ? "success" : "warning"}>
-                    {bc.isVerified ? "Vérifié" : "En attente de vérification"}
-                  </Badge>
-                  <Badge tone={bc.isActive ? "success" : "neutral"}>
-                    {bc.isActive ? "Réservable" : "Non réservable"}
-                  </Badge>
-                </div>
-                <p className="mt-2 text-xs text-ink-soft">
-                  Modifiable via <code className="font-mono">PATCH /admin/chefs/:id/verification</code>.
-                </p>
-              </div>
-
-              {bc.bio && (
-                <div>
-                  <p className="eyebrow mb-2">Présentation</p>
-                  <p className="text-sm leading-relaxed text-ink-mid">{bc.bio}</p>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <p className="eyebrow mb-2">Langues</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(bc.languages ?? []).map((l) => (
-                      <span
-                        key={l}
-                        className="inline-flex items-center gap-1 rounded-full bg-cream-soft px-2.5 py-1 text-[11px] text-navy"
-                      >
-                        <Globe2 className="h-3 w-3" /> {l}
-                      </span>
-                    ))}
-                    {(bc.languages ?? []).length === 0 && (
-                      <span className="text-xs text-ink-soft">Non renseigné</span>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <p className="eyebrow mb-2">Spécialités</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(bc.specialties ?? []).map((s) => (
-                      <span key={s} className="rounded-full bg-teal-pale px-2.5 py-1 text-[11px] text-teal">
-                        {s}
-                      </span>
-                    ))}
-                    {(bc.specialties ?? []).length === 0 && (
-                      <span className="text-xs text-ink-soft">Non renseigné</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <p className="eyebrow mb-2">Moyens de paiement acceptés</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {(bc.acceptedPayments ?? []).map((p) => (
-                    <Badge key={p} tone="neutral">
-                      {paymentMethodLabel[p]}
-                    </Badge>
-                  ))}
-                  {bc.shoppingIncluded && (
-                    <Badge tone="info">
-                      <ShoppingBasket className="h-3 w-3" /> Courses incluses
-                    </Badge>
-                  )}
-                </div>
-              </div>
-
-              <p className="rounded-xl bg-cream-soft px-3.5 py-2.5 text-[11px] leading-relaxed text-ink-mid">
-                Langues, spécialités, moyens de paiement et option courses ne sont pas
-                encore portés par l&apos;API — affichés ici en données simulées.
-              </p>
-            </section>
-          )}
-
-          {tab === "menus" && (
-            <section className="card p-6">
-              <h3 className="mb-4 font-display text-lg font-bold text-navy">
-                Menus & recettes ({menusOf(bc.id).length})
-              </h3>
-              {menusOf(bc.id).length === 0 ? (
-                <p className="py-8 text-center text-sm text-ink-soft">
-                  Aucune recette publiée.
-                </p>
-              ) : (
-                <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {menusOf(bc.id).map((m) => (
-                    <li key={m.id} className="rounded-2xl border border-[rgba(0,35,75,0.08)] p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="font-display text-base font-bold text-navy">{m.name}</p>
-                        <div className="flex shrink-0 gap-1.5">
-                          {m.origin === "ai" && <Badge tone="info">IA</Badge>}
-                          <Badge tone={contentStatusTone[menuStatus[m.id] ?? m.status]}>
-                            {contentStatusLabel[menuStatus[m.id] ?? m.status]}
-                          </Badge>
-                        </div>
-                      </div>
-                      <p className="mt-1 inline-flex items-center gap-1.5 text-xs text-ink-soft">
-                        <UtensilsCrossed className="h-3 w-3" /> {m.country} · {m.category} ·{" "}
-                        {m.portions} portions
-                      </p>
-                      {m.allergens.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {m.allergens.map((a) => (
-                            <span
-                              key={a}
-                              className="rounded-full bg-danger-soft px-2 py-0.5 text-[10px] font-medium text-danger"
-                            >
-                              ⚠ {a}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Moderation : l admin fixe le statut de publication. */}
-                      <div className="mt-3 flex flex-wrap gap-1.5 border-t border-[rgba(0,35,75,0.06)] pt-3">
-                        {(["published", "pending", "rejected"] as ContentStatus[])
-                          .filter((st) => st !== (menuStatus[m.id] ?? m.status))
-                          .map((st) => (
-                            <button
-                              key={st}
-                              onClick={() =>
-                                setMenuStatus((prev) => ({ ...prev, [m.id]: st }))
-                              }
-                              className="btn btn-outline px-2.5 py-1.5 text-[11px]"
-                            >
-                              {st === "published"
-                                ? "Publier"
-                                : st === "pending"
-                                  ? "Remettre en validation"
-                                  : "Refuser"}
-                            </button>
-                          ))}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          )}
-
-          {tab === "agenda" && (
-            <>
-              <section className="card p-6">
-                <div className="mb-4 flex items-center gap-2">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-navy text-white">
-                    <CalendarDays className="h-4 w-4" />
-                  </span>
-                  <h3 className="font-display text-lg font-bold text-navy">
-                    Disponibilites hebdomadaires
-                  </h3>
-                </div>
-
-                {availabilityOf(bc.id) ? (
-                  <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    {availabilityOf(bc.id)!.slots.map((slot) => {
-                      const open = slot.ranges.length > 0;
-                      return (
-                        <li
-                          key={slot.day}
-                          className={cn(
-                            "flex items-center justify-between gap-3 rounded-2xl border px-4 py-3",
-                            open
-                              ? "border-[rgba(0,35,75,0.08)]"
-                              : "border-[rgba(0,35,75,0.05)] bg-cream-soft/60",
-                          )}
-                        >
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-navy">{slot.day}</p>
-                            <p className="inline-flex items-center gap-1.5 text-xs text-ink-soft">
-                              <Clock className="h-3 w-3" />
-                              {open ? slot.ranges.join(" · ") : "Indisponible"}
-                            </p>
-                          </div>
-                          <Badge tone={open ? "success" : "neutral"}>
-                            {open ? "Ouvert" : "Ferme"}
-                          </Badge>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : (
-                  <p className="py-8 text-center text-sm text-ink-soft">
-                    Aucune disponibilite renseignee par ce batch cooker.
-                  </p>
-                )}
-
-                <div className="mt-4 rounded-xl bg-cream-soft px-4 py-3">
-                  <p className="text-xs text-ink-mid">
-                    <span className="font-semibold text-navy">Zone d&apos;intervention : </span>
-                    {availabilityOf(bc.id)?.zone ?? bc.zone}
-                  </p>
-                </div>
-              </section>
-
-              <section className="card p-6">
-                <h3 className="mb-4 font-display text-lg font-bold text-navy">
-                  Sessions planifiees
-                </h3>
-                {sessionsOf(bc.id).filter((x) => x.status === "upcoming").length === 0 ? (
-                  <p className="py-6 text-center text-sm text-ink-soft">
-                    Aucune session a venir.
-                  </p>
-                ) : (
-                  <ul className="space-y-2.5">
-                    {sessionsOf(bc.id)
-                      .filter((x) => x.status === "upcoming")
-                      .map((x) => (
-                        <li
-                          key={x.id}
-                          className="flex items-center gap-4 rounded-2xl bg-cream-soft px-4 py-3"
-                        >
-                          <div className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl bg-paper">
-                            <span className="font-display text-sm font-bold text-navy">
-                              {new Date(x.date).getDate()}
-                            </span>
-                            <span className="font-mono text-[8px] uppercase text-ink-soft">
-                              {new Date(x.date).toLocaleDateString("fr-FR", { month: "short" })}
-                            </span>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-navy">{x.client}</p>
-                            <p className="font-mono text-[11px] text-ink-soft">{x.reference}</p>
-                          </div>
-                          <Badge tone="info">A venir</Badge>
-                        </li>
-                      ))}
-                  </ul>
-                )}
-              </section>
-            </>
-          )}
-
-          {tab === "prestations" && (
-            <section className="card p-6">
-              <h3 className="mb-4 font-display text-lg font-bold text-navy">
-                Prestations ({sessionsOf(bc.id).length})
-              </h3>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[560px] text-sm">
-                  <thead>
-                    <tr className="border-b border-[rgba(0,35,75,0.08)] text-left font-mono text-[10px] uppercase tracking-[0.14em] text-ink-soft">
-                      <th className="pb-2 font-normal">Référence</th>
-                      <th className="pb-2 font-normal">Client</th>
-                      <th className="pb-2 font-normal">Date</th>
-                      <th className="pb-2 font-normal text-right">Montant</th>
-                      <th className="pb-2 font-normal text-right">Net chef</th>
-                      <th className="pb-2 font-normal">Statut</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[rgba(0,35,75,0.06)]">
-                    {sessionsOf(bc.id).map((s) => (
-                      <tr key={s.id}>
-                        <td className="py-3 font-mono text-[11px] text-ink-soft">{s.reference}</td>
-                        <td className="py-3 font-semibold text-navy">{s.client}</td>
-                        <td className="py-3 text-xs text-ink-mid">{shortDate(s.date)}</td>
-                        <td className="py-3 text-right text-ink-mid">{euros(s.amountTTC)}</td>
-                        <td className="py-3 text-right font-display font-bold text-navy">
-                          {euros(s.net)}
-                        </td>
-                        <td className="py-3">
-                          <Badge
-                            tone={
-                              s.status === "done"
-                                ? "success"
-                                : s.status === "disputed"
-                                  ? "danger"
-                                  : s.status === "cancelled"
-                                    ? "neutral"
-                                    : "info"
-                            }
-                          >
-                            {s.status === "done"
-                              ? "Réalisée"
-                              : s.status === "disputed"
-                                ? "Litige"
-                                : s.status === "cancelled"
-                                  ? "Annulée"
-                                  : "À venir"}
-                          </Badge>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          )}
-
-          {tab === "finances" && (
-            <>
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <Stat label="CA généré" value={euros(fin.grossRevenue)} />
-                <Stat label="Commissions" value={euros(fin.commission)} accent />
-                <Stat label="Net chef" value={euros(fin.net)} />
-                <Stat label="En attente" value={`${fin.pending}`} />
-              </div>
-
-              <section className="card p-6">
-                <h3 className="mb-4 font-display text-lg font-bold text-navy">
-                  Transactions ({transactionsOf(bc.id).length})
-                </h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[620px] text-sm">
-                    <thead>
-                      <tr className="border-b border-[rgba(0,35,75,0.08)] text-left font-mono text-[10px] uppercase tracking-[0.14em] text-ink-soft">
-                        <th className="pb-2 font-normal">Date</th>
-                        <th className="pb-2 font-normal">Référence</th>
-                        <th className="pb-2 font-normal">Type</th>
-                        <th className="pb-2 font-normal">Moyen</th>
-                        <th className="pb-2 font-normal text-right">Montant</th>
-                        <th className="pb-2 font-normal text-right">Commission</th>
-                        <th className="pb-2 font-normal">Statut</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[rgba(0,35,75,0.06)]">
-                      {transactionsOf(bc.id).map((t) => (
-                        <tr key={t.id}>
-                          <td className="py-3 text-xs text-ink-mid">{shortDate(t.date)}</td>
-                          <td className="py-3 font-mono text-[11px] text-ink-soft">{t.reference}</td>
-                          <td className="py-3">
-                            <Badge tone={t.type === "commission" ? "terra" : "neutral"}>
-                              {txTypeLabel[t.type]}
-                            </Badge>
-                          </td>
-                          <td className="py-3 text-xs text-ink-mid">
-                            {t.paymentMethod ? paymentMethodLabel[t.paymentMethod] : "—"}
-                          </td>
-                          <td
-                            className={cn(
-                              "py-3 text-right font-semibold",
-                              t.amount < 0 ? "text-danger" : "text-navy",
-                            )}
-                          >
-                            {euros(t.amount)}
-                          </td>
-                          <td className="py-3 text-right text-ink-soft">
-                            {t.commission ? euros(t.commission) : "—"}
-                          </td>
-                          <td className="py-3">
-                            <Badge tone={txStatusTone[t.status]}>{txStatusLabel[t.status]}</Badge>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            </>
-          )}
+  return (
+    <div className="hairline mt-5 border-t pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-[13px] font-semibold text-navy">Vitrine publique</p>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-ink-soft">
+            Tant qu&apos;elle n&apos;est pas en ligne, aucun client ne le voit ni
+            ne peut le réserver. Ces deux boutons sont sans danger à répéter.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => agir(true)}
+            disabled={verif.isPending}
+            className="btn btn-primary btn-sm"
+          >
+            {verif.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Eye className="h-3.5 w-3.5" />
+            )}
+            Mettre en ligne
+          </button>
+          <button
+            type="button"
+            onClick={() => agir(false)}
+            disabled={verif.isPending}
+            className="btn btn-outline btn-sm"
+          >
+            Retirer
+          </button>
         </div>
       </div>
+
+      {dernier && !verif.isPending && (
+        <p className="mt-2 flex items-start gap-1.5 text-[12px] text-success">
+          <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          {dernier === "online"
+            ? "Vitrine en ligne : les clients peuvent le réserver."
+            : "Vitrine retirée : il n'apparaît plus aux clients."}
+        </p>
+      )}
+      {verif.isError && (
+        <p role="alert" className="mt-2 flex items-start gap-1.5 text-[12px] text-danger">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          {verificationMessage(verif.error)}
+        </p>
+      )}
     </div>
   );
 }
 
-function Block({ title, children }: { title: string; children: React.ReactNode }) {
+/* ── Profil ────────────────────────────────────────────────────────────────── */
+
+function Profil({ app }: { app: NonNullable<ReturnType<typeof useChefApplication>["data"]> }) {
   return (
-    <div>
-      <h4 className="mb-2 text-sm font-semibold text-navy">{title}</h4>
-      <div className="space-y-2 text-xs">{children}</div>
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Bloc titre="Identité">
+        <Ligne label="Prénom" valeur={app.identity?.firstName} />
+        <Ligne label="Nom" valeur={app.identity?.lastName} />
+        <Ligne label="Email" valeur={app.identity?.email} mono />
+        <Ligne label="Téléphone" valeur={app.identity?.phone} mono />
+      </Bloc>
+
+      <Bloc titre="Adresse">
+        <Ligne label="Rue" valeur={app.address?.street} />
+        <Ligne label="Complément" valeur={app.address?.line2 ?? undefined} />
+        <Ligne
+          label="Ville"
+          valeur={[app.address?.postcode, app.address?.city].filter(Boolean).join(" ")}
+        />
+        <Ligne label="Pays" valeur={countryLabel(app.address?.country)} />
+      </Bloc>
+
+      <Bloc titre="Activité">
+        <Ligne
+          label="Statut"
+          valeur={
+            app.company?.legalForm
+              ? (LEGAL_FORM_LABEL[app.company.legalForm] ?? app.company.legalForm)
+              : undefined
+          }
+        />
+        <Ligne label="SIRET" valeur={app.company?.siret ?? undefined} mono />
+        <Ligne
+          label="Services à la personne"
+          valeur={
+            app.company?.sap?.path === "type-a"
+              ? "Déclaration à son nom"
+              : app.company?.sap?.path === "type-b"
+                ? "Par Lab's Food"
+                : undefined
+          }
+        />
+        <Ligne
+          label="N° de déclaration"
+          valeur={app.company?.sap?.declarationNumber ?? undefined}
+          mono
+        />
+        <Ligne
+          label="Autorisation de travail"
+          valeur={
+            app.workAuthorization?.status
+              ? (WORK_STATUS_LABEL[app.workAuthorization.status] ??
+                app.workAuthorization.status)
+              : undefined
+          }
+        />
+      </Bloc>
+
+      <Bloc titre="Zones d'intervention">
+        {(app.interventionZones?.length ?? 0) === 0 ? (
+          <p className="text-sm text-ink-soft">Aucune zone renseignée.</p>
+        ) : (
+          <ul className="space-y-2.5">
+            {app.interventionZones.map((z, i) => (
+              <li key={z.regionCode ?? i} className="flex items-start gap-2.5">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-terra" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-navy">
+                    {z.regionLabel ?? z.regionCode}
+                  </span>
+                  <span className="block text-[13px] leading-relaxed text-ink-mid">
+                    {z.scope === "cities" && z.cities?.length
+                      ? z.cities.map((c) => c.name).join(", ")
+                      : "Toute la région"}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Bloc>
     </div>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-ink-soft">{label}</span>
-      <span className="text-right font-semibold text-navy">{value}</span>
-    </div>
-  );
-}
+/* ── Plats et menus ────────────────────────────────────────────────────────── */
 
-function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+function Contenu({
+  chefProfileId,
+  genre,
+}: {
+  chefProfileId: string;
+  genre: "dish" | "menu";
+}) {
+  const plats = useChefDishes(genre === "dish" ? chefProfileId : undefined);
+  const menus = useChefMenus(genre === "menu" ? chefProfileId : undefined);
+  const q = genre === "dish" ? plats : menus;
+  const items: ReviewItem[] = q.data ?? [];
+  const mot = genre === "dish" ? "plat" : "menu";
+
+  if (q.isError) {
+    return (
+      <section className="card p-6">
+        <p className="flex items-start gap-2 text-sm text-danger">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          {adminErrorMessage(q.error)}
+        </p>
+      </section>
+    );
+  }
+
+  if (q.isPending) {
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="card h-48 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <div className="card">
+        <EmptyState
+          Icon={genre === "dish" ? UtensilsCrossed : LayoutList}
+          title={`Aucun ${mot}`}
+          text={`Ce batch cooker n'a écrit aucun ${mot} pour l'instant.`}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="card p-4">
-      <p className={cn("font-display text-xl font-bold", accent ? "text-terra" : "text-navy")}>
-        {value}
+    <>
+      <p className="text-sm text-ink-mid">
+        {items.length} {mot}
+        {items.length > 1 ? "s" : ""}, brouillons et suspendus compris.
       </p>
-      <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-soft">
-        {label}
+      <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {items.map((it) => (
+          <article key={it.id} className="card overflow-hidden">
+            {it.imageUrl ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={it.imageUrl}
+                alt=""
+                className="aspect-[4/3] w-full object-cover"
+              />
+            ) : (
+              <div className="flex aspect-[4/3] w-full items-center justify-center bg-cream-deep text-ink-soft">
+                {genre === "dish" ? (
+                  <UtensilsCrossed className="h-7 w-7" />
+                ) : (
+                  <LayoutList className="h-7 w-7" />
+                )}
+              </div>
+            )}
+            <div className="p-4">
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="min-w-0 text-sm font-semibold leading-snug text-navy">
+                  {it.name}
+                </h3>
+                <Badge tone={moderatedTone[it.status]} dot>
+                  {moderatedLabel[it.status]}
+                </Badge>
+              </div>
+              <p className="mt-1 font-mono text-[11px] text-ink-soft">
+                {[
+                  countryLabel(it.country),
+                  it.prepMinutes ? `${it.prepMinutes} min` : null,
+                  it.dishCount != null ? `${it.dishCount} plats` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "—"}
+              </p>
+              {!it.allergensNone &&
+                it.allergens.length === 0 &&
+                it.customAllergens.length === 0 &&
+                genre === "dish" && (
+                  <p className="mt-2 text-[12px] leading-relaxed text-[#8A6212]">
+                    Allergènes non déclarés.
+                  </p>
+                )}
+            </div>
+          </article>
+        ))}
+      </div>
+      <Link href="/moderation" className="btn btn-outline btn-sm mt-4">
+        Modérer ce contenu
+      </Link>
+    </>
+  );
+}
+
+/* ── Vitrine ───────────────────────────────────────────────────────────────── */
+
+function Vitrine({ chefProfileId }: { chefProfileId: string }) {
+  const q = useChefShowcase(chefProfileId);
+  const semaines = q.data ?? [];
+
+  if (q.isPending) {
+    return <div className="card h-48 animate-pulse" />;
+  }
+
+  if (q.isError) {
+    return (
+      <section className="card p-5">
+        <p className="text-sm leading-relaxed text-ink-mid">
+          Sa vitrine publique n&apos;est pas lisible. C&apos;est normal tant
+          qu&apos;il n&apos;est pas en ligne : cette route ne rend que ce
+          qu&apos;un client verrait.
+        </p>
+      </section>
+    );
+  }
+
+  if (semaines.length === 0) {
+    return (
+      <div className="card">
+        <EmptyState
+          Icon={CalendarRange}
+          title="Aucune semaine programmée"
+          text="Il n'a pas encore choisi quel menu montrer, semaine par semaine."
+        />
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <p className="text-sm text-ink-mid">
+        Ce qu&apos;un client voit sur sa page, semaine par semaine. Une semaine
+        sans menu publié reste vide.
       </p>
+      <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {semaines.map((s, i) => (
+          <li key={s.weekStart ?? i} className="card p-4">
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-terra">
+              {s.weekStart ? formatDate(s.weekStart) : `Semaine ${i + 1}`}
+            </p>
+            {s.menu ? (
+              <>
+                <p className="mt-1 text-sm font-semibold leading-snug text-navy">
+                  {s.menu.title}
+                </p>
+                {s.menu.status && (
+                  <p className="mt-1 text-[11px] text-ink-soft">{s.menu.status}</p>
+                )}
+              </>
+            ) : (
+              <p className="mt-1 text-[13px] text-ink-soft">Rien de programmé.</p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+/* ── Petits blocs ──────────────────────────────────────────────────────────── */
+
+function Bloc({ titre, children }: { titre: string; children: React.ReactNode }) {
+  return (
+    <section className="card p-5">
+      <h3 className="font-display text-base font-bold text-navy">{titre}</h3>
+      <dl className="hairline mt-3 space-y-2 border-t pt-3">{children}</dl>
+    </section>
+  );
+}
+
+function Ligne({
+  label,
+  valeur,
+  mono,
+}: {
+  label: string;
+  valeur?: string | null;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 text-sm">
+      <dt className="text-ink-soft">{label}</dt>
+      <dd className={cn("text-right text-navy", mono && "font-mono text-[13px]")}>
+        {valeur || <span className="text-ink-soft">Non renseigné</span>}
+      </dd>
     </div>
   );
 }
