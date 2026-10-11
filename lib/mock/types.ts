@@ -211,21 +211,6 @@ export interface Candidature {
   createdAt: string;
 }
 
-// ─── Messages de contact (site principal) ────────────────────────────────────
-export type ContactStatus = "new" | "read" | "replied" | "archived";
-export type ContactChannel = "form" | "whatsapp" | "email";
-
-export interface ContactMessage {
-  id: string;
-  name: string;
-  email: string;
-  subject: string;
-  message: string;
-  channel: ContactChannel;
-  status: ContactStatus;
-  createdAt: string;
-}
-
 // ─── Avis / témoignages ──────────────────────────────────────────────────────
 export type AvisService = "batch-cooking" | "atelier" | "kossam";
 
