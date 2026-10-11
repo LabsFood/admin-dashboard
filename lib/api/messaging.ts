@@ -114,6 +114,7 @@ const KEYS = {
   counts: [...ROOT, "counts"] as const,
   detail: (id: string) => [...ROOT, "detail", id] as const,
   messages: (id: string) => [...ROOT, "messages", id] as const,
+  attachment: (id: string) => [...ROOT, "attachment", id] as const,
 };
 
 /** Le nom à afficher pour une conversation, quelle que soit sa sorte. */
@@ -333,6 +334,25 @@ export function useAdminUploadAttachment(id: string) {
     }
     return { uploadId: signed.uploadId, fileName: file.name };
   };
+}
+
+/**
+ * Le lien de lecture d'une pièce jointe, pour l'afficher dans la page (vignette
+ * et aperçu d'une image). Le lien signé vit 5 minutes : on le redemande au bout
+ * de 4, pour qu'un fil resté ouvert n'affiche jamais une image au lien périmé.
+ */
+export function useAdminAttachmentUrl(conversationId: string, attachmentId: string) {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: KEYS.attachment(attachmentId),
+    queryFn: () =>
+      apiFetch<{ url: string }>(
+        `/admin/conversations/${conversationId}/attachments/${attachmentId}/download-url`,
+      ),
+    select: (data) => data.url,
+    staleTime: 4 * 60 * 1000,
+    refetchInterval: 4 * 60 * 1000,
+  });
 }
 
 /** Ouvre une pièce jointe dans un nouvel onglet (lien valable 5 minutes). */
