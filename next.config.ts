@@ -8,6 +8,19 @@ const API_PROXY_TARGET =
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  /*
+   * « Équipe & chefs » a été retirée : les batch cookers ont leur propre
+   * section, les comptes et les rôles vivent dans Utilisateurs, et les zones
+   * d'intervention sur la fiche de chaque batch cooker. Les liens déjà
+   * partagés continuent d'arriver quelque part.
+   */
+  async redirects() {
+    return [
+      { source: "/equipe", destination: "/batchcookers", permanent: false },
+      { source: "/equipe/:id", destination: "/batchcookers", permanent: false },
+    ];
+  },
+
   async rewrites() {
     return [
       {

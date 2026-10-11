@@ -10,7 +10,6 @@ import {
   Milk,
   Mail,
   Star,
-  ChefHat,
   ClipboardCheck,
   Receipt,
   Settings,
@@ -171,14 +170,6 @@ export const NAV_SECTIONS: NavSection[] = [
         title: "Batch cookers",
         subtitle:
           "Candidatures, pièces justificatives et validation des comptes.",
-      },
-      {
-        href: "/equipe",
-        label: "Équipe & chefs",
-        Icon: ChefHat,
-        eyebrow: "Ressources",
-        title: "Équipe & chefs",
-        subtitle: "Chefs, staff et zones de service.",
       },
       {
         href: "/utilisateurs",
