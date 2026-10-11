@@ -7,14 +7,25 @@ import Logo from "./Logo";
 import { NAV_SECTIONS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
+import { useQuotes } from "@/lib/api/quotes";
+import { useChefApplications } from "@/lib/api/admin";
 import { RESERVATIONS } from "@/lib/mock/reservations";
-import { DEMANDES } from "@/lib/mock/demandes";
+// import { THREADS } from "@/lib/mock/messages";
+// import { CONTACT_MESSAGES } from "@/lib/mock/contact";
+// import { DEMANDES } from "@/lib/mock/demandes";
 import { useAdminConversationCounts } from "@/lib/api/messaging";
 import { useContactCounts } from "@/lib/api/contact";
 
-const BADGES: Record<string, number> = {
+/*
+ * Les pastilles des modules encore sur maquette. Celles des demandes et des
+ * candidatures viennent de l'API, plus bas : une pastille est une promesse de
+ * travail à faire, et une fausse promesse envoie chercher pour rien.
+ */
+const BADGES_MAQUETTE: Record<string, number> = {
   "/reservations": RESERVATIONS.filter((r) => r.status === "pending").length,
-  "/demandes": DEMANDES.filter((d) => d.status === "submitted").length,
+  // "/messagerie": THREADS.reduce((n, t) => n + t.unreadCount, 0),
+  // "/contact": CONTACT_MESSAGES.filter((c) => c.status === "new").length,
+  // "/demandes": DEMANDES.filter((d) => d.status === "submitted").length,
 };
 
 export default function Sidebar() {
@@ -26,6 +37,16 @@ export default function Sidebar() {
   const messagingBadge = (messaging?.unread ?? 0) + (messaging?.flagged ?? 0);
   // Messages de contact que personne n'a encore ouverts.
   const contactBadge = useContactCounts().data?.new ?? 0;
+
+  // Deux files réelles, lues une fois et partagées avec les écrans.
+  const aChiffrer = useQuotes({ status: "submitted" });
+  const candidatures = useChefApplications({ status: "submitted", limit: 1 });
+
+  const BADGES: Record<string, number> = {
+    ...BADGES_MAQUETTE,
+    "/demandes": aChiffrer.data?.length ?? 0,
+    "/batchcookers": candidatures.data?.meta?.total ?? 0,
+  };
 
   const handleLogout = () => {
     signOut();

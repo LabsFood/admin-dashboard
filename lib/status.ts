@@ -3,7 +3,6 @@ import type { Role } from "@/lib/api/types";
 import type { ContactStatus } from "@/lib/api/contact";
 import type {
   ReservationStatus,
-  DemandeStatus,
   KossamStatus,
   CandidatureStatus,
   PaymentStatus,
@@ -19,14 +18,6 @@ export const reservationTone: Record<ReservationStatus, BadgeTone> = {
   cooking: "terra",
   delivered: "success",
   cancelled: "danger",
-};
-
-export const demandeTone: Record<DemandeStatus, BadgeTone> = {
-  submitted: "warning",
-  "in-review": "info",
-  quoted: "terra",
-  accepted: "success",
-  declined: "danger",
 };
 
 export const kossamTone: Record<KossamStatus, BadgeTone> = {
