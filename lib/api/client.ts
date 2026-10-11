@@ -37,7 +37,16 @@ interface ApiFetchOptions {
   method?: Method;
   body?: unknown;
   signal?: AbortSignal;
+  /** Délai au-delà duquel on cesse d'attendre. 0 pour ne pas limiter. */
+  timeoutMs?: number;
 }
+
+/**
+ * Un appel sans délai maximum ne revient jamais quand le réseau se fige — et
+ * un écran qui l'attend affiche son chargement pour toujours. C'est ce qui
+ * bloquait la console au réveil d'un onglet resté longtemps inactif.
+ */
+const DEFAULT_TIMEOUT_MS = 15_000;
 
 /**
  * Appel HTTP bas niveau. Injecte le Bearer token et le Content-Type, parse le
@@ -45,11 +54,19 @@ interface ApiFetchOptions {
  */
 export async function apiFetch<T>(
   path: string,
-  { token, method = "GET", body, signal }: ApiFetchOptions,
+  { token, method = "GET", body, signal, timeoutMs = DEFAULT_TIMEOUT_MS }: ApiFetchOptions,
 ): Promise<T> {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) headers["Content-Type"] = "application/json";
+
+  // Le signal de l'appelant et notre minuterie, combinés : le premier des
+  // deux qui se déclenche interrompt la requête.
+  const minuterie = timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : null;
+  const abandon =
+    signal && minuterie
+      ? AbortSignal.any([signal, minuterie])
+      : (signal ?? minuterie ?? undefined);
 
   let res: Response;
   try {
@@ -57,11 +74,19 @@ export async function apiFetch<T>(
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
-      signal,
+      signal: abandon,
     });
   } catch (cause) {
-    // Réseau injoignable / CORS / DNS.
-    throw new ApiError(0, "Impossible de joindre l'API.", cause);
+    const expire =
+      cause instanceof DOMException &&
+      (cause.name === "TimeoutError" || minuterie?.aborted === true);
+    throw new ApiError(
+      0,
+      expire
+        ? "L'API n'a pas répondu à temps."
+        : "Impossible de joindre l'API.",
+      cause,
+    );
   }
 
   const text = await res.text();
