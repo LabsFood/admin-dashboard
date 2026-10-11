@@ -166,6 +166,8 @@ export interface ChefApplicationDocument {
  */
 export interface ChefApplicationDetail {
   id: string;
+  /** `users.id` du compte créé au dépôt de la candidature ; sert à lui écrire. */
+  userId?: string | null;
   reference: string;
   status: ChefApplicationStatus;
   identity: {

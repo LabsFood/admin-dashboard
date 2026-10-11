@@ -28,6 +28,7 @@ import {
   useRejectApplication,
   useRequestChanges,
 } from "@/lib/api/admin";
+import WriteToUserButton from "@/components/admin/WriteToUserButton";
 import type {
   ChefApplicationDocument,
   ChefApplicationStatus,
@@ -255,6 +256,7 @@ export default function CandidatureDetailPage({
           >
             Voir le profil batch cooker
           </Link>
+          {data.userId && <WriteToUserButton userId={data.userId} />}
         </div>
       </header>
 

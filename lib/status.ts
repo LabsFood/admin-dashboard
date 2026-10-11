@@ -1,10 +1,10 @@
 import type { BadgeTone } from "@/components/ui/Badge";
 import type { Role } from "@/lib/api/types";
+import type { ContactStatus } from "@/lib/api/contact";
 import type {
   ReservationStatus,
   KossamStatus,
   CandidatureStatus,
-  ContactStatus,
   PaymentStatus,
   ClientStatus,
 } from "@/lib/mock/types";

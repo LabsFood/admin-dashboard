@@ -10,8 +10,11 @@ import { useAuth } from "@/lib/auth";
 import { useQuotes } from "@/lib/api/quotes";
 import { useChefApplications } from "@/lib/api/admin";
 import { RESERVATIONS } from "@/lib/mock/reservations";
-import { THREADS } from "@/lib/mock/messages";
-import { CONTACT_MESSAGES } from "@/lib/mock/contact";
+// import { THREADS } from "@/lib/mock/messages";
+// import { CONTACT_MESSAGES } from "@/lib/mock/contact";
+// import { DEMANDES } from "@/lib/mock/demandes";
+import { useAdminConversationCounts } from "@/lib/api/messaging";
+import { useContactCounts } from "@/lib/api/contact";
 
 /*
  * Les pastilles des modules encore sur maquette. Celles des demandes et des
@@ -20,14 +23,20 @@ import { CONTACT_MESSAGES } from "@/lib/mock/contact";
  */
 const BADGES_MAQUETTE: Record<string, number> = {
   "/reservations": RESERVATIONS.filter((r) => r.status === "pending").length,
-  "/messagerie": THREADS.reduce((n, t) => n + t.unreadCount, 0),
-  "/contact": CONTACT_MESSAGES.filter((c) => c.status === "new").length,
+  // "/messagerie": THREADS.reduce((n, t) => n + t.unreadCount, 0),
+  // "/contact": CONTACT_MESSAGES.filter((c) => c.status === "new").length,
+  // "/demandes": DEMANDES.filter((d) => d.status === "submitted").length,
 };
 
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { signOut } = useAuth();
+  // Ce qui attend l'équipe : messages support non lus et conversations signalées.
+  const messaging = useAdminConversationCounts().data;
+  const messagingBadge = (messaging?.unread ?? 0) + (messaging?.flagged ?? 0);
+  // Messages de contact que personne n'a encore ouverts.
+  const contactBadge = useContactCounts().data?.new ?? 0;
 
   // Deux files réelles, lues une fois et partagées avec les écrans.
   const aChiffrer = useQuotes({ status: "submitted" });
@@ -65,7 +74,12 @@ export default function Sidebar() {
               <ul className="space-y-0.5">
                 {section.items.map(({ href, label, Icon }) => {
                   const active = isActive(href);
-                  const badge = BADGES[href];
+                  const badge =
+                    href === "/messagerie"
+                      ? messagingBadge
+                      : href === "/contact"
+                        ? contactBadge
+                        : BADGES[href];
                   return (
                     <li key={href}>
                       <Link

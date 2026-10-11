@@ -130,25 +130,6 @@ export interface Demande {
   quote: { amountTTC: number; amountAfterTax: number; note?: string } | null;
 }
 
-// ─── Messagerie ──────────────────────────────────────────────────────────────
-export interface ChatMessage {
-  id: string;
-  from: "client" | "admin";
-  text: string;
-  at: string;
-  read: boolean;
-}
-
-export interface ChatThread {
-  id: string;
-  clientId: string;
-  clientName: string;
-  topic: string;
-  lastMessageAt: string;
-  unreadCount: number;
-  messages: ChatMessage[];
-}
-
 // ─── Commandes produit Kossam (site principal) ───────────────────────────────
 export type KossamStatus =
   | "new"
@@ -227,21 +208,6 @@ export interface Candidature {
   interviewDate: string | null;
   internalNotes: string;
   documents: CandidatureDocument[];
-  createdAt: string;
-}
-
-// ─── Messages de contact (site principal) ────────────────────────────────────
-export type ContactStatus = "new" | "read" | "replied" | "archived";
-export type ContactChannel = "form" | "whatsapp" | "email";
-
-export interface ContactMessage {
-  id: string;
-  name: string;
-  email: string;
-  subject: string;
-  message: string;
-  channel: ContactChannel;
-  status: ContactStatus;
   createdAt: string;
 }
 

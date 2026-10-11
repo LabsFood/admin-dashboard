@@ -28,6 +28,7 @@ import Drawer from "@/components/ui/Drawer";
 import EmptyState from "@/components/ui/EmptyState";
 import UserForm from "@/components/admin/UserForm";
 import RoleEditor from "@/components/admin/RoleEditor";
+import WriteToUserButton from "@/components/admin/WriteToUserButton";
 import { cn, initials, timeAgo } from "@/lib/utils";
 import { roleLabel, roleTone } from "@/lib/status";
 import { useClients } from "@/lib/api/admin";
@@ -111,7 +112,11 @@ const COLUMNS = [
     id: "roleEditor",
     header: "R\u00f4le applicatif",
     cell: (c) => (
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end gap-4">
+        {/* L'équipe n'a pas de fil support avec elle-même. */}
+        {c.row.original.role !== "admin" && (
+          <WriteToUserButton userId={c.row.original.userId} />
+        )}
         <div className="w-fit">
           <RoleEditor
             userId={c.row.original.userId}
@@ -433,6 +438,9 @@ function UserCard({ row }: { row: UserRow }) {
       <div className="mt-3 flex items-center gap-3 text-[11px] text-ink-soft">
         <OriginTag row={row} />
         {row.createdAt && <span>Créé {timeAgo(row.createdAt)}</span>}
+        {row.role !== "admin" && (
+          <WriteToUserButton userId={row.userId} className="ml-auto" />
+        )}
       </div>
 
       <div className="mt-4 border-t border-[rgba(0,35,75,0.08)] pt-3">

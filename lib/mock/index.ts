@@ -2,8 +2,8 @@
 export * from "./types";
 export * from "./clients";
 export * from "./reservations";
-export * from "./messages";
+// export * from "./messages";
+// export * from "./demandes";
 export * from "./kossam";
 export * from "./candidatures";
-export * from "./contact";
 export * from "./avis";

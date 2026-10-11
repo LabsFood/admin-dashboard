@@ -12,6 +12,7 @@ import MobileNav from "@/components/admin/MobileNav";
 import Splash from "@/components/admin/Splash";
 import { useTooLong } from "@/lib/use-too-long";
 import AdminSignals from "@/components/admin/AdminSignals";
+import { useAdminMessagingSocket } from "@/lib/api/messaging";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const { isAuthenticated, isReady, signOut } = useAuth();
@@ -121,6 +122,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   return (
     <AdminSignals>
+      <MessagingRealtime />
       <div className="flex min-h-screen bg-cream">
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">
@@ -133,6 +135,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       </div>
     </AdminSignals>
   );
+}
+
+/** Écoute temps réel de la messagerie, une fois la console ouverte à un admin. */
+function MessagingRealtime() {
+  useAdminMessagingSocket();
+  return null;
 }
 
 /** État terminal d'erreur (accès non vérifiable) — le chargement passe par `Splash`. */
