@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import Badge from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
+import FilterTabs from "@/components/ui/FilterTabs";
 import ChefApplicationsList from "@/components/admin/ChefApplicationsList";
 import { cn, formatDate, initials } from "@/lib/utils";
 import { useChefApplications } from "@/lib/api/admin";
@@ -91,19 +92,40 @@ function StageTab({
   );
 }
 
+/**
+ * Approuvé n'est pas en ligne. L'API crée le profil chef dès la soumission et
+ * laisse la vitrine éteinte : on peut très bien avoir dix candidatures
+ * approuvées et aucun batch cooker réservable. C'est la première question
+ * qu'on se pose devant cette liste, donc le premier filtre.
+ */
+type Presence = "tous" | "en-ligne" | "hors-ligne";
+
 function ReseauView({ query, setQuery }: { query: string; setQuery: (q: string) => void }) {
   const liste = useChefApplications({ status: "approved", limit: 100 });
+  const [presence, setPresence] = useState<Presence>("tous");
   const lignes = liste.data?.data ?? [];
 
+  // `isActive` arrive dans la réponse réelle sans figurer au Swagger. Quand il
+  // manque, on ne filtre pas sur une devinette : la carte reste muette.
+  const etatConnu = lignes.some((b) => typeof b.isActive === "boolean");
+  const enLigne = lignes.filter((b) => b.isActive === true).length;
+
   const q = query.trim().toLowerCase();
-  const filtrees = q
-    ? lignes.filter(
-        (b) =>
-          b.name.toLowerCase().includes(q) ||
-          (b.city ?? "").toLowerCase().includes(q) ||
-          b.reference.toLowerCase().includes(q),
-      )
-    : lignes;
+  const filtrees = lignes
+    .filter((b) =>
+      !etatConnu || presence === "tous"
+        ? true
+        : presence === "en-ligne"
+          ? b.isActive === true
+          : b.isActive !== true,
+    )
+    .filter(
+      (b) =>
+        !q ||
+        b.name.toLowerCase().includes(q) ||
+        (b.city ?? "").toLowerCase().includes(q) ||
+        b.reference.toLowerCase().includes(q),
+    );
 
   if (liste.isError) {
     return (
@@ -131,8 +153,9 @@ function ReseauView({ query, setQuery }: { query: string; setQuery: (q: string) 
                 } approuvé${lignes.length > 1 ? "s" : ""}`}
           </p>
           <p className="mt-0.5 text-[12px] leading-relaxed text-ink-soft">
-            Établi depuis les candidatures approuvées : l&apos;API n&apos;expose
-            pas encore la liste des batch cookers.
+            {etatConnu
+              ? `${enLigne} vitrine${enLigne > 1 ? "s" : ""} en ligne — seules celles-là sont réservables par un client.`
+              : "Établi depuis les candidatures approuvées : l'API n'expose pas encore la liste des batch cookers."}
           </p>
         </div>
         <div className="relative lg:w-64">
@@ -149,6 +172,18 @@ function ReseauView({ query, setQuery }: { query: string; setQuery: (q: string) 
           />
         </div>
       </div>
+
+      {etatConnu && (
+        <FilterTabs<Presence>
+          value={presence}
+          onChange={setPresence}
+          options={[
+            { id: "tous", label: "Tous", count: lignes.length },
+            { id: "en-ligne", label: "En ligne", count: enLigne },
+            { id: "hors-ligne", label: "Hors ligne", count: lignes.length - enLigne },
+          ]}
+        />
+      )}
 
       {liste.isPending ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -195,16 +230,31 @@ function ReseauView({ query, setQuery }: { query: string; setQuery: (q: string) 
                       </p>
                     )}
                   </div>
-                  <Badge tone="success" dot>
-                    Approuvé
-                  </Badge>
+                  {typeof b.isActive === "boolean" ? (
+                    <Badge tone={b.isActive ? "success" : "neutral"} dot>
+                      {b.isActive ? "En ligne" : "Hors ligne"}
+                    </Badge>
+                  ) : (
+                    <Badge tone="success" dot>
+                      Approuvé
+                    </Badge>
+                  )}
                 </div>
 
                 <p className="mt-3 font-mono text-[11px] text-ink-soft">{b.reference}</p>
 
+                {b.isActive === false && (
+                  <p className="mt-2 text-[12px] leading-relaxed text-[#8A6212]">
+                    Approuvé mais invisible : aucun client ne peut le réserver
+                    tant que sa vitrine n&apos;est pas mise en ligne.
+                  </p>
+                )}
+
                 <div className="hairline mt-auto flex items-center justify-between border-t pt-3">
                   <span className="text-[11px] text-ink-soft">
-                    Candidature du {formatDate(b.submittedAt)}
+                    {b.isVerified === false
+                      ? "Vérification non faite"
+                      : `Candidature du ${formatDate(b.submittedAt)}`}
                   </span>
                   <ArrowRight className="h-4 w-4 text-terra" aria-hidden />
                 </div>

@@ -104,6 +104,15 @@ export interface ChefApplicationRow {
   submittedAt: string;
   /** Ce qui rend la promesse « réponse sous 48 h ouvrées » triable. */
   waitingSinceHours: number;
+  /**
+   * La vitrine est-elle en ligne. Présent dans la réponse réelle, absent du
+   * Swagger — aucune réponse 2xx de ces routes n'a de schéma. D'où
+   * l'optionnel : l'écran montre l'état quand l'API le donne, et se taît
+   * plutôt que d'affirmer « hors ligne » sur un champ manquant.
+   */
+  isActive?: boolean;
+  /** Vérification faite par la maison, indépendante de la mise en ligne. */
+  isVerified?: boolean;
 }
 
 export type ChefDocumentType =
@@ -193,6 +202,9 @@ export interface ChefApplicationDetail {
   chefProfileId: string;
   /** Statut dérivé du dossier : `draft` tant que les pièces manquent. */
   dossierStatus: string;
+  /** Voir `ChefApplicationRow.isActive` : lisible, non documenté. */
+  isActive?: boolean;
+  isVerified?: boolean;
   /** L'API dit elle-même si l'approbation est possible. */
   canApprove: boolean;
   documents: ChefApplicationDocument[];
