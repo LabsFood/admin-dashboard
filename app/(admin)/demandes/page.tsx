@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import Badge from "@/components/ui/Badge";
+import QuoteChefAssignment from "@/components/admin/QuoteChefAssignment";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import FilterTabs from "@/components/ui/FilterTabs";
 import EmptyState from "@/components/ui/EmptyState";
@@ -139,11 +140,6 @@ export default function DemandesPage() {
           Ce que l&apos;API ne permet pas encore
         </h3>
         <ul className="mt-2 space-y-1.5 text-[13px] leading-relaxed text-ink-mid">
-          <li>
-            <strong>Affecter un batch cooker</strong> —{" "}
-            <code>assignedChefUserId</code> se lit mais ne s&apos;écrit pas :
-            aucun champ du corps de modification ne le porte.
-          </li>
           <li>
             <strong>Classer une demande sans suite</strong> — le seul statut de
             fin est <code>declined</code>, qui veut dire «&nbsp;le client a
@@ -296,6 +292,8 @@ function QuoteCard({ quote: q, index }: { quote: Quote; index: number }) {
           <p className="mt-3 text-[12px] leading-relaxed text-ink-soft">
             {quoteStatusHint[q.status]}
           </p>
+
+          <QuoteChefAssignment quote={q} />
         </div>
 
         {/* ── Le devis ──────────────────────────────────────────────────── */}
@@ -395,11 +393,6 @@ function QuoteCard({ quote: q, index }: { quote: Quote; index: number }) {
               {q.quoteNote && (
                 <p className="mt-1.5 text-[11px] leading-relaxed italic text-ink-mid">
                   {q.quoteNote}
-                </p>
-              )}
-              {q.assignedChefUserId && (
-                <p className="mt-2 font-mono text-[10px] text-ink-soft">
-                  Batch cooker affecté : {q.assignedChefUserId.slice(0, 8)}…
                 </p>
               )}
               {q.status !== "accepted" && (
