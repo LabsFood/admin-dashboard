@@ -14,7 +14,6 @@ import {
   Home,
   Mail,
   MapPin,
-  MessageCircle,
   Phone,
   RotateCw,
   ShieldCheck,
@@ -26,6 +25,7 @@ import RoleEditor from "@/components/admin/RoleEditor";
 import { cn, euros, initials } from "@/lib/utils";
 import { clientTone, clientLabel } from "@/lib/status";
 import { useClient, useUpdateClient } from "@/lib/api/admin";
+import WriteToUserButton from "@/components/admin/WriteToUserButton";
 import { toClientView, type ClientView } from "@/lib/api/adapt";
 import { ApiError } from "@/lib/api/client";
 import type { ClientStatus } from "@/lib/mock/types";
@@ -235,18 +235,7 @@ function ClientDetail({ id, client }: { id: string; client: ClientView }) {
             <RoleEditor userId={client.userId} role={client.role} />
           </section>
 
-          <Link
-            href="/messagerie"
-            className="flex items-center gap-3 rounded-3xl bg-teal p-4 text-white transition-transform hover:-translate-y-0.5"
-          >
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
-              <MessageCircle className="h-4 w-4" />
-            </span>
-            <div className="text-sm">
-              <p className="font-semibold">Envoyer un message</p>
-              <p className="text-xs text-white/60">Ouvrir la messagerie</p>
-            </div>
-          </Link>
+          <WriteToUserButton userId={client.userId} variant="card" />
         </aside>
 
         {/* Colonne droite : activité */}
