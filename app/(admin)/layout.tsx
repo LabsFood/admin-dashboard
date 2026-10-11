@@ -2,7 +2,7 @@
 
 import { useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldAlert, RotateCw, LogOut } from "lucide-react";
+import { ShieldAlert, RotateCw, LogOut, Clock } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useMe } from "@/lib/api/me";
 import { ApiError } from "@/lib/api/client";
@@ -10,6 +10,7 @@ import Sidebar from "@/components/admin/Sidebar";
 import Topbar from "@/components/admin/Topbar";
 import MobileNav from "@/components/admin/MobileNav";
 import Splash from "@/components/admin/Splash";
+import { useTooLong } from "@/lib/use-too-long";
 import AdminSignals from "@/components/admin/AdminSignals";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
@@ -36,33 +37,73 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     }
   }, [isReady, isAuthenticated, me.isSuccess, isAdmin, signOut, router]);
 
-  // ── Chargement (Clerk ou /me en cours) ───────────────────────────────────
-  if (!isReady || !isAuthenticated || me.isPending) {
+  /*
+   * Une attente peut ne jamais finir : onglet réveillé après des heures, token
+   * que Clerk n'arrive pas à rafraîchir, requête qui se fige. L'écran de
+   * chargement promettait alors quelque chose qui n'arrivait pas, sans aucune
+   * sortie. On met une limite à la patience.
+   *
+   * `me.isPending` vaut aussi `true` quand la requête est **désactivée**
+   * (Clerk pas encore prêt) : c'est pourquoi la condition la teste en dernier,
+   * une fois la session connue.
+   */
+  const attente = !isReady || !isAuthenticated || me.isPending;
+  const tropLong = useTooLong(attente, 12_000);
+
+  if (attente && !tropLong) {
     return <Splash label="Chargement de la console…" />;
+  }
+
+  if (attente && tropLong) {
+    return (
+      <FullscreenState
+        Icon={Clock}
+        label="La console met trop de temps à répondre"
+        detail="Votre session a peut-être expiré pendant que l'onglet dormait. Reconnectez-vous : c'est le plus sûr."
+        actions={
+          <>
+            <button onClick={signOut} className="btn btn-navy">
+              <LogOut className="h-4 w-4" /> Se reconnecter
+            </button>
+            <button onClick={() => window.location.reload()} className="btn btn-outline">
+              <RotateCw className="h-4 w-4" /> Recharger
+            </button>
+          </>
+        }
+      />
+    );
   }
 
   // ── Erreur API (401 token rejeté, 503, réseau…) : état terminal, pas de
   //    redirection — sinon boucle avec la page de login. Sortie = se déconnecter.
   if (me.isError) {
-    const is401 = me.error instanceof ApiError && me.error.status === 401;
+    const code = me.error instanceof ApiError ? me.error.status : null;
+    const expiree = code === 401;
+    const injoignable = code === 0;
     return (
       <FullscreenState
+        Icon={expiree ? Clock : ShieldAlert}
         label={
-          is401
-            ? "Session non reconnue par l'API"
-            : "Impossible de vérifier votre accès."
+          expiree
+            ? "Votre session a expiré"
+            : injoignable
+              ? "L'API ne répond pas"
+              : "Impossible de vérifier votre accès"
         }
         detail={
-          is401
-            ? "Tu es connecté à Clerk, mais l'API a refusé le token (401). Déconnecte-toi et reconnecte-toi ; si le problème persiste, c'est la validation du token côté backend qu'il faut corriger."
-            : me.error instanceof ApiError
-              ? me.error.message
-              : "Le service est momentanément indisponible."
+          expiree
+            ? "L'API a refusé votre jeton de session. Reconnectez-vous, cela suffit presque toujours."
+            : injoignable
+              ? "La requête n'a pas abouti dans le temps imparti. Vérifiez votre connexion, puis réessayez."
+              : me.error instanceof ApiError
+                ? me.error.message
+                : "Le service est momentanément indisponible."
         }
         actions={
           <>
             <button onClick={signOut} className="btn btn-navy">
-              <LogOut className="h-4 w-4" /> Se déconnecter
+              <LogOut className="h-4 w-4" />
+              {expiree ? "Se reconnecter" : "Se déconnecter"}
             </button>
             <button onClick={() => me.refetch()} className="btn btn-outline">
               <RotateCw className="h-4 w-4" /> Réessayer
@@ -96,10 +137,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
 /** État terminal d'erreur (accès non vérifiable) — le chargement passe par `Splash`. */
 function FullscreenState({
+  Icon = ShieldAlert,
   label,
   detail,
   actions,
 }: {
+  Icon?: typeof ShieldAlert;
   label: string;
   detail?: string;
   actions?: ReactNode;
@@ -108,7 +151,7 @@ function FullscreenState({
     <div className="flex min-h-screen items-center justify-center bg-cream px-6">
       <div className="flex max-w-sm flex-col items-center gap-3 text-center">
         <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-danger-soft text-danger">
-          <ShieldAlert className="h-6 w-6" />
+          <Icon className="h-6 w-6" />
         </span>
         <p className="font-display text-lg font-bold text-navy">{label}</p>
         {detail && <p className="text-sm text-ink-mid">{detail}</p>}
