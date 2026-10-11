@@ -2,7 +2,6 @@ import type { BadgeTone } from "@/components/ui/Badge";
 import type { Role } from "@/lib/api/types";
 import type { ContactStatus } from "@/lib/api/contact";
 import type {
-  ReservationStatus,
   KossamStatus,
   CandidatureStatus,
   PaymentStatus,
@@ -10,15 +9,6 @@ import type {
 } from "@/lib/mock/types";
 
 /* Correspondance statut → couleur de badge, centralisée. */
-
-export const reservationTone: Record<ReservationStatus, BadgeTone> = {
-  pending: "warning",
-  confirmed: "info",
-  shopping: "teal",
-  cooking: "terra",
-  delivered: "success",
-  cancelled: "danger",
-};
 
 export const kossamTone: Record<KossamStatus, BadgeTone> = {
   new: "warning",

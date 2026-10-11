@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { useQuotes } from "@/lib/api/quotes";
 import { useChefApplications } from "@/lib/api/admin";
-import { RESERVATIONS } from "@/lib/mock/reservations";
+import { isBookingOpen, useBookings } from "@/lib/api/bookings";
 // import { THREADS } from "@/lib/mock/messages";
 // import { CONTACT_MESSAGES } from "@/lib/mock/contact";
 // import { DEMANDES } from "@/lib/mock/demandes";
@@ -17,12 +17,12 @@ import { useAdminConversationCounts } from "@/lib/api/messaging";
 import { useContactCounts } from "@/lib/api/contact";
 
 /*
- * Les pastilles des modules encore sur maquette. Celles des demandes et des
- * candidatures viennent de l'API, plus bas : une pastille est une promesse de
- * travail à faire, et une fausse promesse envoie chercher pour rien.
+ * Il ne reste plus de pastille de maquette : messagerie, contact, demandes,
+ * candidatures et réservations sont comptées sur l'API, plus bas. Une pastille
+ * est une promesse de travail à faire, et une fausse promesse envoie chercher
+ * pour rien — d'où ces lignes gardées en commentaire plutôt que rallumées.
  */
 const BADGES_MAQUETTE: Record<string, number> = {
-  "/reservations": RESERVATIONS.filter((r) => r.status === "pending").length,
   // "/messagerie": THREADS.reduce((n, t) => n + t.unreadCount, 0),
   // "/contact": CONTACT_MESSAGES.filter((c) => c.status === "new").length,
   // "/demandes": DEMANDES.filter((d) => d.status === "submitted").length,
@@ -41,11 +41,15 @@ export default function Sidebar() {
   // Deux files réelles, lues une fois et partagées avec les écrans.
   const aChiffrer = useQuotes({ status: "submitted" });
   const candidatures = useChefApplications({ status: "submitted", limit: 1 });
+  // Le cache est partagé avec la vue d'ensemble et l'écran des réservations :
+  // la barre ne tire pas la base une seconde fois.
+  const reservations = useBookings();
 
   const BADGES: Record<string, number> = {
     ...BADGES_MAQUETTE,
     "/demandes": aChiffrer.data?.length ?? 0,
     "/batchcookers": candidatures.data?.meta?.total ?? 0,
+    "/reservations": (reservations.data ?? []).filter(isBookingOpen).length,
   };
 
   const handleLogout = () => {

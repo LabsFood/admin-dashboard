@@ -29,7 +29,7 @@ import {
   useSetChefVerification,
   verificationMessage,
 } from "@/lib/api/admin";
-import { bookingsOfChef, useBookings } from "@/lib/api/bookings";
+import { bookingPortions, bookingsOfChef, useBookings } from "@/lib/api/bookings";
 import { useChefDishes, useChefMenus, type ReviewItem } from "@/lib/api/moderation";
 import { adminErrorMessage } from "@/lib/api/errors";
 
@@ -691,24 +691,23 @@ function Prestations({ chefProfileId }: { chefProfileId: string }) {
             <div className="min-w-0">
               <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                 <span className="text-sm font-semibold text-navy">
-                  {b.clientName ?? "Client non nommé"}
+                  {b.client?.fullName ?? "Client non nommé"}
                 </span>
                 {b.status && <Badge tone="navy">{b.status}</Badge>}
               </p>
               <p className="mt-0.5 font-mono text-[11px] text-ink-soft">
                 {[
-                  b.date ? formatDate(b.date) : null,
-                  b.city,
-                  b.guests != null ? `${b.guests} portions` : null,
+                  b.startsAt ? formatDate(b.startsAt) : null,
+                  bookingPortions(b) > 0 ? `${bookingPortions(b)} portions` : null,
                   b.reference,
                 ]
                   .filter(Boolean)
                   .join(" · ") || "—"}
               </p>
             </div>
-            {b.amountCents != null && (
+            {b.priceCents != null && (
               <p className="font-display text-base font-bold text-navy">
-                {euros(b.amountCents / 100)}
+                {euros(Math.round(b.priceCents / 100))}
               </p>
             )}
           </li>

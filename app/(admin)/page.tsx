@@ -23,7 +23,7 @@ import {
   bookingStatusText,
   useAdminDashboard,
 } from "@/lib/api/dashboard";
-import { useBookings } from "@/lib/api/bookings";
+import { bookingPortions, useBookings } from "@/lib/api/bookings";
 import { useFormules, formuleName } from "@/lib/api/formules";
 import { quoteStatusLabel, quoteStatusTone, useQuotes } from "@/lib/api/quotes";
 import { useMeals } from "@/lib/api/catalog";
@@ -64,8 +64,8 @@ export default function OverviewPage() {
   // Les prestations à venir : `GET /bookings` rend tout, sans tri utile.
   const aVenir = (bookings.data ?? [])
     .filter((b) => !b.status || BOOKING_ACTIVE.includes(b.status))
-    .sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
-  const prochaine = aVenir.find((b) => b.date);
+    .sort((a, b) => (a.startsAt ?? "").localeCompare(b.startsAt ?? ""));
+  const prochaine = aVenir.find((b) => b.startsAt);
 
   const aChiffrer = (quotes.data ?? []).filter((q) => q.status === "submitted");
   const recentes = (quotes.data ?? []).slice(0, 3);
@@ -159,13 +159,14 @@ export default function OverviewPage() {
             ) : prochaine ? (
               <>
                 <p className="mt-2 font-display text-lg font-bold leading-snug">
-                  {formatDateLong(prochaine.date!)}
+                  {formatDateLong(prochaine.startsAt!)}
                 </p>
                 <p className="mt-1 text-xs text-white/60">
                   {[
-                    prochaine.clientName,
-                    prochaine.chefName,
-                    prochaine.city,
+                    prochaine.client?.fullName,
+                    bookingPortions(prochaine) > 0
+                      ? `${bookingPortions(prochaine)} portions`
+                      : null,
                     prochaine.status ? bookingStatusText(prochaine.status) : null,
                   ]
                     .filter(Boolean)

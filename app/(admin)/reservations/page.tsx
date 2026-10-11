@@ -4,176 +4,263 @@ import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
+  AlertTriangle,
   ArrowRight,
   CalendarRange,
   ChefHat,
-  Plus,
+  Info,
+  RotateCw,
   Search,
-  Users,
 } from "lucide-react";
 import Badge from "@/components/ui/Badge";
 import FilterTabs from "@/components/ui/FilterTabs";
 import EmptyState from "@/components/ui/EmptyState";
 import { euros, formatDate } from "@/lib/utils";
-import { reservationTone, paymentTone, paymentLabel } from "@/lib/status";
 import {
-  RESERVATIONS,
-  RESERVATION_STATUS_LABEL,
-} from "@/lib/mock/reservations";
-import type { ReservationStatus } from "@/lib/mock/types";
+  bookingMealNames,
+  bookingPortions,
+  bookingStatusLabel,
+  bookingStatusText,
+  isBookingOpen,
+  useBookings,
+  type Booking,
+} from "@/lib/api/bookings";
+import { adminErrorMessage } from "@/lib/api/errors";
 
-type Filter = "all" | ReservationStatus;
+/* ─────────────────────────────────────────────────────────────────────────────
+   Les réservations — `GET /bookings`.
+
+   L'écran tournait sur `lib/mock/reservations.ts` et montrait un statut de
+   paiement, un créneau nommé, une formule et un chef par son nom. Une
+   réservation porte une référence, deux bornes horaires, un statut, un prix
+   TTC en centimes, ses plats et son client. C'est ce qui est affiché.
+
+   La route rend toute la base d'un bloc : le filtre, la recherche et le tri
+   sont faits ici. L'écran le dit, parce que c'est ce qui cassera le jour où il
+   y aura mille réservations.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+type Filter = "all" | "open" | "history" | string;
 
 export default function ReservationsPage() {
+  const query = useBookings();
   const [filter, setFilter] = useState<Filter>("all");
-  const [query, setQuery] = useState("");
+  const [recherche, setRecherche] = useState("");
 
-  const counts = RESERVATIONS.reduce<Record<string, number>>((acc, r) => {
-    acc[r.status] = (acc[r.status] ?? 0) + 1;
+  const toutes = query.data ?? [];
+
+  const counts = toutes.reduce<Record<string, number>>((acc, b) => {
+    if (b.status) acc[b.status] = (acc[b.status] ?? 0) + 1;
     return acc;
   }, {});
-
-  const filtered = RESERVATIONS.filter((r) => {
-    const matchStatus = filter === "all" || r.status === filter;
-    const q = query.toLowerCase();
-    const matchQuery =
-      !q ||
-      r.clientName.toLowerCase().includes(q) ||
-      r.reference.toLowerCase().includes(q) ||
-      r.chefName.toLowerCase().includes(q);
-    return matchStatus && matchQuery;
-  }).sort((a, b) => b.date.localeCompare(a.date));
-
-  const revenue = RESERVATIONS.filter((r) => r.status !== "cancelled").reduce(
-    (n, r) => n + r.amountTTC,
-    0,
+  const statuts = Object.keys(counts).sort(
+    (a, b) => (counts[b] ?? 0) - (counts[a] ?? 0),
   );
-  const upcoming = RESERVATIONS.filter((r) =>
-    ["pending", "confirmed", "shopping", "cooking"].includes(r.status),
-  ).length;
+
+  const q = recherche.trim().toLowerCase();
+  const liste = toutes
+    .filter((b) =>
+      filter === "all"
+        ? true
+        : filter === "open"
+          ? isBookingOpen(b)
+          : filter === "history"
+            ? !isBookingOpen(b)
+            : b.status === filter,
+    )
+    .filter(
+      (b) =>
+        !q ||
+        (b.reference ?? "").toLowerCase().includes(q) ||
+        (b.client?.fullName ?? "").toLowerCase().includes(q) ||
+        (b.client?.email ?? "").toLowerCase().includes(q) ||
+        bookingMealNames(b).some((n) => n.toLowerCase().includes(q)),
+    )
+    .sort((a, b) => (b.startsAt ?? "").localeCompare(a.startsAt ?? ""));
+
+  const ouvertes = toutes.filter(isBookingOpen).length;
+  const total = toutes.reduce((n, b) => n + (b.priceCents ?? 0), 0);
+
+  if (query.isError) {
+    return (
+      <section className="card p-6">
+        <p className="flex items-start gap-2 text-sm text-danger">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          {adminErrorMessage(query.error)}
+        </p>
+        <button onClick={() => query.refetch()} className="btn btn-outline btn-sm mt-4">
+          <RotateCw className="h-3 w-3" aria-hidden /> Réessayer
+        </button>
+      </section>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Stats */}
       <div className="grid grid-cols-3 gap-3 lg:gap-4">
-        <MiniStat label="Réservations" value={RESERVATIONS.length} />
-        <MiniStat label="À venir" value={upcoming} />
-        <MiniStat label="CA cumulé" value={euros(revenue)} />
+        <MiniStat label="Réservations" value={query.isPending ? "…" : toutes.length} />
+        <MiniStat label="En cours" value={query.isPending ? "…" : ouvertes} />
+        <MiniStat
+          label="Chiffre d'affaires"
+          value={query.isPending ? "…" : euros(Math.round(total / 100))}
+        />
       </div>
 
-      {/* Barre d'outils */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <FilterTabs<Filter>
           value={filter}
           onChange={setFilter}
           options={[
-            { id: "all", label: "Toutes", count: RESERVATIONS.length },
-            { id: "pending", label: "En attente", count: counts.pending ?? 0 },
-            {
-              id: "confirmed",
-              label: "Confirmées",
-              count: counts.confirmed ?? 0,
-            },
-            { id: "cooking", label: "En cuisine", count: counts.cooking ?? 0 },
-            {
-              id: "delivered",
-              label: "Livrées",
-              count: counts.delivered ?? 0,
-            },
+            { id: "all", label: "Toutes", count: toutes.length },
+            { id: "open", label: "En cours", count: ouvertes },
+            { id: "history", label: "Terminées", count: toutes.length - ouvertes },
+            ...statuts.map((s) => ({
+              id: s,
+              label: bookingStatusLabel[s] ?? s,
+              count: counts[s] ?? 0,
+            })),
           ]}
         />
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 lg:w-64">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Client, référence, chef…"
-              className="input-base pl-9"
-            />
-          </div>
-          <button className="btn btn-primary shrink-0">
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Nouvelle</span>
-          </button>
+        <div className="relative lg:w-64">
+          <Search
+            className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft"
+            aria-hidden
+          />
+          <input
+            value={recherche}
+            onChange={(e) => setRecherche(e.target.value)}
+            placeholder="Référence, client, plat…"
+            aria-label="Rechercher une réservation"
+            className="input-base pl-9"
+          />
         </div>
       </div>
 
-      {/* Liste */}
-      <div className="card overflow-hidden">
-        {/* En-tête tableau (desktop) */}
-        <div className="hidden grid-cols-[1.4fr_1fr_0.8fr_0.7fr_0.9fr_2.2rem] gap-4 border-b border-[rgba(0,35,75,0.07)] bg-cream-soft px-5 py-3 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-soft lg:grid">
-          <span>Client / Réf.</span>
-          <span>Date & créneau</span>
-          <span>Chef</span>
-          <span>Montant</span>
-          <span>Statut</span>
-          <span />
+      {query.isPending ? (
+        <div className="space-y-3">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="card h-20 animate-pulse" />
+          ))}
         </div>
-
-        {filtered.length === 0 && (
+      ) : toutes.length === 0 ? (
+        <div className="card">
           <EmptyState
             Icon={CalendarRange}
             title="Aucune réservation"
-            text="Aucune session ne correspond à ce filtre."
+            text="La réservation n'est pas encore ouverte côté API : POST /bookings répond 501. Rien ne peut arriver ici avant que le backend ne l'ouvre."
           />
-        )}
-
-        <ul className="divide-y divide-[rgba(0,35,75,0.06)]">
-          {filtered.map((r, i) => (
-            <motion.li
-              key={r.id}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.3) }}
-            >
-              <Link
-                href={`/reservations/${r.id}`}
-                className="grid grid-cols-1 gap-3 px-5 py-4 transition-colors hover:bg-cream-soft lg:grid-cols-[1.4fr_1fr_0.8fr_0.7fr_0.9fr_2.2rem] lg:items-center lg:gap-4"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-navy">
-                    {r.clientName}
-                  </p>
-                  <p className="font-mono text-[11px] text-ink-soft">
-                    {r.reference} · Formule {r.formula}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1.5 text-xs text-ink-mid">
-                  <CalendarRange className="h-3.5 w-3.5 text-terra" />
-                  <span>
-                    {formatDate(r.date)}
-                    <span className="text-ink-soft"> · {r.timeSlot}</span>
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 text-xs text-ink-mid">
-                  <ChefHat className="h-3.5 w-3.5 text-ink-soft" />
-                  {r.chefName.split(" ")[0]}
-                  <span className="ml-1 inline-flex items-center gap-0.5 text-ink-soft">
-                    <Users className="h-3 w-3" />
-                    {r.persons}
-                  </span>
-                </div>
-                <div>
-                  <p className="font-display text-sm font-bold text-navy">
-                    {euros(r.amountTTC)}
-                  </p>
-                  <Badge tone={paymentTone[r.paymentStatus]} className="mt-0.5">
-                    {paymentLabel[r.paymentStatus]}
-                  </Badge>
-                </div>
-                <div>
-                  <Badge tone={reservationTone[r.status]} dot>
-                    {RESERVATION_STATUS_LABEL[r.status]}
-                  </Badge>
-                </div>
-                <ArrowRight className="hidden h-4 w-4 text-ink-soft lg:block" />
-              </Link>
-            </motion.li>
+        </div>
+      ) : liste.length === 0 ? (
+        <p className="card p-6 text-sm text-ink-soft">
+          Aucune réservation ne correspond
+          {q ? ` à « ${recherche} »` : " à ce filtre"}.
+        </p>
+      ) : (
+        <ul className="space-y-3">
+          {liste.map((b, i) => (
+            <BookingRow key={b.id} booking={b} index={i} />
           ))}
         </ul>
-      </div>
+      )}
+
+      <section className="card p-5">
+        <h3 className="flex items-center gap-2 font-display text-base font-bold text-navy">
+          <Info className="h-4 w-4 text-ink-soft" aria-hidden />
+          Ce que l&apos;API ne sait pas encore faire
+        </h3>
+        <ul className="mt-2 space-y-1.5 text-[13px] leading-relaxed text-ink-mid">
+          <li>
+            <strong>Réserver</strong> — <code>POST /bookings</code> répond{" "}
+            <code>501</code>. Le tunnel de réservation du site ne peut donc pas
+            aboutir : c&apos;est le plus gros manque du produit aujourd&apos;hui.
+          </li>
+          <li>
+            <strong>Filtrer et paginer</strong> — <code>GET /bookings</code> rend
+            toute la base d&apos;un bloc. Ce qui est trié ici l&apos;est côté
+            navigateur, et ne tiendra pas à l&apos;échelle.
+          </li>
+          <li>
+            <strong>Le règlement</strong> — aucun statut de paiement sur une
+            réservation, aucune route de paiement.
+          </li>
+          <li>
+            <strong>Le nom du batch cooker</strong> — seul son{" "}
+            <code>chefProfileId</code> est renvoyé.
+          </li>
+        </ul>
+      </section>
     </div>
+  );
+}
+
+function BookingRow({ booking: b, index }: { booking: Booking; index: number }) {
+  const plats = bookingMealNames(b);
+  const portions = bookingPortions(b);
+
+  return (
+    <motion.li
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: Math.min(index * 0.03, 0.3) }}
+    >
+      <Link
+        href={`/reservations/${b.id}`}
+        className="card card-hover flex flex-wrap items-center gap-x-5 gap-y-3 p-4"
+      >
+        <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-cream-deep">
+          {b.startsAt ? (
+            <>
+              <span className="font-display text-sm font-bold text-navy">
+                {new Date(b.startsAt).getDate()}
+              </span>
+              <span className="font-mono text-[8px] uppercase text-ink-soft">
+                {new Date(b.startsAt).toLocaleDateString("fr-FR", { month: "short" })}
+              </span>
+            </>
+          ) : (
+            <CalendarRange className="h-4 w-4 text-ink-soft" aria-hidden />
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <span className="text-sm font-semibold text-navy">
+              {b.client?.fullName ?? b.client?.email ?? "Client non nommé"}
+            </span>
+            <Badge tone={isBookingOpen(b) ? "info" : "neutral"} dot>
+              {bookingStatusText(b.status)}
+            </Badge>
+          </p>
+          <p className="mt-0.5 truncate font-mono text-[11px] text-ink-soft">
+            {[
+              b.reference,
+              b.startsAt ? formatDate(b.startsAt) : null,
+              portions > 0 ? `${portions} portions` : null,
+              plats.length > 0 ? `${plats.length} plat${plats.length > 1 ? "s" : ""}` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ") || "—"}
+          </p>
+          {plats.length > 0 && (
+            <p className="mt-1 truncate text-[12px] text-ink-mid">{plats.join(", ")}</p>
+          )}
+        </div>
+
+        {b.chefProfileId && (
+          <span className="hidden items-center gap-1.5 text-[11px] text-ink-soft sm:inline-flex">
+            <ChefHat className="h-3.5 w-3.5" aria-hidden /> Batch cooker assigné
+          </span>
+        )}
+
+        {b.priceCents != null && (
+          <span className="font-display text-sm font-bold text-navy">
+            {euros(Math.round(b.priceCents / 100))}
+          </span>
+        )}
+
+        <ArrowRight className="h-4 w-4 shrink-0 text-terra" aria-hidden />
+      </Link>
+    </motion.li>
   );
 }
 
