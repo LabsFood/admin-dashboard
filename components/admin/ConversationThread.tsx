@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
+import ConversationAttachments from "@/components/admin/ConversationAttachments";
 import Badge from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toaster";
 import { cn, formatDateLong, formatTime, initials } from "@/lib/utils";
@@ -21,7 +22,6 @@ import {
   flattenMessages,
   messagingErrorText,
   useAdminMessages,
-  useAdminOpenAttachment,
   useAdminSendMessage,
   useAdminUploadAttachment,
   useDismissFlag,
@@ -377,8 +377,6 @@ function Bubble({
   conversationId: string;
   showSender: boolean;
 }) {
-  const toast = useToast();
-  const openAttachment = useAdminOpenAttachment(conversationId);
   const fromTeam = message.senderRole === "support";
 
   return (
@@ -408,36 +406,12 @@ function Bubble({
           {message.body && (
             <p className="whitespace-pre-wrap break-words">{message.body}</p>
           )}
-          {message.attachments.length > 0 && (
-            <ul className={cn("space-y-1.5", message.body && "mt-2")}>
-              {message.attachments.map((a) => (
-                <li key={a.id}>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      openAttachment(a.id).catch((error) =>
-                        toast.error(
-                          "Pièce jointe indisponible",
-                          messagingErrorText(error),
-                        ),
-                      )
-                    }
-                    className={cn(
-                      "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs",
-                      fromTeam
-                        ? "bg-white/10 hover:bg-white/20"
-                        : "bg-cream-soft hover:bg-cream-deep",
-                    )}
-                  >
-                    <FileText className="h-4 w-4 shrink-0" />
-                    <span className="min-w-0 flex-1 truncate font-medium">
-                      {a.fileName}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          <ConversationAttachments
+            conversationId={conversationId}
+            attachments={message.attachments}
+            fromTeam={fromTeam}
+            className={message.body ? "mt-2" : undefined}
+          />
           <span
             className={cn(
               "mt-1 flex items-center gap-1.5 text-[10px]",
