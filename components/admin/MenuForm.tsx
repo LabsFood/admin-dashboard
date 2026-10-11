@@ -11,18 +11,22 @@ import {
   ArrowUp,
   CalendarRange,
   Check,
+  Flame,
   LayoutList,
   Loader2,
   Save,
   Search,
   ShoppingBasket,
   Trash2,
+  UtensilsCrossed,
 } from "lucide-react";
 import Badge from "@/components/ui/Badge";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toaster";
 import { cn, formatDate } from "@/lib/utils";
 import { countryLabel } from "@/lib/countries";
-import { catalogLabel, catalogTone, periodLabel } from "@/lib/catalog-labels";
+import { catalogLabel, catalogTone, difficultyLabel, periodLabel } from "@/lib/catalog-labels";
+import { refLabel, useDiets, useDishCategories } from "@/lib/api/referentials";
 import {
   currentIsoWeek,
   isoWeekRange,
@@ -57,6 +61,8 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
   const router = useRouter();
   const toast = useToast();
   const meals = useMeals();
+  const diets = useDiets();
+  const categories = useDishCategories();
   const createMenu = useCreateLabsFoodMenu();
   const updateMenu = useUpdateLabsFoodMenu();
   const createWeek = useCreateMenuWeek();
@@ -85,6 +91,9 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
     () => menu?.dishIds ?? menu?.dishes?.map((d) => d.id) ?? [],
   );
   const [query, setQuery] = useState("");
+  /** `null` = toutes les places dans le repas. */
+  const [place, setPlace] = useState<string | null>(null);
+  const [aConfirmer, setAConfirmer] = useState(false);
 
   const library = useMemo(
     () => (meals.data ?? []).filter((m) => m.status === "published"),
@@ -93,13 +102,20 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
   const drafts = (meals.data ?? []).length - library.length;
 
   const q = query.trim().toLowerCase();
-  const visible = q
-    ? library.filter(
-        (m) =>
-          m.name.toLowerCase().includes(q) ||
-          (countryLabel(m.country) || "").toLowerCase().includes(q),
-      )
-    : library;
+  const visible = library
+    .filter((m) => !place || m.category === place)
+    .filter(
+      (m) =>
+        !q ||
+        m.name.toLowerCase().includes(q) ||
+        (m.description ?? "").toLowerCase().includes(q) ||
+        (countryLabel(m.country) || "").toLowerCase().includes(q),
+    );
+
+  /** Les places réellement représentées : un filtre vide n'a rien à proposer. */
+  const places = categories.data.filter((c) =>
+    library.some((m) => m.category === c.code),
+  );
 
   const pickedMeals = picked
     .map((id) => library.find((m) => m.id === id))
@@ -121,8 +137,27 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
   const error = createMenu.error ?? updateMenu.error ?? createWeek.error;
   const range = isoWeekRange(year, weekNumber);
 
+  /**
+   * Enregistrer ce formulaire peut publier le menu, c'est-à-dire l'ouvrir à
+   * l'adoption par tout le réseau — ou le retirer à ceux qui l'attendaient.
+   * Un bouton « Enregistrer » ne dit pas ça : le dialogue, si.
+   */
+  const publieIci = effectiveMode === "menu" && status === "published";
+  const etaitPublie = menu?.status === "published";
+  const besoinConfirmation =
+    effectiveMode === "menu" && (publieIci ? !etaitPublie : etaitPublie);
+
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (besoinConfirmation) {
+      setAConfirmer(true);
+      return;
+    }
+    enregistrer();
+  }
+
+  function enregistrer() {
+    setAConfirmer(false);
 
     if (effectiveMode === "semaine") {
       createWeek.mutate(
@@ -301,60 +336,161 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
                   Écrire un plat
                 </Link>
               </div>
-            ) : visible.length === 0 ? (
-              <p className="p-5 text-sm text-ink-soft">
-                Aucun plat ne correspond à «&nbsp;{query}&nbsp;».
-              </p>
             ) : (
-              <ul className="max-h-[28rem] divide-y divide-[rgba(0,35,75,0.06)] overflow-y-auto">
-                {visible.map((m) => {
-                  const on = picked.includes(m.id);
-                  return (
-                    <li key={m.id}>
+              <>
+                {places.length > 1 && (
+                  <div className="hairline flex flex-wrap items-center gap-1.5 border-b px-5 py-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setPlace(null)}
+                      aria-pressed={place === null}
+                      className={cn(
+                        "rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                        place === null
+                          ? "bg-navy text-white"
+                          : "bg-cream-soft text-ink-mid hover:bg-cream-deep",
+                      )}
+                    >
+                      Tous
+                    </button>
+                    {places.map((c) => (
                       <button
+                        key={c.code}
                         type="button"
-                        aria-pressed={on}
-                        onClick={() => toggle(m.id)}
-                        className="flex w-full items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-cream-soft"
+                        onClick={() => setPlace(c.code)}
+                        aria-pressed={place === c.code}
+                        className={cn(
+                          "rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                          place === c.code
+                            ? "bg-navy text-white"
+                            : "bg-cream-soft text-ink-mid hover:bg-cream-deep",
+                        )}
                       >
-                        {m.imageUrl ? (
-                          /* eslint-disable-next-line @next/next/no-img-element */
-                          <img
-                            src={m.imageUrl}
-                            alt=""
-                            className="h-11 w-11 shrink-0 rounded-xl object-cover"
-                          />
-                        ) : (
-                          <span
-                            aria-hidden
-                            className="h-11 w-11 shrink-0 rounded-xl bg-cream-deep"
-                          />
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-navy">
-                            {m.name}
-                          </p>
-                          <p className="font-mono text-[11px] text-ink-soft">
-                            {countryLabel(m.country) || "—"} · {m.prepTime} min
-                          </p>
-                        </div>
-                        {m.offeredToChefProfileId && (
-                          <Badge tone="terra">Réservé</Badge>
-                        )}
-                        <span
-                          aria-hidden
-                          className={cn(
-                            "flex h-5 w-5 shrink-0 items-center justify-center rounded-xs border",
-                            on ? "border-navy bg-navy text-white" : "border-ink-soft/40",
-                          )}
-                        >
-                          {on && <Check className="h-3 w-3" strokeWidth={3} />}
-                        </span>
+                        {c.label}
                       </button>
-                    </li>
-                  );
-                })}
-              </ul>
+                    ))}
+                  </div>
+                )}
+
+                {visible.length === 0 ? (
+                  <p className="p-5 text-sm text-ink-soft">
+                    Aucun plat ne correspond
+                    {q ? ` à « ${query} »` : " à ce filtre"}.
+                  </p>
+                ) : (
+                  <ul className="max-h-[32rem] divide-y divide-[rgba(0,35,75,0.06)] overflow-y-auto">
+                    {visible.map((m) => {
+                      const on = picked.includes(m.id);
+                      // Un plat sans déclaration d'allergènes ne devrait pas
+                      // entrer dans un menu public : on le dit au moment du
+                      // choix, pas après la publication.
+                      const trou =
+                        !m.allergensNone &&
+                        m.allergens.length === 0 &&
+                        m.customAllergens.length === 0;
+                      return (
+                        <li key={m.id}>
+                          <button
+                            type="button"
+                            aria-pressed={on}
+                            onClick={() => toggle(m.id)}
+                            className={cn(
+                              "flex w-full items-start gap-3 px-5 py-3 text-left transition-colors hover:bg-cream-soft",
+                              on && "bg-cream-soft/60",
+                            )}
+                          >
+                            {m.imageUrl ? (
+                              /* eslint-disable-next-line @next/next/no-img-element */
+                              <img
+                                src={m.imageUrl}
+                                alt=""
+                                className="h-16 w-16 shrink-0 rounded-xl object-cover"
+                              />
+                            ) : (
+                              <span
+                                aria-hidden
+                                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-cream-deep text-ink-soft"
+                              >
+                                <UtensilsCrossed className="h-5 w-5" />
+                              </span>
+                            )}
+
+                            <div className="min-w-0 flex-1">
+                              <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                <span className="text-sm font-semibold text-navy">
+                                  {m.name}
+                                </span>
+                                {m.category && (
+                                  <Badge tone="navy" dot={false}>
+                                    {refLabel(categories.data, m.category)}
+                                  </Badge>
+                                )}
+                                {m.isFeatured && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-terra-deep">
+                                    <Flame className="h-3 w-3" aria-hidden /> Vedette
+                                  </span>
+                                )}
+                              </p>
+
+                              <p className="mt-0.5 font-mono text-[11px] text-ink-soft">
+                                {[
+                                  countryLabel(m.country) || "Origine à renseigner",
+                                  `${m.portions ?? "?"} portions`,
+                                  m.cookTime
+                                    ? `${m.prepTime} + ${m.cookTime} min`
+                                    : `${m.prepTime} min`,
+                                  m.difficulty ? difficultyLabel[m.difficulty] : null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </p>
+
+                              {m.description && (
+                                <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-ink-mid">
+                                  {m.description}
+                                </p>
+                              )}
+
+                              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                                {m.dietaryTags.slice(0, 4).map((t) => (
+                                  <span key={t} className="chip-teal">
+                                    {refLabel(diets.data, t)}
+                                  </span>
+                                ))}
+                                {m.allergensNone && (
+                                  <span className="chip-muted">Sans allergène</span>
+                                )}
+                                {trou && (
+                                  <Badge tone="warning" dot>
+                                    Allergènes non déclarés
+                                  </Badge>
+                                )}
+                                {m.offeredToChefProfileId && (
+                                  <Badge tone="terra" dot>
+                                    Réservé
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+
+                            <span
+                              aria-hidden
+                              className={cn(
+                                "mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-xs border",
+                                on
+                                  ? "border-navy bg-navy text-white"
+                                  : "border-ink-soft/40",
+                              )}
+                            >
+                              {on && <Check className="h-3 w-3" strokeWidth={3} />}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </>
             )}
           </section>
 
@@ -378,9 +514,33 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
                     >
                       {i + 1}
                     </span>
-                    <p className="min-w-0 flex-1 truncate text-sm font-medium text-navy">
-                      {m.name}
-                    </p>
+                    {m.imageUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={m.imageUrl}
+                        alt=""
+                        className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <span
+                        aria-hidden
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-paper text-ink-soft"
+                      >
+                        <UtensilsCrossed className="h-4 w-4" />
+                      </span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-navy">{m.name}</p>
+                      <p className="truncate font-mono text-[10px] text-ink-soft">
+                        {[
+                          m.category ? refLabel(categories.data, m.category) : null,
+                          countryLabel(m.country) || null,
+                          `${m.prepTime} min`,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    </div>
                     {effectiveMode === "menu" && (
                       <>
                         <button
@@ -617,6 +777,33 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
           )}
         </aside>
       </div>
+
+      <ConfirmDialog
+        open={aConfirmer}
+        onClose={() => setAConfirmer(false)}
+        onConfirm={enregistrer}
+        pending={saving}
+        error={error != null ? adminErrorMessage(error) : null}
+        tone={publieIci ? "primary" : "danger"}
+        title={
+          publieIci
+            ? `Publier « ${title.trim() || "ce menu"} » ?`
+            : `Retirer « ${title.trim() || "ce menu"} » du catalogue ?`
+        }
+        lead={
+          publieIci
+            ? `Ses ${picked.length} plat${picked.length > 1 ? "s" : ""} partent ensemble : tout batch cooker du réseau pourra adopter ce menu d'un clic.`
+            : "Le menu cesse d'être proposé au réseau. Les batch cookers qui l'ont adopté gardent leur copie — elle est à eux."
+        }
+        detail={
+          publieIci
+            ? "Adopter crée une copie chez eux : vos corrections ultérieures la signalent, elles ne la modifient pas."
+            : undefined
+        }
+        confirmLabel={
+          publieIci ? "Publier le menu" : "Enregistrer et retirer"
+        }
+      />
     </form>
   );
 }

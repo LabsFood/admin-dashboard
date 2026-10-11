@@ -35,6 +35,16 @@ import {
   type MealInput,
   type MealStatus,
 } from "@/lib/api/catalog";
+import {
+  AISLES,
+  REHEAT_MODES,
+  STORAGE_METHODS,
+  UNITS,
+  cleanIngredients,
+  cleanReheating,
+  cleanStorage,
+  ingredientReady,
+} from "@/lib/recipe-fields";
 import { adminErrorMessage } from "@/lib/api/errors";
 import {
   PHOTO_MAX_MB,
@@ -103,6 +113,20 @@ export default function MealForm({
   const [isFeatured, setIsFeatured] = useState(meal?.isFeatured ?? false);
   const [status, setStatus] = useState<MealStatus>(meal?.status ?? "draft");
 
+  // Réchauffage et conservation : tenus en chaînes pour qu'un champ vidé reste
+  // vide au lieu de retomber sur 0, et convertis à l'envoi.
+  const [reheat, setReheat] = useState({
+    mode: meal?.reheating?.mode ?? "",
+    temperature: meal?.reheating?.temperature?.toString() ?? "",
+    minutes: meal?.reheating?.minutes?.toString() ?? "",
+    note: meal?.reheating?.note ?? "",
+  });
+  const [storage, setStorage] = useState({
+    method: meal?.storage?.method ?? "",
+    days: meal?.storage?.days?.toString() ?? "",
+    container: meal?.storage?.container ?? "",
+  });
+
   const saving = create.isPending || update.isPending;
   const error = create.error ?? update.error;
 
@@ -114,6 +138,26 @@ export default function MealForm({
   if (!allergensNone && allergenCodes.length === 0 && !customAllergens.trim()) {
     gaps.push("les allergènes, ou la mention « aucun »");
   }
+
+  /**
+   * Les lignes d'ingrédient que l'API refuserait. Elle exige les quatre champs
+   * et rejette le plat entier pour une seule ligne bancale : on les écarte, et
+   * on le dit, plutôt que de laisser l'enregistrement échouer sans raison
+   * lisible.
+   */
+  const lignesIncompletes = ingredients.filter(
+    (i) => (i.name.trim() || i.qty !== "" || i.unit || i.aisle) && !ingredientReady(i),
+  ).length;
+
+  // Même logique sur les deux couples exigés par l'API.
+  const reheatIncomplet = Boolean(
+    (reheat.mode || reheat.minutes.trim() || reheat.temperature.trim() || reheat.note.trim()) &&
+      (!reheat.mode || !reheat.minutes.trim()),
+  );
+  const storageIncomplet = Boolean(
+    (storage.method || storage.days.trim() || storage.container.trim()) &&
+      (!storage.method || !storage.days.trim()),
+  );
 
   const toggle = (list: string[], set: (v: string[]) => void, value: string) =>
     set(list.includes(value) ? list.filter((t) => t !== value) : [...list, value]);
@@ -142,8 +186,10 @@ export default function MealForm({
       allergens: allergensNone ? [] : allergenCodes,
       allergensNone,
       customAllergens: allergensNone ? [] : csv(customAllergens),
-      ingredients: ingredients.filter((i) => i.name.trim()),
+      ingredients: cleanIngredients(ingredients),
       steps: steps.map((s) => s.trim()).filter(Boolean),
+      reheating: cleanReheating(reheat),
+      storage: cleanStorage(storage),
       isFeatured,
       status,
     };
@@ -456,12 +502,140 @@ export default function MealForm({
               <h3 className="font-display text-base font-bold text-navy">Recette</h3>
               <p className="mt-1 text-[13px] leading-relaxed text-ink-soft">
                 Les listes de courses se calculent depuis les ingrédients, pour
-                le nombre de portions indiqué plus haut.
+                le nombre de portions indiqué plus haut, et se groupent par
+                rayon.
               </p>
             </div>
 
             <IngredientRows value={ingredients} onChange={setIngredients} />
+            {lignesIncompletes > 0 && (
+              <p className="flex items-start gap-2 rounded-md bg-cream-soft px-3.5 py-2.5 text-[12px] leading-relaxed text-[#8A6212]">
+                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                {lignesIncompletes === 1
+                  ? "Une ligne d'ingrédient est incomplète : elle ne sera pas enregistrée. L'API exige nom, quantité, unité et rayon."
+                  : `${lignesIncompletes} lignes d'ingrédient sont incomplètes : elles ne seront pas enregistrées. L'API exige nom, quantité, unité et rayon.`}
+              </p>
+            )}
             <StepRows value={steps} onChange={setSteps} />
+          </section>
+
+          {/* ── Ce que le client lit plusieurs jours après la session ─────── */}
+          <section className="card space-y-4 p-6">
+            <div>
+              <h3 className="font-display text-base font-bold text-navy">
+                Réchauffage et conservation
+              </h3>
+              <p className="mt-1 text-[13px] leading-relaxed text-ink-soft">
+                Ce que le client retrouve dans son espace quand il ouvre sa
+                boîte, et ce qu&apos;un batch cooker hérite s&apos;il adopte ce
+                plat.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <Field label="Réchauffer au">
+                <select
+                  value={reheat.mode}
+                  onChange={(e) => setReheat((r) => ({ ...r, mode: e.target.value }))}
+                  className="input-base"
+                >
+                  <option value="">Non précisé</option>
+                  {REHEAT_MODES.map((m) => (
+                    <option key={m.code} value={m.code}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Température (°C)">
+                <input
+                  type="number"
+                  min={0}
+                  value={reheat.temperature}
+                  onChange={(e) =>
+                    setReheat((r) => ({ ...r, temperature: e.target.value }))
+                  }
+                  placeholder="160"
+                  className="input-base"
+                />
+              </Field>
+              <Field label="Durée (min)" required={Boolean(reheat.mode)}>
+                <input
+                  type="number"
+                  min={0}
+                  value={reheat.minutes}
+                  onChange={(e) => setReheat((r) => ({ ...r, minutes: e.target.value }))}
+                  placeholder="15"
+                  aria-invalid={(Boolean(reheat.mode) && !reheat.minutes.trim()) || undefined}
+                  className="input-base"
+                />
+              </Field>
+              <Field label="Conserver au">
+                <select
+                  value={storage.method}
+                  onChange={(e) => setStorage((s) => ({ ...s, method: e.target.value }))}
+                  className="input-base"
+                >
+                  <option value="">Non précisé</option>
+                  {STORAGE_METHODS.map((m) => (
+                    <option key={m.code} value={m.code}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <Field label="Jours de conservation" required={Boolean(storage.method)}>
+                <input
+                  type="number"
+                  min={0}
+                  value={storage.days}
+                  onChange={(e) => setStorage((s) => ({ ...s, days: e.target.value }))}
+                  placeholder="3"
+                  aria-invalid={
+                    (Boolean(storage.method) && !storage.days.trim()) || undefined
+                  }
+                  className="input-base"
+                />
+              </Field>
+              <div className="sm:col-span-2">
+                <Field label="Contenant">
+                  <input
+                    value={storage.container}
+                    onChange={(e) =>
+                      setStorage((s) => ({ ...s, container: e.target.value }))
+                    }
+                    placeholder="Boîte hermétique"
+                    className="input-base"
+                  />
+                </Field>
+              </div>
+            </div>
+
+            <Field
+              label="Conseil de réchauffage"
+              hint="Une phrase, celle qu'un cuisinier dirait de vive voix."
+            >
+              <input
+                value={reheat.note}
+                onChange={(e) => setReheat((r) => ({ ...r, note: e.target.value }))}
+                placeholder="Ajouter une cuillère de bouillon pour éviter le dessèchement."
+                className="input-base"
+              />
+            </Field>
+
+            {(reheatIncomplet || storageIncomplet) && (
+              <p className="flex items-start gap-2 rounded-md bg-cream-soft px-3.5 py-2.5 text-[12px] leading-relaxed text-[#8A6212]">
+                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                {reheatIncomplet && storageIncomplet
+                  ? "Le réchauffage demande un mode et une durée ; la conservation, un lieu et un nombre de jours. Incomplets, les deux ne seront pas enregistrés."
+                  : reheatIncomplet
+                    ? "Le réchauffage ne s'enregistre qu'avec un mode et une durée : l'API exige les deux."
+                    : "La conservation ne s'enregistre qu'avec un lieu et un nombre de jours : l'API exige les deux."}
+              </p>
+            )}
           </section>
         </div>
 
@@ -626,45 +800,85 @@ function IngredientRows({
         </p>
       ) : (
         <ul className="mb-2 space-y-2">
-          {value.map((row, i) => (
-            <li key={i} className="flex items-center gap-2">
-              <GripVertical className="h-4 w-4 shrink-0 text-ink-soft/50" aria-hidden />
-              <input
-                value={row.name}
-                onChange={(e) => set(i, { name: e.target.value })}
-                placeholder="Ingrédient"
-                aria-label={`Ingrédient ${i + 1}`}
-                className="input-base flex-1"
-              />
-              <input
-                value={row.qty ?? ""}
-                onChange={(e) => set(i, { qty: e.target.value })}
-                placeholder="Qté"
-                aria-label={`Quantité de l'ingrédient ${i + 1}`}
-                className="input-base w-20"
-              />
-              <input
-                value={row.unit ?? ""}
-                onChange={(e) => set(i, { unit: e.target.value })}
-                placeholder="Unité"
-                aria-label={`Unité de l'ingrédient ${i + 1}`}
-                className="input-base w-24"
-              />
-              <button
-                type="button"
-                onClick={() => onChange(value.filter((_, j) => j !== i))}
-                aria-label={`Retirer l'ingrédient ${i + 1}`}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-danger-soft hover:text-danger"
+          {value.map((row, i) => {
+            const complet = ingredientReady(row);
+            const amorcee = Boolean(row.name.trim() || row.qty !== "" || row.unit || row.aisle);
+            return (
+              <li
+                key={i}
+                className={cn(
+                  "flex flex-wrap items-center gap-2 rounded-md",
+                  amorcee && !complet && "bg-cream-soft px-2 py-2",
+                )}
               >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </li>
-          ))}
+                <GripVertical
+                  className="h-4 w-4 shrink-0 text-ink-soft/50"
+                  aria-hidden
+                />
+                <input
+                  value={row.name}
+                  onChange={(e) => set(i, { name: e.target.value })}
+                  placeholder="Poulet fermier"
+                  aria-label={`Ingrédient ${i + 1}`}
+                  className="input-base min-w-32 flex-1"
+                />
+                <input
+                  type="number"
+                  step="any"
+                  min={0}
+                  value={row.qty ?? ""}
+                  onChange={(e) => set(i, { qty: e.target.value })}
+                  placeholder="Qté"
+                  aria-label={`Quantité de l'ingrédient ${i + 1}`}
+                  className="input-base w-20 shrink-0"
+                />
+                <select
+                  value={row.unit ?? ""}
+                  onChange={(e) => set(i, { unit: e.target.value })}
+                  aria-label={`Unité de l'ingrédient ${i + 1}`}
+                  className="input-base w-28 shrink-0"
+                >
+                  <option value="">Unité</option>
+                  {UNITS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={row.aisle ?? ""}
+                  onChange={(e) => set(i, { aisle: e.target.value })}
+                  aria-label={`Rayon de l'ingrédient ${i + 1}`}
+                  className="input-base w-40 shrink-0"
+                >
+                  <option value="">Rayon</option>
+                  {AISLES.map((a) => (
+                    <option key={a} value={a}>
+                      {a}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => onChange(value.filter((_, j) => j !== i))}
+                  aria-label={`Retirer l'ingrédient ${i + 1}`}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-danger-soft hover:text-danger"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
       <button
         type="button"
-        onClick={() => onChange([...value, { name: "", qty: "", unit: "" }])}
+        onClick={() =>
+          onChange([
+            ...value,
+            { name: "", qty: "", unit: "g", aisle: AISLES[0] },
+          ])
+        }
         className="btn btn-sm btn-outline"
       >
         <Plus className="h-3 w-3" aria-hidden /> Ajouter un ingrédient

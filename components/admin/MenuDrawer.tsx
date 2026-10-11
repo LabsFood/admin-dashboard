@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import Drawer from "@/components/ui/Drawer";
 import Badge from "@/components/ui/Badge";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toaster";
 import { cn } from "@/lib/utils";
 import { countryLabel } from "@/lib/countries";
@@ -49,6 +50,8 @@ export default function MenuDrawer({
   const withdraw = useWithdrawLabsFoodMenuOffer();
   const meals = useMeals();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  /** Le statut qu'on s'apprête à poser, le temps de le confirmer. */
+  const [aConfirmer, setAConfirmer] = useState<MealStatus | null>(null);
 
   const offered = Boolean(menu?.offeredToChefProfileId);
 
@@ -64,18 +67,34 @@ export default function MenuDrawer({
     ? 0
     : (menu?.dishIds?.length ?? 0) - dishes.length;
 
+  /**
+   * Publier ou dépublier sort de la console : le menu devient adoptable par
+   * tout le réseau, ou cesse de l'être. On confirme ces deux-là, et seulement
+   * ceux-là — passer un brouillon en archive ne change rien pour personne.
+   */
+  function demander(status: MealStatus) {
+    if (!menu || status === menu.status) return;
+    if (status === "published" || menu.status === "published") {
+      setAConfirmer(status);
+      return;
+    }
+    setStatus(status);
+  }
+
   function setStatus(status: MealStatus) {
     if (!menu || status === menu.status) return;
     update.mutate(
       { id: menu.id, patch: { status } },
       {
-        onSuccess: () =>
+        onSuccess: () => {
+          setAConfirmer(null);
           toast.success(
             `« ${menu.title} » passe en ${catalogLabel[status].toLowerCase()}`,
             status === "published"
               ? "Tous les batch cookers peuvent désormais l'adopter."
               : undefined,
-          ),
+          );
+        },
         onError: (e) =>
           toast.error(
             "Le statut n'a pas changé",
@@ -244,7 +263,7 @@ export default function MenuDrawer({
               {STATUSES.map((s) => (
                 <button
                   key={s}
-                  onClick={() => setStatus(s)}
+                  onClick={() => demander(s)}
                   disabled={update.isPending || offered}
                   className={cn(
                     "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50",
@@ -312,6 +331,34 @@ export default function MenuDrawer({
               </button>
             )}
           </div>
+
+          <ConfirmDialog
+            open={aConfirmer !== null}
+            onClose={() => setAConfirmer(null)}
+            onConfirm={() => aConfirmer && setStatus(aConfirmer)}
+            pending={update.isPending}
+            tone={aConfirmer === "published" ? "primary" : "danger"}
+            title={
+              aConfirmer === "published"
+                ? `Publier « ${menu.title} » ?`
+                : `Retirer « ${menu.title} » du catalogue ?`
+            }
+            lead={
+              aConfirmer === "published"
+                ? `Le menu devient une suggestion que les ${dishes.length} plat${dishes.length > 1 ? "s" : ""} qu'il contient accompagnent. Tout batch cooker du réseau pourra l'adopter d'un clic.`
+                : "Le menu cesse d'être proposé au réseau. Les batch cookers qui l'ont déjà adopté gardent leur copie : elle est à eux, elle ne bouge pas."
+            }
+            detail={
+              aConfirmer === "published"
+                ? "Adopter crée une copie chez eux : les corrections faites ici après coup ne la modifient pas, elles la signalent."
+                : aConfirmer === "archived"
+                  ? "Archivé, il reste lisible dans la console et dans l'historique."
+                  : "Il repasse en brouillon : vous pouvez le republier à tout moment."
+            }
+            confirmLabel={
+              aConfirmer === "published" ? "Publier le menu" : "Retirer du catalogue"
+            }
+          />
         </div>
       )}
     </Drawer>

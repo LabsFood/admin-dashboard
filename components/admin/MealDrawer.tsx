@@ -9,6 +9,7 @@ import {
   Loader2,
   Pencil,
   ShieldAlert,
+  Snowflake,
   Trash2,
   UserMinus,
   Users,
@@ -25,6 +26,7 @@ import {
   difficultyLabel,
   difficultyTone,
 } from "@/lib/catalog-labels";
+import { reheatingLine, storageLine } from "@/lib/recipe-fields";
 import { useAllergens, useDiets, useDishCategories, refLabel } from "@/lib/api/referentials";
 import {
   ingredientLines,
@@ -289,6 +291,30 @@ export default function MealDrawer({
                   </li>
                 ))}
               </ol>
+            </Block>
+          )}
+
+          {(reheatingLine(meal.reheating) || storageLine(meal.storage)) && (
+            <Block title="Après la session">
+              <ul className="space-y-1.5 text-[13px] text-ink-mid">
+                {reheatingLine(meal.reheating) && (
+                  <li className="flex items-center gap-2">
+                    <Flame className="h-3.5 w-3.5 shrink-0 text-terra" aria-hidden />
+                    {reheatingLine(meal.reheating)}
+                  </li>
+                )}
+                {storageLine(meal.storage) && (
+                  <li className="flex items-center gap-2">
+                    <Snowflake className="h-3.5 w-3.5 shrink-0 text-teal" aria-hidden />
+                    {storageLine(meal.storage)}
+                  </li>
+                )}
+              </ul>
+              {meal.reheating?.note && (
+                <p className="mt-1.5 text-[12px] leading-relaxed text-ink-soft">
+                  {meal.reheating.note}
+                </p>
+              )}
             </Block>
           )}
 

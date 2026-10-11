@@ -7,7 +7,9 @@ import {
   ArrowLeft,
   CalendarRange,
   Check,
+  ClipboardList,
   Eye,
+  EyeOff,
   FileText,
   IdCard,
   LayoutList,
@@ -18,7 +20,7 @@ import {
 } from "lucide-react";
 import Badge from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
-import { cn, formatDate, initials } from "@/lib/utils";
+import { cn, euros, formatDate, initials } from "@/lib/utils";
 import { countryLabel } from "@/lib/countries";
 import { moderatedLabel, moderatedTone } from "@/lib/catalog-labels";
 import {
@@ -27,6 +29,7 @@ import {
   useSetChefVerification,
   verificationMessage,
 } from "@/lib/api/admin";
+import { bookingsOfChef, useBookings } from "@/lib/api/bookings";
 import { useChefDishes, useChefMenus, type ReviewItem } from "@/lib/api/moderation";
 import { adminErrorMessage } from "@/lib/api/errors";
 
@@ -40,11 +43,12 @@ import { adminErrorMessage } from "@/lib/api/errors";
    et sa vitrine.
 
    Ce que l'API ne sait pas dire, l'écran le nomme au lieu de l'inventer :
-   l'agenda n'existe nulle part, les prestations ne se filtrent pas par chef,
-   et il n'y a pas d'avis.
+   l'agenda n'existe nulle part et il n'y a pas d'avis. Les prestations, elles,
+   se reconstituent — `GET /bookings` rend toute la base et l'onglet filtre
+   après coup, en disant ce que ce détour coûte.
    ───────────────────────────────────────────────────────────────────────────── */
 
-type Onglet = "profil" | "plats" | "menus" | "vitrine";
+type Onglet = "profil" | "plats" | "menus" | "vitrine" | "prestations";
 
 const WORK_STATUS_LABEL: Record<string, string> = {
   "eu-citizen": "Ressortissant français ou de l'Union européenne",
@@ -141,6 +145,11 @@ export default function BatchCookerPage({
             <Badge tone={approuve ? "success" : "warning"} dot>
               {approuve ? "Candidature approuvée" : "Candidature en cours"}
             </Badge>
+            {typeof d.isActive === "boolean" && (
+              <Badge tone={d.isActive ? "success" : "neutral"} dot>
+                {d.isActive ? "Vitrine en ligne" : "Vitrine hors ligne"}
+              </Badge>
+            )}
             <Link
               href={`/candidatures/${d.id}`}
               className="btn btn-outline btn-sm"
@@ -150,14 +159,16 @@ export default function BatchCookerPage({
           </div>
         </div>
 
-        {approuve && <MiseEnLigne chefProfileId={d.chefProfileId} />}
+        {approuve && (
+          <MiseEnLigne chefProfileId={d.chefProfileId} enLigne={d.isActive} />
+        )}
       </section>
 
       {/* ── Onglets ───────────────────────────────────────────────────── */}
       <div
         role="tablist"
         aria-label="Fiche du batch cooker"
-        className="hairline inline-flex items-center gap-1 rounded-full border bg-paper p-1"
+        className="hairline no-scrollbar inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full border bg-paper p-1"
       >
         {(
           [
@@ -165,6 +176,7 @@ export default function BatchCookerPage({
             { id: "plats", Icon: UtensilsCrossed, label: "Ses plats" },
             { id: "menus", Icon: LayoutList, label: "Ses menus" },
             { id: "vitrine", Icon: CalendarRange, label: "Sa vitrine" },
+            { id: "prestations", Icon: ClipboardList, label: "Ses prestations" },
           ] as const
         ).map(({ id: tid, Icon, label }) => (
           <button
@@ -174,7 +186,7 @@ export default function BatchCookerPage({
             aria-selected={onglet === tid}
             onClick={() => setOnglet(tid)}
             className={cn(
-              "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors",
+              "flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors",
               onglet === tid ? "bg-navy text-white" : "text-ink-mid hover:text-navy",
             )}
           >
@@ -192,6 +204,7 @@ export default function BatchCookerPage({
         <Contenu chefProfileId={d.chefProfileId} genre="menu" />
       )}
       {onglet === "vitrine" && <Vitrine chefProfileId={d.chefProfileId} />}
+      {onglet === "prestations" && <Prestations chefProfileId={d.chefProfileId} />}
 
       {/* Ce que la console ne sait pas montrer, nommé plutôt qu'inventé. */}
       <section className="card p-5">
@@ -204,17 +217,11 @@ export default function BatchCookerPage({
             expose, nulle part dans l&apos;API.
           </li>
           <li>
-            <strong>Ses prestations</strong> — <code>GET /bookings</code> renvoie
-            toutes les réservations de la base, sans filtre par batch cooker ni
-            pagination.
-          </li>
-          <li>
             <strong>Ses avis et sa note</strong> — pas de module d&apos;avis.
           </li>
           <li>
-            <strong>S&apos;il est en ligne ou hors ligne</strong> — on peut le
-            changer, pas le lire : aucune route ne rend la fiche d&apos;un batch
-            cooker côté admin.
+            <strong>Sa rémunération</strong> — les transactions ne se lisent ni
+            par chef, ni du tout.
           </li>
         </ul>
       </section>
@@ -224,7 +231,21 @@ export default function BatchCookerPage({
 
 /* ── Mettre la vitrine en ligne ────────────────────────────────────────────── */
 
-function MiseEnLigne({ chefProfileId }: { chefProfileId: string }) {
+/**
+ * Approuver une candidature ne met personne en ligne : c'est un second geste,
+ * et c'est ici qu'on le fait.
+ *
+ * `enLigne` vient de la candidature. Le champ est bien dans la réponse mais
+ * pas dans le Swagger, donc il peut manquer : on propose alors les deux
+ * boutons, faute de savoir lequel changerait quelque chose.
+ */
+function MiseEnLigne({
+  chefProfileId,
+  enLigne,
+}: {
+  chefProfileId: string;
+  enLigne?: boolean;
+}) {
   const verif = useSetChefVerification(chefProfileId);
   const [dernier, setDernier] = useState<"online" | "offline" | null>(null);
 
@@ -234,38 +255,68 @@ function MiseEnLigne({ chefProfileId }: { chefProfileId: string }) {
       { onSuccess: () => setDernier(isActive ? "online" : "offline") },
     );
 
+  // Après un aller-retour réussi, l'état affiché est celui qu'on vient de
+  // poser : la candidature mettra un instant à se recharger.
+  const etat = dernier ? dernier === "online" : enLigne;
+
   return (
     <div className="hairline mt-5 border-t pt-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-[13px] font-semibold text-navy">Vitrine publique</p>
-          <p className="mt-0.5 text-[11px] leading-relaxed text-ink-soft">
-            Tant qu&apos;elle n&apos;est pas en ligne, aucun client ne le voit ni
-            ne peut le réserver. Ces deux boutons sont sans danger à répéter.
+        <div className="min-w-0">
+          <p className="flex items-center gap-2 text-[13px] font-semibold text-navy">
+            {etat === undefined ? (
+              "Vitrine publique"
+            ) : etat ? (
+              <>
+                <Eye className="h-3.5 w-3.5 text-success" aria-hidden /> Vitrine en
+                ligne
+              </>
+            ) : (
+              <>
+                <EyeOff className="h-3.5 w-3.5 text-ink-soft" aria-hidden /> Vitrine
+                hors ligne
+              </>
+            )}
+          </p>
+          <p className="mt-0.5 max-w-prose text-[11px] leading-relaxed text-ink-soft">
+            {etat === undefined
+              ? "Tant qu'elle n'est pas en ligne, aucun client ne le voit ni ne peut le réserver. Les deux boutons sont sans danger à répéter."
+              : etat
+                ? "Les clients le voient sur la page des menus et peuvent le réserver."
+                : "Personne ne le voit : il n'apparaît ni dans la semaine, ni dans une recherche."}
           </p>
         </div>
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => agir(true)}
-            disabled={verif.isPending}
-            className="btn btn-primary btn-sm"
-          >
-            {verif.isPending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Eye className="h-3.5 w-3.5" />
-            )}
-            Mettre en ligne
-          </button>
-          <button
-            type="button"
-            onClick={() => agir(false)}
-            disabled={verif.isPending}
-            className="btn btn-outline btn-sm"
-          >
-            Retirer
-          </button>
+          {etat !== true && (
+            <button
+              type="button"
+              onClick={() => agir(true)}
+              disabled={verif.isPending}
+              className="btn btn-primary btn-sm"
+            >
+              {verif.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Eye className="h-3.5 w-3.5" />
+              )}
+              Mettre en ligne
+            </button>
+          )}
+          {etat !== false && (
+            <button
+              type="button"
+              onClick={() => agir(false)}
+              disabled={verif.isPending}
+              className="btn btn-outline btn-sm"
+            >
+              {verif.isPending && etat === true ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <EyeOff className="h-3.5 w-3.5" />
+              )}
+              Retirer du public
+            </button>
+          )}
         </div>
       </div>
 
@@ -543,6 +594,130 @@ function Vitrine({ chefProfileId }: { chefProfileId: string }) {
           </li>
         ))}
       </ul>
+    </>
+  );
+}
+
+/* ── Prestations ───────────────────────────────────────────────────────────── */
+
+/**
+ * Ses prestations, reconstituées.
+ *
+ * Il n'y a pas de route « les réservations de ce batch cooker ». Il y a
+ * `GET /bookings`, qui rend la base entière sans pagination, et qu'on filtre
+ * ici. L'écran le dit : sur un volume qui grossit, cette page tirera trop, et
+ * si une ligne ne porte pas d'identifiant de chef elle restera invisible —
+ * autant l'annoncer plutôt que de laisser croire à un décompte exact.
+ */
+function Prestations({ chefProfileId }: { chefProfileId: string }) {
+  const q = useBookings();
+  const toutes = q.data ?? [];
+  const siennes = bookingsOfChef(toutes, chefProfileId);
+
+  if (q.isPending) {
+    return (
+      <div className="space-y-3">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="card h-20 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  if (q.isError) {
+    return (
+      <section className="card p-5">
+        <p className="flex items-start gap-2 text-sm text-danger">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          {adminErrorMessage(q.error)}
+        </p>
+        <button onClick={() => q.refetch()} className="btn btn-outline btn-sm mt-4">
+          <RotateCw className="h-3 w-3" /> Réessayer
+        </button>
+      </section>
+    );
+  }
+
+  // Aucune ligne ne nomme son batch cooker : on ne peut rien affirmer.
+  if (siennes === null) {
+    return (
+      <section className="card p-5">
+        <h3 className="font-display text-base font-bold text-navy">
+          Impossible de rattacher les prestations
+        </h3>
+        <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-mid">
+          {toutes.length === 0
+            ? "Aucune réservation dans la base pour l'instant. Dès qu'il y en aura, celles de ce batch cooker apparaîtront ici."
+            : `Les ${toutes.length} réservations lues ne portent aucun identifiant de batch cooker. Tant que l'API ne le renvoie pas, on ne peut ni dire lesquelles sont les siennes, ni affirmer qu'il n'en a aucune.`}
+        </p>
+        <p className="mt-2 text-[12px] leading-relaxed text-ink-soft">
+          Ce qu&apos;il faudrait : <code>GET /bookings?chefProfileId=…</code>,
+          paginé. Aujourd&apos;hui la route rend toute la base d&apos;un bloc.
+        </p>
+      </section>
+    );
+  }
+
+  if (siennes.length === 0) {
+    return (
+      <div className="card">
+        <EmptyState
+          Icon={ClipboardList}
+          title="Aucune prestation"
+          text={`Il n'a encore été réservé par personne. ${toutes.length} réservation${toutes.length > 1 ? "s" : ""} au total dans la base.`}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <p className="text-sm text-ink-mid">
+        {siennes.length} prestation{siennes.length > 1 ? "s" : ""}, de la plus
+        récente à la plus ancienne.
+      </p>
+      <p className="mt-0.5 text-[12px] leading-relaxed text-ink-soft">
+        Filtrées depuis les {toutes.length} réservations de la base :{" "}
+        <code>GET /bookings</code> n&apos;accepte ni filtre par chef, ni
+        pagination.
+      </p>
+
+      <ul className="mt-3 space-y-2">
+        {siennes.map((b) => (
+          <li
+            key={b.id}
+            className="card flex flex-wrap items-center justify-between gap-x-5 gap-y-2 p-4"
+          >
+            <div className="min-w-0">
+              <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                <span className="text-sm font-semibold text-navy">
+                  {b.clientName ?? "Client non nommé"}
+                </span>
+                {b.status && <Badge tone="navy">{b.status}</Badge>}
+              </p>
+              <p className="mt-0.5 font-mono text-[11px] text-ink-soft">
+                {[
+                  b.date ? formatDate(b.date) : null,
+                  b.city,
+                  b.guests != null ? `${b.guests} portions` : null,
+                  b.reference,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "—"}
+              </p>
+            </div>
+            {b.amountCents != null && (
+              <p className="font-display text-base font-bold text-navy">
+                {euros(b.amountCents / 100)}
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <Link href="/reservations" className="btn btn-outline btn-sm mt-4">
+        Toutes les réservations
+      </Link>
     </>
   );
 }
