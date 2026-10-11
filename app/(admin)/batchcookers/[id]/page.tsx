@@ -1,7 +1,8 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 import Badge from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
+import WriteToUserButton from "@/components/admin/WriteToUserButton";
 import { cn, euros, formatDate, initials } from "@/lib/utils";
 import { countryLabel } from "@/lib/countries";
 import { moderatedLabel, moderatedTone } from "@/lib/catalog-labels";
@@ -31,6 +33,14 @@ import {
 } from "@/lib/api/admin";
 import { bookingsOfChef, useBookings } from "@/lib/api/bookings";
 import { useChefDishes, useChefMenus, type ReviewItem } from "@/lib/api/moderation";
+import {
+  CHEF_STATE_HELP,
+  CHEF_STATE_LABEL,
+  CHEF_STATE_TONE,
+  useAdminChef,
+  type AdminChefDetail,
+} from "@/lib/api/chefs";
+import { ApiError } from "@/lib/api/client";
 import { adminErrorMessage } from "@/lib/api/errors";
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -68,11 +78,26 @@ export default function BatchCookerPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  // `id` est l'identifiant de la page batch cooker (`chefProfile.id`), celui que
+  // portent les liens de la liste, des candidatures et des autres écrans.
   const { id } = use(params);
-  const app = useChefApplication(id);
+  const router = useRouter();
+  const chef = useAdminChef(id);
+  // Le dossier vient de la candidature, quand il y en a une.
+  const app = useChefApplication(chef.data?.application?.id);
   const [onglet, setOnglet] = useState<Onglet>("profil");
 
-  if (app.isPending) {
+  // Cette fiche s'ouvrait autrefois avec l'identifiant de la candidature. Un
+  // ancien lien ou un favori ne trouve donc pas de batch cooker : on regarde si
+  // c'est une candidature, et on renvoie vers la bonne adresse.
+  const introuvable = chef.error instanceof ApiError && chef.error.status === 404;
+  const ancienLien = useChefApplication(introuvable ? id : undefined);
+  const cible = ancienLien.data?.chefProfileId;
+  useEffect(() => {
+    if (cible) router.replace(`/batchcookers/${cible}`);
+  }, [cible, router]);
+
+  if (chef.isPending || (introuvable && (ancienLien.isPending || cible))) {
     return (
       <div className="space-y-4">
         <div className="h-32 animate-pulse rounded-lg bg-paper" />
@@ -81,15 +106,17 @@ export default function BatchCookerPage({
     );
   }
 
-  if (app.isError || !app.data) {
+  if (chef.isError || !chef.data) {
     return (
       <section className="card mx-auto max-w-lg p-6 text-center">
         <p className="font-display text-lg font-bold text-navy">Fiche introuvable</p>
         <p className="mt-2 text-sm leading-relaxed text-ink-mid">
-          {adminErrorMessage(app.error)}
+          {introuvable
+            ? "Aucun batch cooker ne porte cet identifiant. Son compte a peut-être été supprimé."
+            : adminErrorMessage(chef.error)}
         </p>
         <div className="mt-5 flex flex-wrap justify-center gap-2">
-          <button onClick={() => app.refetch()} className="btn btn-outline btn-sm">
+          <button onClick={() => chef.refetch()} className="btn btn-outline btn-sm">
             <RotateCw className="h-3 w-3" /> Réessayer
           </button>
           <Link href="/batchcookers" className="btn btn-primary btn-sm">
@@ -100,11 +127,9 @@ export default function BatchCookerPage({
     );
   }
 
-  const d = app.data;
-  const nom = `${d.identity?.firstName ?? ""} ${d.identity?.lastName ?? ""}`.trim() ||
-    d.reference;
-  const ville = d.address?.city ?? null;
-  const approuve = d.status === "approved";
+  const c = chef.data;
+  const nom = c.displayName;
+  const ville = c.city;
 
   return (
     <div className="space-y-6">
@@ -132,36 +157,62 @@ export default function BatchCookerPage({
                     <MapPin className="h-3.5 w-3.5" /> {ville}
                   </span>
                 )}
-                {d.identity?.email && <span>{d.identity.email}</span>}
-                {d.identity?.phone && <span className="font-mono">{d.identity.phone}</span>}
+                <span>{c.email}</span>
+                {c.phone && <span className="font-mono">{c.phone}</span>}
               </p>
               <p className="mt-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-soft">
-                {d.reference}
+                {c.application?.reference ?? "Sans candidature"}
               </p>
+              {c.regions.length > 0 && (
+                <p className="mt-1.5 text-[12px] text-ink-mid">
+                  Couvre : {c.regions.map((r) => r.label).join(" · ")}
+                </p>
+              )}
             </div>
           </div>
 
           <div className="flex flex-col items-end gap-2">
-            <Badge tone={approuve ? "success" : "warning"} dot>
-              {approuve ? "Candidature approuvée" : "Candidature en cours"}
+            <Badge tone={CHEF_STATE_TONE[c.state]} dot>
+              {CHEF_STATE_LABEL[c.state]}
             </Badge>
-            {typeof d.isActive === "boolean" && (
-              <Badge tone={d.isActive ? "success" : "neutral"} dot>
-                {d.isActive ? "Vitrine en ligne" : "Vitrine hors ligne"}
-              </Badge>
+            {c.application ? (
+              <Link
+                href={`/candidatures/${c.application.id}`}
+                className="btn btn-outline btn-sm"
+              >
+                <FileText className="h-3 w-3" /> Le dossier et ses pièces
+              </Link>
+            ) : (
+              <span className="text-[11px] text-ink-soft">Compte sans candidature</span>
             )}
-            <Link
-              href={`/candidatures/${d.id}`}
-              className="btn btn-outline btn-sm"
-            >
-              <FileText className="h-3 w-3" /> Le dossier et ses pièces
-            </Link>
+            <WriteToUserButton userId={c.userId} />
           </div>
         </div>
 
-        {approuve && (
-          <MiseEnLigne chefProfileId={d.chefProfileId} enLigne={d.isActive} />
+        {c.state !== "online" && (
+          <p
+            className={cn(
+              "mt-4 text-[13px] leading-relaxed",
+              c.state === "suspended" ? "text-danger" : "text-[#8A6212]",
+            )}
+          >
+            {CHEF_STATE_HELP[c.state]}
+          </p>
         )}
+        {c.reactivatedPendingReview && (
+          <p className="mt-4 text-[13px] leading-relaxed text-[#8A6212]">
+            En ligne sur un document de remplacement que personne n&apos;a encore relu.
+          </p>
+        )}
+
+        <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Compteur label="Plats publiés" valeur={c.counts.publishedDishes} />
+          <Compteur label="Menus publiés" valeur={c.counts.publishedMenus} />
+          <Compteur label="Prestations à venir" valeur={c.counts.upcomingBookings} />
+          <Compteur label="Prestations réalisées" valeur={c.counts.completedBookings} />
+        </dl>
+
+        {c.isVerified && <MiseEnLigne chefProfileId={c.id} enLigne={c.isActive} />}
       </section>
 
       {/* ── Onglets ───────────────────────────────────────────────────── */}
@@ -196,15 +247,18 @@ export default function BatchCookerPage({
         ))}
       </div>
 
-      {onglet === "profil" && <Profil app={d} />}
-      {onglet === "plats" && (
-        <Contenu chefProfileId={d.chefProfileId} genre="dish" />
-      )}
-      {onglet === "menus" && (
-        <Contenu chefProfileId={d.chefProfileId} genre="menu" />
-      )}
-      {onglet === "vitrine" && <Vitrine chefProfileId={d.chefProfileId} />}
-      {onglet === "prestations" && <Prestations chefProfileId={d.chefProfileId} />}
+      {onglet === "profil" &&
+        (app.data ? (
+          <Profil app={app.data} />
+        ) : c.application && app.isPending ? (
+          <div className="h-64 animate-pulse rounded-lg bg-paper" />
+        ) : (
+          <ProfilSansCandidature chef={c} />
+        ))}
+      {onglet === "plats" && <Contenu chefProfileId={c.id} genre="dish" />}
+      {onglet === "menus" && <Contenu chefProfileId={c.id} genre="menu" />}
+      {onglet === "vitrine" && <Vitrine chefProfileId={c.id} />}
+      {onglet === "prestations" && <Prestations chefProfileId={c.id} />}
 
       {/* Ce que la console ne sait pas montrer, nommé plutôt qu'inventé. */}
       <section className="card p-5">
@@ -229,15 +283,68 @@ export default function BatchCookerPage({
   );
 }
 
+function Compteur({ label, valeur }: { label: string; valeur: number }) {
+  return (
+    <div className="rounded-lg bg-cream-soft px-3 py-2.5">
+      <dd className="font-display text-xl font-bold text-navy">{valeur}</dd>
+      <dt className="text-[11px] text-ink-soft">{label}</dt>
+    </div>
+  );
+}
+
+/**
+ * Le profil d'un batch cooker qui n'a jamais déposé de candidature : il n'y a
+ * pas de dossier à lire, seulement ce que porte sa page.
+ */
+function ProfilSansCandidature({ chef }: { chef: AdminChefDetail }) {
+  return (
+    <section className="card space-y-4 p-5">
+      <p className="text-[13px] leading-relaxed text-ink-mid">
+        Ce compte n&apos;a pas de candidature : il existait avant le parcours de
+        candidature, ou a été créé à la main. Il n&apos;y a donc ni dossier ni
+        pièces à consulter.
+      </p>
+      {chef.bio && (
+        <div>
+          <h3 className="font-display text-base font-bold text-navy">Présentation</h3>
+          <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink">
+            {chef.bio}
+          </p>
+        </div>
+      )}
+      <div>
+        <h3 className="font-display text-base font-bold text-navy">
+          Zones d&apos;intervention
+        </h3>
+        {chef.zones.length === 0 ? (
+          <p className="mt-1 text-sm text-ink-soft">
+            Aucune zone déclarée. Rayon d&apos;intervention : {chef.serviceRadiusKm} km
+            {chef.city ? ` autour de ${chef.city}` : ""}.
+          </p>
+        ) : (
+          <ul className="mt-1 space-y-1 text-sm text-ink">
+            {chef.zones.map((zone) => (
+              <li key={zone.regionCode}>
+                <strong>{zone.regionLabel}</strong>
+                {zone.scope === "cities" && zone.cities.length > 0
+                  ? ` : ${zone.cities.join(", ")}`
+                  : " : toute la région"}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
+
 /* ── Mettre la vitrine en ligne ────────────────────────────────────────────── */
 
 /**
  * Approuver une candidature ne met personne en ligne : c'est un second geste,
  * et c'est ici qu'on le fait.
  *
- * `enLigne` vient de la candidature. Le champ est bien dans la réponse mais
- * pas dans le Swagger, donc il peut manquer : on propose alors les deux
- * boutons, faute de savoir lequel changerait quelque chose.
+ * `enLigne` vient de la fiche du batch cooker (`GET /admin/chefs/{id}`).
  */
 function MiseEnLigne({
   chefProfileId,

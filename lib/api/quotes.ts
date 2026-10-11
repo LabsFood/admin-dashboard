@@ -35,8 +35,14 @@ export interface Quote {
   diet: string[];
   brief: string;
   status: QuoteStatus;
-  /** Lisible, non modifiable : l'API n'expose pas l'affectation. */
+  /** Le compte du batch cooker qui prend la demande, ou `null`. */
   assignedChefUserId: string | null;
+  /** Qui est ce compte : son nom et l'identifiant de sa fiche. */
+  assignedChef?: {
+    userId: string;
+    chefProfileId: string;
+    displayName: string;
+  } | null;
   /** Centimes. `null` tant qu'aucun prix n'a été envoyé. */
   quoteAmountTtc: number | null;
   quoteAmountAfterTax: number | null;
@@ -64,6 +70,8 @@ export interface QuotePatch {
   /** Centimes, après crédit d'impôt. */
   quoteAmountAfterTax?: number;
   quoteNote?: string;
+  /** Un batch cooker vérifié (`userId`), ou `null` pour retirer l'affectation. */
+  assignedChefUserId?: string | null;
 }
 
 const QUOTES = ["admin", "quotes"] as const;

@@ -354,6 +354,8 @@ export function useSetChefVerification(chefProfileId: string | undefined) {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["chef-applications"] });
+      // La liste des batch cookers, ses compteurs et la fiche.
+      qc.invalidateQueries({ queryKey: ["admin", "chefs"] });
     },
   });
 }
