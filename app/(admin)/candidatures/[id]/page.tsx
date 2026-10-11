@@ -525,8 +525,20 @@ function DocumentRow({
               // on la demande au clic, jamais en avance.
               setPreview({ label: doc.label, fileName: doc.fileName });
               download.mutate(doc.type, {
+                // Si la fenêtre a été refermée pendant l'appel, on ne la
+                // rouvre pas : c'est ce qui donnait l'impression qu'elle
+                // refusait de se fermer.
                 onSuccess: (r) =>
-                  setPreview({ label: doc.label, url: r.url, fileName: doc.fileName }),
+                  setPreview((actuel) =>
+                    actuel
+                      ? {
+                          label: doc.label,
+                          url: r.url,
+                          fileName: doc.fileName,
+                          mimeType: r.mimeType,
+                        }
+                      : null,
+                  ),
               });
             }}
             className="btn btn-outline btn-sm"

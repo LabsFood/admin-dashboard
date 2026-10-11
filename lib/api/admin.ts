@@ -300,6 +300,35 @@ export function useRejectApplication(id: string) {
 }
 
 /**
+ * `GET /chefs/{id}/showcase` — quel menu le batch cooker montre chaque semaine.
+ *
+ * Route **publique** : elle ne rend que ce qu'un client verrait. Une semaine
+ * dont le menu n'est pas publié arrive avec `menu: null`. Huit semaines par
+ * défaut, vingt-six au plus.
+ */
+export interface ShowcaseWeek {
+  weekStart?: string;
+  menu?: { id?: string; title?: string; status?: string } | null;
+}
+
+export function useChefShowcase(chefProfileId: string | undefined) {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: ["admin", "chef-showcase", chefProfileId],
+    queryFn: async () => {
+      const r = await apiFetch<ShowcaseWeek[] | { weeks?: ShowcaseWeek[] }>(
+        `/chefs/${chefProfileId}/showcase`,
+      );
+      return Array.isArray(r) ? r : (r?.weeks ?? []);
+    },
+    enabled: !!chefProfileId,
+    // La vitrine publique disparaît quand le batch cooker est hors ligne :
+    // un 404 n'est pas une panne, c'est une information.
+    retry: false,
+  });
+}
+
+/**
  * `PATCH /admin/chefs/{id}/verification` — met une vitrine en ligne, ou la retire.
  *
  * `{id}` est l'id de la **page du batch cooker** (`chefProfileId` du dossier),
@@ -353,7 +382,7 @@ export function useDocumentDownload(id: string) {
   const apiFetch = useApiFetch();
   return useMutation({
     mutationFn: (type: string) =>
-      apiFetch<{ url: string; expiresAt?: string }>(
+      apiFetch<{ url: string; expiresAt?: string; fileName?: string; mimeType?: string }>(
         `/admin/chef-applications/${id}/documents/${type}/download-url`,
       ),
   });

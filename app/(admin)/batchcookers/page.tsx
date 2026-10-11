@@ -1,26 +1,23 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { AlertTriangle, ArrowRight, ChefHat, MapPin, Search, Star } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  ChefHat,
+  MapPin,
+  RotateCw,
+  Search,
+} from "lucide-react";
 import Badge from "@/components/ui/Badge";
-import FilterTabs from "@/components/ui/FilterTabs";
 import EmptyState from "@/components/ui/EmptyState";
 import ChefApplicationsList from "@/components/admin/ChefApplicationsList";
-import { cn, initials } from "@/lib/utils";
-import {
-  BATCH_COOKERS,
-  completion,
-  dossierStatusLabel,
-  dossierStatusTone,
-  pendingReview,
-  sapPathLabel,
-  type DossierStatus,
-} from "@/lib/mock/batchcookers";
-
-type Filter = "all" | DossierStatus;
+import { cn, formatDate, initials } from "@/lib/utils";
+import { useChefApplications } from "@/lib/api/admin";
+import { adminErrorMessage } from "@/lib/api/errors";
 
 /**
  * Deux stades d'une meme vie : on candidate, puis on cuisine. Les separer en
@@ -42,37 +39,10 @@ function BatchCookers() {
   const initialStage: Stage =
     useSearchParams().get("vue") === "candidatures" ? "candidatures" : "reseau";
   const [stage, setStage] = useState<Stage>(initialStage);
-  const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
-
-  const counts = useMemo(
-    () =>
-      BATCH_COOKERS.reduce<Record<string, number>>((acc, b) => {
-        acc[b.dossier] = (acc[b.dossier] ?? 0) + 1;
-        return acc;
-      }, {}),
-    [],
-  );
-
-  const toReview = useMemo(
-    () => BATCH_COOKERS.reduce((n, b) => n + pendingReview(b).length, 0),
-    [],
-  );
-
-  const filtered = BATCH_COOKERS.filter((b) => {
-    const matchStatus = filter === "all" || b.dossier === filter;
-    const q = query.toLowerCase();
-    const matchQuery =
-      !q ||
-      b.name.toLowerCase().includes(q) ||
-      b.email.toLowerCase().includes(q) ||
-      b.city.toLowerCase().includes(q);
-    return matchStatus && matchQuery;
-  });
 
   return (
     <div className="space-y-6">
-      {/* Stade du dossier */}
       <div role="tablist" aria-label="Stade" className="flex items-center">
         <StageTab
           active={stage === "candidatures"}
@@ -88,15 +58,7 @@ function BatchCookers() {
       {stage === "candidatures" ? (
         <ChefApplicationsList />
       ) : (
-        <ReseauView
-          filter={filter}
-          setFilter={setFilter}
-          query={query}
-          setQuery={setQuery}
-          counts={counts}
-          toReview={toReview}
-          filtered={filtered}
-        />
+        <ReseauView query={query} setQuery={setQuery} />
       )}
     </div>
   );
@@ -129,169 +91,128 @@ function StageTab({
   );
 }
 
-function ReseauView({
-  filter,
-  setFilter,
-  query,
-  setQuery,
-  counts,
-  toReview,
-  filtered,
-}: {
-  filter: Filter;
-  setFilter: (f: Filter) => void;
-  query: string;
-  setQuery: (q: string) => void;
-  counts: Record<string, number>;
-  toReview: number;
-  filtered: typeof BATCH_COOKERS;
-}) {
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-        <MiniStat label="Batch cookers" value={BATCH_COOKERS.length} />
-        <MiniStat label="Validés" value={counts.validated ?? 0} />
-        <MiniStat label="Pièces à revoir" value={toReview} accent />
-        <MiniStat label="Suspendus" value={counts.suspended ?? 0} />
-      </div>
+function ReseauView({ query, setQuery }: { query: string; setQuery: (q: string) => void }) {
+  const liste = useChefApplications({ status: "approved", limit: 100 });
+  const lignes = liste.data?.data ?? [];
 
-      {toReview > 0 && (
-        <div className="flex items-start gap-3 rounded-2xl border border-warning/40 bg-warning-soft px-4 py-3">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#9A6E15]" />
-          <p className="text-xs leading-relaxed text-[#9A6E15]">
-            <strong>{toReview} pièce{toReview > 1 ? "s" : ""}</strong> en attente de
-            vérification. Chaque refus doit être accompagné d&apos;un motif — il est
-            affiché au batch cooker dans son espace.
+  const q = query.trim().toLowerCase();
+  const filtrees = q
+    ? lignes.filter(
+        (b) =>
+          b.name.toLowerCase().includes(q) ||
+          (b.city ?? "").toLowerCase().includes(q) ||
+          b.reference.toLowerCase().includes(q),
+      )
+    : lignes;
+
+  if (liste.isError) {
+    return (
+      <section className="card p-6">
+        <p className="flex items-start gap-2 text-sm text-danger">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          {adminErrorMessage(liste.error)}
+        </p>
+        <button onClick={() => liste.refetch()} className="btn btn-outline btn-sm mt-4">
+          <RotateCw className="h-3 w-3" aria-hidden /> Réessayer
+        </button>
+      </section>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-sm text-ink-mid">
+            {liste.isPending
+              ? "Lecture du réseau…"
+              : `${liste.data?.meta?.total ?? lignes.length} batch cooker${
+                  lignes.length > 1 ? "s" : ""
+                } approuvé${lignes.length > 1 ? "s" : ""}`}
+          </p>
+          <p className="mt-0.5 text-[12px] leading-relaxed text-ink-soft">
+            Établi depuis les candidatures approuvées : l&apos;API n&apos;expose
+            pas encore la liste des batch cookers.
           </p>
         </div>
-      )}
-
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <FilterTabs<Filter>
-          value={filter}
-          onChange={setFilter}
-          options={[
-            { id: "all", label: "Tous", count: BATCH_COOKERS.length },
-            { id: "reviewing", label: "En vérification", count: counts.reviewing ?? 0 },
-            { id: "incomplete", label: "À compléter", count: counts.incomplete ?? 0 },
-            { id: "awaiting-registration", label: "Sans SIRET", count: counts["awaiting-registration"] ?? 0 },
-            { id: "validated", label: "Validés", count: counts.validated ?? 0 },
-            { id: "suspended", label: "Suspendus", count: counts.suspended ?? 0 },
-          ]}
-        />
         <div className="relative lg:w-64">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
+          <Search
+            className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft"
+            aria-hidden
+          />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Nom, email, ville…"
+            placeholder="Nom, ville, référence…"
+            aria-label="Rechercher un batch cooker"
             className="input-base pl-9"
           />
         </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {liste.isPending ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="card h-40 animate-pulse" />
+          ))}
+        </div>
+      ) : filtrees.length === 0 ? (
         <div className="card">
           <EmptyState
             Icon={ChefHat}
-            title="Aucun batch cooker"
-            text="Aucun profil ne correspond à cette recherche."
+            title={q ? "Aucun résultat" : "Aucun batch cooker approuvé"}
+            text={
+              q
+                ? "Aucun profil ne correspond à cette recherche."
+                : "Les candidatures approuvées apparaîtront ici. Commencez par en instruire une."
+            }
           />
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((b, i) => {
-            const score = completion(b);
-            const pending = pendingReview(b).length;
-            return (
-              <motion.div
-                key={b.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: Math.min(i * 0.04, 0.3) }}
+          {filtrees.map((b, i) => (
+            <motion.div
+              key={b.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: Math.min(i * 0.04, 0.3) }}
+            >
+              <Link
+                href={`/batchcookers/${b.id}`}
+                className="card card-hover flex h-full flex-col p-5"
               >
-                <Link href={`/batchcookers/${b.id}`} className="card card-hover flex h-full flex-col p-5">
-                  <div className="flex items-start gap-3">
-                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-navy text-sm font-bold text-white">
-                      {initials(b.name)}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-display text-base font-bold text-navy">{b.name}</p>
+                <div className="flex items-start gap-3">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-navy text-sm font-bold text-white">
+                    {initials(b.name)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-display text-base font-bold text-navy">
+                      {b.name}
+                    </p>
+                    {b.city && (
                       <p className="flex items-center gap-1 truncate text-xs text-ink-soft">
-                        <MapPin className="h-3 w-3 shrink-0" /> {b.city}
+                        <MapPin className="h-3 w-3 shrink-0" aria-hidden /> {b.city}
                       </p>
-                    </div>
-                    <Badge tone={dossierStatusTone[b.dossier]} dot>
-                      {dossierStatusLabel[b.dossier]}
-                    </Badge>
-                  </div>
-
-                  <div className="mt-4">
-                    <div className="mb-1 flex justify-between text-[11px] text-ink-soft">
-                      <span>Pièces bloquantes</span>
-                      <span className="font-semibold text-navy">{score} %</span>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-cream-deep">
-                      <div className="h-full rounded-full bg-terra" style={{ width: `${score}%` }} />
-                    </div>
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    <span className="rounded-full bg-cream-soft px-2 py-0.5 text-[10px] font-medium text-navy">
-                      {sapPathLabel[b.sapPath]}
-                    </span>
-                    {b.acceptsCesu && (
-                      <span className="rounded-full bg-teal-pale px-2 py-0.5 text-[10px] font-medium text-teal">
-                        CESU
-                      </span>
-                    )}
-                    {pending > 0 && (
-                      <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[10px] font-medium text-[#9A6E15]">
-                        {pending} à revoir
-                      </span>
                     )}
                   </div>
+                  <Badge tone="success" dot>
+                    Approuvé
+                  </Badge>
+                </div>
 
-                  <div className="mt-4 flex items-center justify-between border-t border-[rgba(0,35,75,0.06)] pt-3">
-                    <span className="inline-flex items-center gap-1 text-[11px] text-ink-soft">
-                      {b.rating != null ? (
-                        <>
-                          <Star className="h-3 w-3 fill-terra text-terra" /> {b.rating} ·{" "}
-                          {b.missionsCount} prestations
-                        </>
-                      ) : (
-                        "Aucune prestation"
-                      )}
-                    </span>
-                    <ArrowRight className="h-4 w-4 text-terra" />
-                  </div>
-                </Link>
-              </motion.div>
-            );
-          })}
+                <p className="mt-3 font-mono text-[11px] text-ink-soft">{b.reference}</p>
+
+                <div className="hairline mt-auto flex items-center justify-between border-t pt-3">
+                  <span className="text-[11px] text-ink-soft">
+                    Candidature du {formatDate(b.submittedAt)}
+                  </span>
+                  <ArrowRight className="h-4 w-4 text-terra" aria-hidden />
+                </div>
+              </Link>
+            </motion.div>
+          ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function MiniStat({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string | number;
-  accent?: boolean;
-}) {
-  return (
-    <div className="card p-4">
-      <p className={`font-display text-2xl font-bold ${accent ? "text-terra" : "text-navy"}`}>
-        {value}
-      </p>
-      <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-soft">
-        {label}
-      </p>
     </div>
   );
 }
