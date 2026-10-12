@@ -7,12 +7,18 @@ import { useAdminChefs } from "@/lib/api/chefs";
 import { ApiError } from "@/lib/api/client";
 import { useUpdateQuote, type Quote } from "@/lib/api/quotes";
 
+const REFUS: Record<string, string> = {
+  CHEF_NOT_ASSIGNABLE: "Ce compte n'est pas un batch cooker vérifié.",
+  QUOTE_CLOSED: "Cette demande est close.",
+};
+
 /**
  * Qui prend la demande sur-mesure.
  *
  * On choisit parmi les batch cookers vérifiés — en ligne ou non : répondre à une
  * demande sur-mesure ne suppose pas une vitrine ouverte. L'API refuse tout autre
- * compte (422 `CHEF_NOT_ASSIGNABLE`).
+ * compte (422 `CHEF_NOT_ASSIGNABLE`). Changer de batch cooker retire l'offre que
+ * le précédent avait en attente : elle part avec lui.
  */
 export default function QuoteChefAssignment({ quote }: { quote: Quote }) {
   const toast = useToast();
@@ -37,12 +43,9 @@ export default function QuoteChefAssignment({ quote }: { quote: Quote }) {
         onError: (error) =>
           toast.error(
             "Affectation non enregistrée",
-            error instanceof ApiError &&
-              (error.body as { code?: string } | null)?.code === "CHEF_NOT_ASSIGNABLE"
-              ? "Ce compte n'est pas un batch cooker vérifié."
-              : error instanceof Error
-                ? error.message
-                : undefined,
+            (error instanceof ApiError &&
+              REFUS[(error.body as { code?: string } | null)?.code ?? ""]) ||
+              (error instanceof Error ? error.message : undefined),
           ),
       },
     );
@@ -73,6 +76,11 @@ export default function QuoteChefAssignment({ quote }: { quote: Quote }) {
           ))}
         </select>
       </label>
+      {quote.activeOffer && (
+        <p className="mt-1.5 text-[11px] leading-relaxed text-ink-soft">
+          Une offre attend la réponse du client : changer de batch cooker la retire.
+        </p>
+      )}
       {chefs.isError && (
         <p className="mt-1.5 text-[11px] text-danger">
           La liste des batch cookers n&apos;a pas pu être chargée.

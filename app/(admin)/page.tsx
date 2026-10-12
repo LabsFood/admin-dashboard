@@ -25,7 +25,12 @@ import {
 } from "@/lib/api/dashboard";
 import { useBookings } from "@/lib/api/bookings";
 import { useFormules, formuleName } from "@/lib/api/formules";
-import { quoteStatusLabel, quoteStatusTone, useQuotes } from "@/lib/api/quotes";
+import {
+  needsChef,
+  quoteStatusLabel,
+  quoteStatusTone,
+  useQuotes,
+} from "@/lib/api/quotes";
 import { useMeals } from "@/lib/api/catalog";
 import { useChefApplications } from "@/lib/api/admin";
 import { useReviewQueue } from "@/lib/api/moderation";
@@ -67,7 +72,8 @@ export default function OverviewPage() {
     .sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
   const prochaine = aVenir.find((b) => b.date);
 
-  const aChiffrer = (quotes.data ?? []).filter((q) => q.status === "submitted");
+  // Ce que l'équipe doit faire : confier la demande à un batch cooker.
+  const aAttribuer = (quotes.data ?? []).filter(needsChef);
   const recentes = (quotes.data ?? []).slice(0, 3);
   const enAttente = candidatures.data?.meta?.total ?? 0;
   // La file est paginée : son total vient de `meta`, pas de la page lue.
@@ -75,10 +81,10 @@ export default function OverviewPage() {
 
   /** Ce qui attend une décision. L'ordre est celui de l'urgence réelle. */
   const decisions = [
-    aChiffrer.length > 0 && {
+    aAttribuer.length > 0 && {
       href: "/demandes",
       Icon: Sparkles,
-      label: `${aChiffrer.length} demande${aChiffrer.length > 1 ? "s" : ""} à chiffrer`,
+      label: `${aAttribuer.length} demande${aAttribuer.length > 1 ? "s" : ""} sans batch cooker`,
       hint: "Un client attend un prix.",
     },
     enAttente > 0 && {
@@ -241,7 +247,7 @@ export default function OverviewPage() {
               Icon={Sparkles}
               label="Demandes sur-mesure"
               value={quotes.isPending ? "…" : (quotes.data?.length ?? 0)}
-              sub={`${aChiffrer.length} à chiffrer`}
+              sub={`${aAttribuer.length} sans batch cooker`}
               tone="teal"
               delay={0.1}
             />
@@ -403,7 +409,7 @@ export default function OverviewPage() {
                         </div>
                         <p className="mt-1 text-[11px] text-ink-soft">
                           {[
-                            d.client?.fullName ?? d.client?.email,
+                            d.client?.name ?? d.client?.email,
                             `${d.persons} pers.`,
                             `${d.mealsCount} plats`,
                             d.createdAt ? formatDate(d.createdAt) : null,

@@ -5,16 +5,21 @@ import { useApiFetch } from "./client";
 import type { BadgeTone } from "@/components/ui/Badge";
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Les demandes sur-mesure — `GET /admin/quotes`, `PATCH /admin/quotes/{id}`.
+   Les demandes sur-mesure — `GET /admin/quotes`, `PATCH /admin/quotes/{id}`,
+   `POST /admin/quotes/{id}/offers`.
 
-   Un client décrit son événement, la console répond un prix. Deux montants,
-   toujours : le prix TTC et ce que le client paie réellement après le crédit
-   d'impôt de 50 %. Les deux partent dans le même corps, et l'API ne calcule
-   pas le second — c'est à la console de ne pas les laisser diverger.
+   Un client décrit son événement, un batch cooker lui propose son prix, le
+   client accepte : l'acceptation crée la prestation. La console veille :
+   elle confie la demande à un batch cooker quand le client n'en a pas choisi
+   ou que le sien a décliné, et peut chiffrer à sa place, en son nom.
 
-   La liste n'est pas paginée et arrive du plus récent au plus ancien.
-   `assignedChefUserId` est lisible mais ne s'écrit pas : aucun champ du DTO ne
-   permet d'affecter un batch cooker.
+   Un prix se saisit en **net** (ce que touche le batch cooker). Le prix client
+   et le reste à charge sont calculés par l'API, au taux de commission en
+   vigueur — réglable ici, `PATCH /admin/settings/commission`. Une offre garde
+   le taux avec lequel elle a été chiffrée.
+
+   Les montants sont en centimes. La liste n'est pas paginée et arrive du plus
+   récent au plus ancien.
    ───────────────────────────────────────────────────────────────────────────── */
 
 export type QuoteStatus =
@@ -22,20 +27,56 @@ export type QuoteStatus =
   | "in_review"
   | "quoted"
   | "accepted"
-  | "declined";
+  | "declined"
+  | "chef_declined"
+  | "cancelled";
+
+export type OfferStatus =
+  | "sent"
+  | "viewed"
+  | "accepted"
+  | "declined"
+  | "expired"
+  | "withdrawn";
+
+export type TimeSlot = "morning" | "afternoon" | "evening";
+
+export interface QuoteOffer {
+  id: string;
+  status: OfferStatus;
+  netCents: number;
+  /** Le taux appliqué à cette offre, en points de base (1500 = 15 %). */
+  commissionBps: number;
+  clientPriceCents: number;
+  afterTaxCreditCents: number;
+  proposedDate: string | null;
+  proposedTimeSlot: TimeSlot | null;
+  conditions: string | null;
+  validUntil: string;
+  viewedAt: string | null;
+  decidedAt: string | null;
+  declineReason: string | null;
+  createdAt: string;
+}
 
 export interface Quote {
   id: string;
   reference: string;
   clientId: string;
   title: string;
+  occasion: string | null;
   persons: number;
   mealsCount: number;
   cuisine: string | null;
   diet: string[];
+  allergies: string[];
   brief: string;
+  desiredDate: string | null;
+  timeSlot: TimeSlot | null;
+  address: { line: string | null; city: string | null; postalCode: string | null };
+  budgetCents: number | null;
   status: QuoteStatus;
-  /** Le compte du batch cooker qui prend la demande, ou `null`. */
+  /** Le compte du batch cooker qui a la demande, ou `null`. */
   assignedChefUserId: string | null;
   /** Qui est ce compte : son nom et l'identifiant de sa fiche. */
   assignedChef?: {
@@ -43,17 +84,22 @@ export interface Quote {
     chefProfileId: string;
     displayName: string;
   } | null;
-  /** Centimes. `null` tant qu'aucun prix n'a été envoyé. */
-  quoteAmountTtc: number | null;
-  quoteAmountAfterTax: number | null;
-  quoteNote: string | null;
+  chefDeclinedAt: string | null;
+  /** Ce que le batch cooker a écrit en déclinant. Jamais montré au client. */
+  chefDeclineReason?: string | null;
+  /** Toutes les offres, de la plus récente à la plus ancienne. */
+  offers: QuoteOffer[];
+  /** Celle que le client peut encore accepter, s'il y en a une. */
+  activeOffer: QuoteOffer | null;
+  /** La prestation née de l'offre acceptée. */
+  booking: { id: string; reference: string | null; startsAt: string; endsAt: string } | null;
   createdAt: string;
   updatedAt: string;
   client?: {
     id: string;
+    name: string;
     email: string | null;
-    fullName: string | null;
-    role?: string;
+    phone: string | null;
   } | null;
 }
 
@@ -64,19 +110,23 @@ export interface QuotePatch {
   cuisine?: string;
   diet?: string[];
   brief?: string;
-  status?: QuoteStatus;
-  /** Centimes, avant crédit d'impôt. */
-  quoteAmountTtc?: number;
-  /** Centimes, après crédit d'impôt. */
-  quoteAmountAfterTax?: number;
-  quoteNote?: string;
+  /** Les seuls statuts qui se posent à la main ; les autres suivent les offres. */
+  status?: "submitted" | "in_review";
   /** Un batch cooker vérifié (`userId`), ou `null` pour retirer l'affectation. */
   assignedChefUserId?: string | null;
 }
 
-const QUOTES = ["admin", "quotes"] as const;
+export interface OfferInput {
+  /** Ce que touche le batch cooker, en centimes. */
+  netCents: number;
+  validityDays?: number;
+  conditions?: string;
+}
 
-/** Une réponse nue ou enveloppée : la route n'a pas de schéma documenté. */
+const QUOTES = ["admin", "quotes"] as const;
+const COMMISSION = ["admin", "settings", "commission"] as const;
+
+/** Une réponse nue ou enveloppée. */
 function unwrap(res: unknown): Quote[] {
   if (Array.isArray(res)) return res as Quote[];
   if (res && typeof res === "object") {
@@ -113,14 +163,78 @@ export function useUpdateQuote() {
   });
 }
 
+/** Chiffrer au nom du batch cooker affecté. Le client reçoit l'offre comme la sienne. */
+export function useCreateQuoteOffer() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, offer }: { id: string; offer: OfferInput }) =>
+      apiFetch<Quote>(`/admin/quotes/${id}/offers`, { method: "POST", body: offer }),
+    onSettled: () => qc.invalidateQueries({ queryKey: QUOTES }),
+  });
+}
+
+/* ── La commission ─────────────────────────────────────────────────────────── */
+
+export interface Commission {
+  /** Points de base : 1500 = 15 % du prix client. */
+  commissionBps: number;
+  updatedAt: string | null;
+}
+
+export function useCommission() {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: COMMISSION,
+    queryFn: () => apiFetch<Commission>("/admin/settings/commission"),
+  });
+}
+
+/** Vaut pour ce qui sera chiffré ensuite : les offres déjà envoyées ne bougent pas. */
+export function useSetCommission() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (commissionBps: number) =>
+      apiFetch<Commission>("/admin/settings/commission", {
+        method: "PATCH",
+        body: { commissionBps },
+      }),
+    onSuccess: (data) => qc.setQueryData(COMMISSION, data),
+  });
+}
+
+/** Le plafond que l'API accepte : 50 %. */
+export const MAX_COMMISSION_BPS = 5000;
+
+/** Le crédit d'impôt services à la personne : la moitié du prix client. */
+const TAX_CREDIT_BPS = 5000;
+
+/**
+ * Du net au prix client — le calcul de l'API (`priceOffer`) : la commission est
+ * prise sur le prix client. Un aperçu ; ce qui fait foi est l'offre renvoyée.
+ */
+export function previewOffer(netCents: number, commissionBps: number) {
+  const clientPriceCents = Math.round((netCents * 10_000) / (10_000 - commissionBps));
+  return {
+    clientPriceCents,
+    commissionCents: clientPriceCents - netCents,
+    afterTaxCreditCents: Math.round(
+      (clientPriceCents * (10_000 - TAX_CREDIT_BPS)) / 10_000,
+    ),
+  };
+}
+
 /* ── Affichage ─────────────────────────────────────────────────────────────── */
 
 export const quoteStatusLabel: Record<QuoteStatus, string> = {
-  submitted: "À chiffrer",
+  submitted: "En attente d'offre",
   in_review: "En cours d'étude",
-  quoted: "Prix envoyé",
+  quoted: "Offre envoyée",
   accepted: "Acceptée",
-  declined: "Refusée",
+  declined: "Offre refusée",
+  chef_declined: "Déclinée par le batch cooker",
+  cancelled: "Retirée",
 };
 
 export const quoteStatusTone: Record<QuoteStatus, BadgeTone> = {
@@ -129,26 +243,54 @@ export const quoteStatusTone: Record<QuoteStatus, BadgeTone> = {
   quoted: "teal",
   accepted: "success",
   declined: "neutral",
+  chef_declined: "danger",
+  cancelled: "neutral",
 };
 
-/** Ce que la console fait de ce statut, dit du point de vue de l'admin. */
+/** Ce que ce statut demande, dit du point de vue de l'admin. */
 export const quoteStatusHint: Record<QuoteStatus, string> = {
-  submitted: "Le client attend un prix.",
-  in_review: "Quelqu'un s'en occupe, le client le voit.",
-  quoted: "Le prix est parti : la balle est chez le client.",
-  accepted: "Le client a dit oui. Reste à organiser la session.",
-  declined: "Le client a renoncé.",
+  submitted: "Le batch cooker doit répondre au client.",
+  in_review: "Quelqu'un de l'équipe s'en occupe.",
+  quoted: "L'offre est partie : la balle est chez le client.",
+  accepted: "Le client a dit oui. La prestation est créée et inscrite aux deux agendas.",
+  declined: "Le client a refusé la dernière offre. Le batch cooker peut en refaire une.",
+  chef_declined: "Le batch cooker a décliné. Le client attend qu'on lui en propose un autre.",
+  cancelled: "Le client a retiré sa demande.",
 };
 
 export const QUOTE_STATUSES = Object.keys(quoteStatusLabel) as QuoteStatus[];
 
-/**
- * Le crédit d'impôt services à la personne : la moitié du TTC.
- *
- * C'est la valeur que la console propose, pas une règle que l'API applique —
- * les deux montants partent tels qu'ils sont saisis.
- */
-export const TAX_CREDIT_RATE = 0.5;
+/** Personne pour répondre : à confier à un batch cooker. */
+export const needsChef = (q: Quote) =>
+  !q.assignedChefUserId && q.status !== "accepted" && q.status !== "cancelled";
 
-export const afterTaxDefault = (ttcCents: number) =>
-  Math.round(ttcCents * (1 - TAX_CREDIT_RATE));
+export const offerStatusLabel: Record<OfferStatus, string> = {
+  sent: "Envoyée",
+  viewed: "Vue par le client",
+  accepted: "Acceptée",
+  declined: "Refusée",
+  expired: "Expirée",
+  withdrawn: "Retirée",
+};
+
+export const slotLabel: Record<TimeSlot, string> = {
+  morning: "matin (9 h – 13 h)",
+  afternoon: "après-midi (14 h – 18 h)",
+  evening: "soir (18 h – 22 h)",
+};
+
+export const centsToEuros = (cents: number) =>
+  (cents / 100).toLocaleString("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: cents % 100 === 0 ? 0 : 2,
+  });
+
+/** `2026-11-10` → « 10 novembre 2026 ». Une date de calendrier, sans fuseau. */
+export const dayLabel = (isoDay: string) =>
+  new Date(`${isoDay.slice(0, 10)}T12:00:00Z`).toLocaleDateString("fr-FR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
