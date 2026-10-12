@@ -328,7 +328,12 @@ function QuoteCard({
   const passees = q.offers.filter((o) => o.id !== offre?.id && o.id !== acceptee?.id);
 
   const netCents = Math.round(Number(net.replace(",", ".")) * 100);
-  const netValide = net.trim() !== "" && Number.isFinite(netCents) && netCents >= 1000;
+  // Les bornes de l'API (10 € à 20 000 €), répétées pour le message : elle revérifie.
+  const netValide =
+    net.trim() !== "" &&
+    Number.isFinite(netCents) &&
+    netCents >= 1000 &&
+    netCents <= 2_000_000;
   const apercu =
     netValide && commission.data ? previewOffer(netCents, commission.data.commissionBps) : null;
 
@@ -492,6 +497,8 @@ function QuoteCard({
                 <input
                   type="number"
                   min={10}
+                  max={20000}
+                  step="0.01"
                   value={net}
                   onChange={(e) => setNet(e.target.value)}
                   placeholder="170"
@@ -528,7 +535,7 @@ function QuoteCard({
 
               {net.trim() !== "" && !netValide && (
                 <p className="mt-2 text-[12px] leading-relaxed text-danger">
-                  Le net est d&apos;au moins 10 €.
+                  Le net est compris entre 10 € et 20 000 €.
                 </p>
               )}
               {erreur && !aConfirmer && (
