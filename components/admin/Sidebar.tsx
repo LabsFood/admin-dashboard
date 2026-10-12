@@ -7,7 +7,7 @@ import Logo from "./Logo";
 import { NAV_SECTIONS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
-import { useQuotes } from "@/lib/api/quotes";
+import { needsChef, useQuotes } from "@/lib/api/quotes";
 import { useChefApplications } from "@/lib/api/admin";
 import { RESERVATIONS } from "@/lib/mock/reservations";
 // import { THREADS } from "@/lib/mock/messages";
@@ -39,12 +39,13 @@ export default function Sidebar() {
   const contactBadge = useContactCounts().data?.new ?? 0;
 
   // Deux files réelles, lues une fois et partagées avec les écrans.
-  const aChiffrer = useQuotes({ status: "submitted" });
+  // Les demandes sur-mesure que personne ne peut encore traiter.
+  const aAttribuer = (useQuotes().data ?? []).filter(needsChef);
   const candidatures = useChefApplications({ status: "submitted", limit: 1 });
 
   const BADGES: Record<string, number> = {
     ...BADGES_MAQUETTE,
-    "/demandes": aChiffrer.data?.length ?? 0,
+    "/demandes": aAttribuer.length,
     "/batchcookers": candidatures.data?.meta?.total ?? 0,
   };
 
