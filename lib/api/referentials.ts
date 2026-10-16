@@ -68,6 +68,27 @@ function useReferential(path: string, key: string, fallback: RefItem[]) {
   });
 }
 
+const REGIONS: RefItem[] = [
+  { code: "11", label: "Île-de-France" },
+  { code: "24", label: "Centre-Val de Loire" },
+  { code: "27", label: "Bourgogne-Franche-Comté" },
+  { code: "28", label: "Normandie" },
+  { code: "32", label: "Hauts-de-France" },
+  { code: "44", label: "Grand Est" },
+  { code: "52", label: "Pays de la Loire" },
+  { code: "53", label: "Bretagne" },
+  { code: "75", label: "Nouvelle-Aquitaine" },
+  { code: "76", label: "Occitanie" },
+  { code: "84", label: "Auvergne-Rhône-Alpes" },
+  { code: "93", label: "Provence-Alpes-Côte d'Azur" },
+  { code: "94", label: "Corse" },
+];
+
+/** `GET /referentials/regions` — les régions qu'un batch cooker peut couvrir. */
+export function useRegions() {
+  return useReferential("/referentials/regions", "regions", REGIONS);
+}
+
 /** `GET /referentials/diets` */
 export function useDiets() {
   return useReferential("/referentials/diets", "diets", DIETS);
