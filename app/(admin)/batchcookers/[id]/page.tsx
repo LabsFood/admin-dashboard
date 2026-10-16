@@ -31,7 +31,11 @@ import {
   useSetChefVerification,
   verificationMessage,
 } from "@/lib/api/admin";
-import { bookingsOfChef, useBookings } from "@/lib/api/bookings";
+import {
+  bookingPortions,
+  bookingStatusText,
+  useBookings,
+} from "@/lib/api/bookings";
 import { useChefDishes, useChefMenus, type ReviewItem } from "@/lib/api/moderation";
 import {
   CHEF_STATE_HELP,
@@ -712,14 +716,14 @@ function Vitrine({ chefProfileId }: { chefProfileId: string }) {
  *
  * Il n'y a pas de route « les réservations de ce batch cooker ». Il y a
  * `GET /bookings`, qui rend la base entière sans pagination, et qu'on filtre
- * ici. L'écran le dit : sur un volume qui grossit, cette page tirera trop, et
- * si une ligne ne porte pas d'identifiant de chef elle restera invisible —
- * autant l'annoncer plutôt que de laisser croire à un décompte exact.
+ * ici — ce n'est plus le cas depuis le 16/10 : `GET /admin/bookings` accepte
+ * `?chefId=`, pagine, et n'est plus ouverte à tout compte connecté. Le tri
+ * revient au serveur, et le décompte redevient exact.
  */
 function Prestations({ chefProfileId }: { chefProfileId: string }) {
-  const q = useBookings();
-  const toutes = q.data ?? [];
-  const siennes = bookingsOfChef(toutes, chefProfileId);
+  const q = useBookings({ chefId: chefProfileId, limit: 50 });
+  const siennes = q.data?.data ?? [];
+  const total = q.data?.meta?.total ?? siennes.length;
 
   if (q.isPending) {
     return (
@@ -745,33 +749,13 @@ function Prestations({ chefProfileId }: { chefProfileId: string }) {
     );
   }
 
-  // Aucune ligne ne nomme son batch cooker : on ne peut rien affirmer.
-  if (siennes === null) {
-    return (
-      <section className="card p-5">
-        <h3 className="font-display text-base font-bold text-navy">
-          Impossible de rattacher les prestations
-        </h3>
-        <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-mid">
-          {toutes.length === 0
-            ? "Aucune réservation dans la base pour l'instant. Dès qu'il y en aura, celles de ce batch cooker apparaîtront ici."
-            : `Les ${toutes.length} réservations lues ne portent aucun identifiant de batch cooker. Tant que l'API ne le renvoie pas, on ne peut ni dire lesquelles sont les siennes, ni affirmer qu'il n'en a aucune.`}
-        </p>
-        <p className="mt-2 text-[12px] leading-relaxed text-ink-soft">
-          Ce qu&apos;il faudrait : <code>GET /bookings?chefProfileId=…</code>,
-          paginé. Aujourd&apos;hui la route rend toute la base d&apos;un bloc.
-        </p>
-      </section>
-    );
-  }
-
   if (siennes.length === 0) {
     return (
       <div className="card">
         <EmptyState
           Icon={ClipboardList}
           title="Aucune prestation"
-          text={`Il n'a encore été réservé par personne. ${toutes.length} réservation${toutes.length > 1 ? "s" : ""} au total dans la base.`}
+          text="Il n'a encore été réservé par personne. Pour l'être, il lui faut des horaires de travail posés dans son agenda."
         />
       </div>
     );
@@ -780,14 +764,14 @@ function Prestations({ chefProfileId }: { chefProfileId: string }) {
   return (
     <>
       <p className="text-sm text-ink-mid">
-        {siennes.length} prestation{siennes.length > 1 ? "s" : ""}, de la plus
-        récente à la plus ancienne.
+        {total} prestation{total > 1 ? "s" : ""}, de la plus récente à la plus
+        ancienne.
       </p>
-      <p className="mt-0.5 text-[12px] leading-relaxed text-ink-soft">
-        Filtrées depuis les {toutes.length} réservations de la base :{" "}
-        <code>GET /bookings</code> n&apos;accepte ni filtre par chef, ni
-        pagination.
-      </p>
+      {total > siennes.length && (
+        <p className="mt-0.5 text-[12px] leading-relaxed text-ink-soft">
+          Les {siennes.length} premières sont affichées.
+        </p>
+      )}
 
       <ul className="mt-3 space-y-2">
         {siennes.map((b) => (
@@ -798,24 +782,25 @@ function Prestations({ chefProfileId }: { chefProfileId: string }) {
             <div className="min-w-0">
               <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                 <span className="text-sm font-semibold text-navy">
-                  {b.clientName ?? "Client non nommé"}
+                  {b.client?.name ?? "Client non nommé"}
                 </span>
-                {b.status && <Badge tone="navy">{b.status}</Badge>}
+                {b.status && <Badge tone="navy">{bookingStatusText(b.status)}</Badge>}
               </p>
               <p className="mt-0.5 font-mono text-[11px] text-ink-soft">
                 {[
-                  b.date ? formatDate(b.date) : null,
+                  b.startsAt ? formatDate(b.startsAt) : null,
+                  b.timeSlot,
                   b.city,
-                  b.guests != null ? `${b.guests} portions` : null,
+                  bookingPortions(b) > 0 ? `${bookingPortions(b)} portions` : null,
                   b.reference,
                 ]
                   .filter(Boolean)
                   .join(" · ") || "—"}
               </p>
             </div>
-            {b.amountCents != null && (
+            {b.priceCents != null && (
               <p className="font-display text-base font-bold text-navy">
-                {euros(b.amountCents / 100)}
+                {euros(Math.round(b.priceCents / 100))}
               </p>
             )}
           </li>

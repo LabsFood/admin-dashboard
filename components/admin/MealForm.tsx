@@ -44,6 +44,7 @@ import {
   cleanReheating,
   cleanStorage,
   ingredientReady,
+  aisleLabel,
 } from "@/lib/recipe-fields";
 import { adminErrorMessage } from "@/lib/api/errors";
 import {
@@ -854,7 +855,7 @@ function IngredientRows({
                   <option value="">Rayon</option>
                   {AISLES.map((a) => (
                     <option key={a} value={a}>
-                      {a}
+                      {aisleLabel(a)}
                     </option>
                   ))}
                 </select>

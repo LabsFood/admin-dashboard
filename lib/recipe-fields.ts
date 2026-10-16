@@ -30,18 +30,34 @@ export const UNITS = [
   "gousse",
 ] as const;
 
-/** Rayons, dans l'ordre d'un parcours en magasin : la liste de courses s'y groupe. */
-export const AISLES = [
-  "Fruits et légumes",
-  "Boucherie",
-  "Poissonnerie",
-  "Crèmerie",
-  "Épicerie salée",
-  "Épicerie sucrée",
-  "Boulangerie",
-  "Surgelés",
-  "Boissons",
-] as const;
+/**
+ * Les rayons, par identifiant.
+ *
+ * Ce ne sont pas des libellés : la liste de courses d'une prestation
+ * (`GET /chef-missions/{id}/shopping-list`) groupe **par la chaîne stockée**,
+ * et les exemples de l'API écrivent `boucherie`, `fruits-legumes`. Écrire
+ * « Boucherie » ici et `boucherie` là-bas, c'est deux rayons pour la même
+ * allée. Aucun référentiel ne les expose : ces valeurs sont notre convention,
+ * alignée sur ce que le backend écrit déjà.
+ */
+export const AISLE_LABEL: Record<string, string> = {
+  "fruits-legumes": "Fruits et légumes",
+  boucherie: "Boucherie",
+  poissonnerie: "Poissonnerie",
+  cremerie: "Crèmerie",
+  "epicerie-salee": "Épicerie salée",
+  "epicerie-sucree": "Épicerie sucrée",
+  boulangerie: "Boulangerie",
+  surgeles: "Surgelés",
+  boissons: "Boissons",
+};
+
+/** Dans l'ordre d'un parcours en magasin. */
+export const AISLES = Object.keys(AISLE_LABEL);
+
+/** Le libellé d'un rayon, ou la valeur telle quelle si elle nous est inconnue. */
+export const aisleLabel = (code?: string | null) =>
+  code ? (AISLE_LABEL[code] ?? code) : null;
 
 export const REHEAT_MODES: { code: string; label: string }[] = [
   { code: "oven", label: "Four" },

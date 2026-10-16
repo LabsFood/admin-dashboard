@@ -23,7 +23,7 @@ import {
   bookingStatusText,
   useAdminDashboard,
 } from "@/lib/api/dashboard";
-import { useBookings } from "@/lib/api/bookings";
+import { bookingPortions, useBookings } from "@/lib/api/bookings";
 import { useFormules, formuleName } from "@/lib/api/formules";
 import {
   needsChef,
@@ -66,11 +66,17 @@ export default function OverviewPage() {
 
   const f = figures.data;
 
-  // Les prestations à venir : `GET /bookings` rend tout, sans tri utile.
-  const aVenir = (bookings.data ?? [])
-    .filter((b) => !b.status || BOOKING_ACTIVE.includes(b.status))
-    .sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
-  const prochaine = aVenir.find((b) => b.date);
+  /*
+   * Les prestations en cours, la plus proche d'abord.
+   *
+   * On ne compare pas à l'heure courante : un `Date.now()` pendant le rendu
+   * donnerait une réponse qui change d'un rendu à l'autre. Les statuts suffisent
+   * — `pending` à `delivered` veut dire « pas encore de l'histoire ».
+   */
+  const aVenir = (bookings.data?.data ?? [])
+    .filter((b) => BOOKING_ACTIVE.includes(b.status))
+    .sort((a, b) => (a.startsAt ?? "").localeCompare(b.startsAt ?? ""));
+  const prochaine = aVenir.find((b) => b.startsAt);
 
   // Ce que l'équipe doit faire : confier la demande à un batch cooker.
   const aAttribuer = (quotes.data ?? []).filter(needsChef);
@@ -165,13 +171,14 @@ export default function OverviewPage() {
             ) : prochaine ? (
               <>
                 <p className="mt-2 font-display text-lg font-bold leading-snug">
-                  {formatDateLong(prochaine.date!)}
+                  {formatDateLong(prochaine.startsAt!)}
                 </p>
                 <p className="mt-1 text-xs text-white/60">
                   {[
-                    prochaine.clientName,
-                    prochaine.chefName,
-                    prochaine.city,
+                    prochaine.client?.name,
+                    bookingPortions(prochaine) > 0
+                      ? `${bookingPortions(prochaine)} portions`
+                      : null,
                     prochaine.status ? bookingStatusText(prochaine.status) : null,
                   ]
                     .filter(Boolean)
