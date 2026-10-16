@@ -66,9 +66,15 @@ export default function OverviewPage() {
 
   const f = figures.data;
 
-  // Les prestations à venir : `GET /bookings` rend tout, sans tri utile.
-  const aVenir = (bookings.data ?? [])
-    .filter((b) => !b.status || BOOKING_ACTIVE.includes(b.status))
+  /*
+   * Les prestations en cours, la plus proche d'abord.
+   *
+   * On ne compare pas à l'heure courante : un `Date.now()` pendant le rendu
+   * donnerait une réponse qui change d'un rendu à l'autre. Les statuts suffisent
+   * — `pending` à `delivered` veut dire « pas encore de l'histoire ».
+   */
+  const aVenir = (bookings.data?.data ?? [])
+    .filter((b) => BOOKING_ACTIVE.includes(b.status))
     .sort((a, b) => (a.startsAt ?? "").localeCompare(b.startsAt ?? ""));
   const prochaine = aVenir.find((b) => b.startsAt);
 
@@ -169,7 +175,7 @@ export default function OverviewPage() {
                 </p>
                 <p className="mt-1 text-xs text-white/60">
                   {[
-                    prochaine.client?.fullName,
+                    prochaine.client?.name,
                     bookingPortions(prochaine) > 0
                       ? `${bookingPortions(prochaine)} portions`
                       : null,

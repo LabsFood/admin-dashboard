@@ -2,40 +2,52 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApiFetch } from "./client";
+import { euros } from "@/lib/utils";
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Les réservations — `GET /bookings`.
+   Les réservations — `GET /admin/bookings`.
 
-   Trois choses à savoir avant de s'appuyer dessus :
+   Le 16/10 l'API a remplacé `GET /bookings`, qui rendait toute la base d'un
+   bloc **et restait appelable par n'importe quel compte connecté**. La
+   nouvelle route est paginée, filtrable par client, par batch cooker, par
+   statut et par dates, et réellement réservée aux admins. Les deux problèmes
+   signalés (BLK-14 puis BLK-22) tombent ensemble.
 
-   - la route rend **toute** la base, sans filtre ni pagination. Pas de filtre
-     par batch cooker, par statut ni par date : tout tri se fait ici, après
-     coup. Tenable tant que le volume est petit ; ça ne le restera pas ;
-   - elle est annoncée « admin only » mais **tout compte connecté peut
-     l'appeler** aujourd'hui. C'est un trou de sécurité, pas une facilité :
-     signalé au backend, à ne pas exploiter ailleurs ;
-   - `POST /bookings` répond `501`. Rien ne peut encore être réservé : ce que
-     ces écrans montrent vient de données posées côté serveur.
+   Conséquence utile : l'onglet « Ses prestations » d'une fiche de batch cooker
+   n'a plus à trier la base côté navigateur — `?chefId=` suffit.
 
-   La forme d'une réservation n'a pas de schéma, mais les exemples des deux
-   routes de détail la décrivent entièrement — c'est elle qui est typée ici.
+   Le cycle de vie, commun aux trois points de vue :
+
+     pending ──(paiement)──> confirmed ──> shopping ──> cooking ──> delivered
+                                                                        │
+                                                                   completed
+
+   La console peut poser **n'importe quel** statut, y compris `disputed`, et
+   chaque écriture est auditée : c'est l'outil du support, pas un raccourci.
    ───────────────────────────────────────────────────────────────────────────── */
 
+export type BookingStatus =
+  | "pending"
+  | "confirmed"
+  | "shopping"
+  | "cooking"
+  | "delivered"
+  | "completed"
+  | "cancelled"
+  | "disputed";
+
 export interface BookingMeal {
-  bookingId?: string;
   mealId: string;
-  /** Portions commandées pour ce plat. */
+  name?: string | null;
   portions: number;
-  meal?: { id: string; name: string } | null;
+  recipeVersion?: number | null;
 }
 
 export interface ShoppingItem {
   id?: string;
-  shoppingListId?: string;
   /** Rayon, tel que l'API le stocke : un identifiant, pas un libellé. */
   aisle: string | null;
   name: string;
-  /** Texte libre (« 8 pièces »), à la différence des listes de prestation. */
   quantity: string | null;
 }
 
@@ -49,136 +61,258 @@ export interface ShoppingList {
 export interface Booking {
   id: string;
   reference: string | null;
-  clientId: string | null;
-  chefProfileId: string | null;
-  /** Début et fin de la session, ISO. */
-  startsAt: string | null;
-  endsAt: string | null;
-  status: string | null;
-  /** Centimes, TTC. */
-  priceCents: number | null;
-  currency: string | null;
-  bookingMeals?: BookingMeal[] | null;
+  status: BookingStatus;
+  startsAt: string;
+  endsAt: string;
+  bookingDate?: string | null;
+  /** « 09:00-12:00 », calculé par l'API dans le bon fuseau. */
+  timeSlot?: string | null;
+  persons?: number | null;
+  addressLine?: string | null;
+  city?: string | null;
+  notes?: string | null;
+  shoppingByClient?: boolean | null;
+  /** Centimes. */
+  priceCents: number;
+  amountTtc: number;
+  amountAfterTax: number;
+  currency: string;
+  arrivedAt?: string | null;
+  createdAt?: string;
+  mealsCount?: number | null;
+  client?: { id: string; name: string | null; avatarUrl?: string | null } | null;
+  chef?: { id: string; displayName: string | null } | null;
+  serviceOffer?: { id: string; name: string | null } | null;
+  formule?: { id: string; name: string | null } | null;
+  paymentMethods?: string[] | null;
+  paidCents?: number | null;
+  netCents?: number | null;
+  commissionCents?: number | null;
+  commissionEstimated?: boolean | null;
+  meals?: BookingMeal[] | null;
   shoppingList?: ShoppingList | null;
-  client?: {
+  photos?: { id: string; url: string; caption?: string | null }[] | null;
+  reschedule?: {
     id: string;
-    email: string | null;
-    fullName: string | null;
-    role?: string;
+    proposedBy: "client" | "chef";
+    from: string;
+    to: string;
+    status: string;
+    expiresAt: string | null;
   } | null;
+}
+
+export interface PageMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages?: number;
+  hasNextPage?: boolean;
+  hasPreviousPage?: boolean;
+}
+
+export interface BookingsQuery {
+  page?: number;
+  limit?: number;
+  status?: BookingStatus;
+  /** Sur le début de la prestation, ISO. */
+  from?: string;
+  to?: string;
+  clientId?: string;
+  /** L'id de **page** du batch cooker (`chefProfileId`). */
+  chefId?: string;
+  enabled?: boolean;
 }
 
 const BOOKINGS = ["admin", "bookings"] as const;
 
-function unwrap(res: unknown): Booking[] {
-  if (Array.isArray(res)) return res as Booking[];
+function unwrap(res: unknown): { data: Booking[]; meta: PageMeta | null } {
+  if (Array.isArray(res)) return { data: res as Booking[], meta: null };
   if (res && typeof res === "object") {
     const o = res as Record<string, unknown>;
     for (const k of ["data", "items", "bookings"]) {
-      if (Array.isArray(o[k])) return o[k] as Booking[];
+      if (Array.isArray(o[k])) {
+        return {
+          data: o[k] as Booking[],
+          meta: o.meta && typeof o.meta === "object" ? (o.meta as PageMeta) : null,
+        };
+      }
     }
   }
-  return [];
+  return { data: [], meta: null };
 }
 
 /**
- * Toutes les réservations. `enabled` laisse la requête en sommeil : un onglet
- * fermé n'a pas à tirer la base entière.
+ * `GET /admin/bookings` — toutes les réservations, filtrées côté serveur.
+ *
+ * `enabled: false` laisse la requête en sommeil sans changer sa clé : un
+ * onglet fermé n'a pas à interroger l'API.
  */
-export function useBookings({ enabled }: { enabled?: boolean } = {}) {
+export function useBookings({ enabled, ...q }: BookingsQuery = {}) {
   const apiFetch = useApiFetch();
+
+  const p = new URLSearchParams();
+  if (q.page != null) p.set("page", String(q.page));
+  if (q.limit != null) p.set("limit", String(q.limit));
+  if (q.status) p.set("status", q.status);
+  if (q.from) p.set("from", q.from);
+  if (q.to) p.set("to", q.to);
+  if (q.clientId) p.set("clientId", q.clientId);
+  if (q.chefId) p.set("chefId", q.chefId);
+  const qs = p.toString();
+
   return useQuery({
-    queryKey: BOOKINGS,
-    queryFn: async () => unwrap(await apiFetch<unknown>("/bookings")),
+    queryKey: [...BOOKINGS, q],
+    queryFn: async () =>
+      unwrap(await apiFetch<unknown>(`/admin/bookings${qs ? `?${qs}` : ""}`)),
     enabled: enabled ?? true,
     staleTime: 60_000,
   });
 }
 
-/**
- * `GET /bookings/admin/bookings/{id}` — la réservation avec son client, ses
- * plats et sa liste de courses. Noter le chemin : le segment est bien doublé
- * côté API.
- */
+/** `GET /admin/bookings/{id}` — avec son client, ses plats et sa liste de courses. */
 export function useBooking(id: string | undefined) {
   const apiFetch = useApiFetch();
   return useQuery({
-    queryKey: [...BOOKINGS, id],
-    queryFn: () => apiFetch<Booking>(`/bookings/admin/bookings/${id}`),
+    queryKey: [...BOOKINGS, "one", id],
+    queryFn: () => apiFetch<Booking>(`/admin/bookings/${id}`),
     enabled: !!id,
     retry: false,
   });
 }
 
+export interface AdminBookingPatch {
+  startsAt?: string;
+  persons?: number;
+  addressLine?: string;
+  addressCity?: string;
+  addressPostalCode?: string;
+  notes?: string;
+  shoppingByClient?: boolean;
+  meals?: { mealId: string; portions?: number }[];
+  /** N'importe quel statut, audité. `disputed` ouvre un litige. */
+  status?: BookingStatus;
+  priceCents?: number;
+  amountTtc?: number;
+  amountAfterTax?: number;
+}
+
 /**
- * `POST /bookings/admin/bookings/{id}/shopping-list/regenerate`
+ * `PATCH /admin/bookings/{id}` — l'outil du support.
+ *
+ * Il passe outre les règles des deux autres points de vue : n'importe quel
+ * statut, les montants, l'horaire sans vérifier la disponibilité. Chaque
+ * écriture est auditée — à n'utiliser que pour réparer, pas pour aller vite.
+ */
+export function useUpdateBooking() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: AdminBookingPatch }) =>
+      apiFetch<Booking>(`/admin/bookings/${id}`, { method: "PATCH", body: patch }),
+    onSuccess: (b) => {
+      qc.setQueryData([...BOOKINGS, "one", b.id], b);
+      qc.invalidateQueries({ queryKey: BOOKINGS });
+    },
+  });
+}
+
+/**
+ * `POST /admin/bookings/{id}/shopping-list/regenerate`
  *
  * Recalcule la liste depuis les versions de recettes que la prestation
- * cuisine, mise à l'échelle des portions commandées. **Les corrections du
- * batch cooker sont conservées.** À utiliser après un changement de plats ou
- * de portions.
+ * cuisine. **Les corrections du batch cooker sont conservées.** À utiliser
+ * après un changement de plats ou de portions.
  */
 export function useRegenerateShoppingList() {
   const apiFetch = useApiFetch();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      apiFetch<ShoppingList>(
-        `/bookings/admin/bookings/${id}/shopping-list/regenerate`,
-        { method: "POST" },
-      ),
+      apiFetch<ShoppingList>(`/admin/bookings/${id}/shopping-list/regenerate`, {
+        method: "POST",
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: BOOKINGS }),
+  });
+}
+
+/* ── La liste de courses d'une prestation ──────────────────────────────────── */
+
+export interface MissionLine {
+  name: string;
+  qty: number;
+  unit: string;
+  /** `true` quand le batch cooker a corrigé ou ajouté la ligne. */
+  edited?: boolean;
+}
+
+export interface MissionShoppingList {
+  missionId: string;
+  persons: number | null;
+  generatedAt: string | null;
+  groups: { aisle: string; lines: MissionLine[] }[];
+}
+
+/**
+ * `GET /chef-missions/{id}/shopping-list` — lisible par le batch cooker, les
+ * admins **et** le client.
+ *
+ * `GET /admin/bookings/{id}` ne rend pas la liste : c'est ici qu'elle vit,
+ * groupée par rayon et mise à l'échelle des portions commandées. Les lignes
+ * marquées `edited` sont les corrections du batch cooker.
+ */
+export function useBookingShoppingList(bookingId: string | undefined) {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: [...BOOKINGS, bookingId, "shopping-list"],
+    queryFn: () =>
+      apiFetch<MissionShoppingList>(`/chef-missions/${bookingId}/shopping-list`),
+    enabled: !!bookingId,
+    retry: false,
   });
 }
 
 /* ── Lecture ───────────────────────────────────────────────────────────────── */
 
-/**
- * Les statuts observés dans la base. La liste n'est pas documentée : on nomme
- * ceux qu'on connaît et on laisse passer les autres tels quels, plutôt que de
- * cacher un état qu'on n'attendait pas.
- */
-export const bookingStatusLabel: Record<string, string> = {
-  pending: "En attente",
+export const bookingStatusLabel: Record<BookingStatus, string> = {
+  pending: "À régler",
   confirmed: "Confirmée",
   shopping: "Courses en cours",
   cooking: "En cuisine",
+  delivered: "Livrée",
   completed: "Terminée",
-  delivered: "Terminée",
   cancelled: "Annulée",
-  refunded: "Remboursée",
+  disputed: "En litige",
 };
 
+export const BOOKING_STATUSES = Object.keys(bookingStatusLabel) as BookingStatus[];
+
 export const bookingStatusText = (code?: string | null) =>
-  code ? (bookingStatusLabel[code] ?? code) : "Statut inconnu";
+  code ? (bookingStatusLabel[code as BookingStatus] ?? code) : "Statut inconnu";
 
-/** Les statuts qui ne sont pas encore de l'historique. */
-export const BOOKING_ACTIVE = ["pending", "confirmed", "shopping", "cooking"];
+/** Ce qui n'est pas encore de l'historique. */
+export const BOOKING_ACTIVE: BookingStatus[] = [
+  "pending",
+  "confirmed",
+  "shopping",
+  "cooking",
+  "delivered",
+];
 
-export const isBookingOpen = (b: Booking) =>
-  !b.status || BOOKING_ACTIVE.includes(b.status);
-
-/** Total des portions commandées, tous plats confondus. */
-export const bookingPortions = (b: Booking) =>
-  (b.bookingMeals ?? []).reduce((n, m) => n + (m.portions ?? 0), 0);
-
-export const bookingMealNames = (b: Booking) =>
-  (b.bookingMeals ?? [])
-    .map((m) => m.meal?.name)
-    .filter((n): n is string => Boolean(n));
+export const isBookingOpen = (b: Booking) => BOOKING_ACTIVE.includes(b.status);
 
 /**
- * Les réservations d'un batch cooker, de la plus récente à la plus ancienne.
+ * Des centimes en euros lisibles, ou `null`.
  *
- * `null` quand aucune ligne ne porte d'identifiant de chef : on ne peut alors
- * ni affirmer qu'il n'en a aucune, ni dire lesquelles sont les siennes.
+ * `euros()` de `lib/utils` attend des euros et un nombre : tous les montants
+ * de l'API sont en centimes et parfois absents. Le passage se fait ici, une
+ * fois, plutôt que dans chaque écran.
  */
-export function bookingsOfChef(
-  all: Booking[],
-  chefProfileId: string,
-): Booking[] | null {
-  if (!all.some((b) => b.chefProfileId)) return null;
-  return all
-    .filter((b) => b.chefProfileId === chefProfileId)
-    .sort((a, b) => (b.startsAt ?? "").localeCompare(a.startsAt ?? ""));
-}
+export const money = (cents?: number | null) =>
+  cents == null || !Number.isFinite(cents) ? null : euros(Math.round(cents / 100));
+
+export const bookingPortions = (b: Booking) =>
+  (b.meals ?? []).reduce((n, m) => n + (m.portions ?? 0), 0);
+
+export const bookingMealNames = (b: Booking) =>
+  (b.meals ?? []).map((m) => m.name).filter((n): n is string => Boolean(n));

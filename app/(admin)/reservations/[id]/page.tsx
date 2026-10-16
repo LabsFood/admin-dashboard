@@ -4,49 +4,59 @@ import { use, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  AlertTriangle,
   ArrowLeft,
+  CalendarClock,
   CalendarRange,
   ChefHat,
   Clock,
   Info,
   Loader2,
-  Mail,
+  MapPin,
   RefreshCw,
   RotateCw,
   ShoppingBasket,
+  Sparkles,
   UserRound,
   Users,
   UtensilsCrossed,
+  Wallet,
 } from "lucide-react";
 import Badge from "@/components/ui/Badge";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toaster";
-import { euros, formatDateLong } from "@/lib/utils";
+import { cn, euros, formatDateLong } from "@/lib/utils";
 import { aisleLabel } from "@/lib/recipe-fields";
 import {
+  BOOKING_STATUSES,
   bookingPortions,
+  bookingStatusLabel,
   bookingStatusText,
   isBookingOpen,
+  money,
   useBooking,
+  useBookingShoppingList,
   useRegenerateShoppingList,
+  useUpdateBooking,
+  type BookingStatus,
 } from "@/lib/api/bookings";
 import { adminErrorMessage } from "@/lib/api/errors";
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Une réservation — `GET /bookings/admin/bookings/{id}`.
+   Une réservation — `GET /admin/bookings/{id}`.
 
-   Elle arrive complète : le client, les plats avec leurs portions, et la liste
-   de courses telle qu'elle a été calculée. Noter le chemin, dont le segment
-   est doublé côté API.
+   Elle arrive complète depuis le 16/10 : le client, le batch cooker **par son
+   nom**, l'adresse de la session, les plats avec la version de recette
+   épinglée, les photos, la part nette et la commission, et la demande de
+   report en cours s'il y en a une.
 
-   Une seule action : recalculer la liste de courses. Elle repart des versions
-   de recettes que la prestation cuisine, **en gardant les corrections du batch
-   cooker** — c'est ce qui la rend sans danger, et c'est ce que le dialogue dit
-   avant de la lancer.
+   Deux actions, et elles ne se valent pas :
 
-   Ce qui n'existe pas : l'adresse de la session, le règlement, la part du
-   batch cooker, et son nom (seul `chefProfileId` est renvoyé).
+   - **recalculer la liste de courses** est sans danger — elle repart des
+     recettes de la prestation et garde les corrections du batch cooker ;
+   - **changer le statut** est l'outil du support. La console peut poser
+     n'importe quel statut, y compris ouvrir un litige, sans les garde-fous
+     des deux autres points de vue. Chaque écriture est auditée — c'est pour
+     réparer, pas pour aller vite.
    ───────────────────────────────────────────────────────────────────────────── */
 
 export default function ReservationDetailPage({
@@ -57,8 +67,11 @@ export default function ReservationDetailPage({
   const { id } = use(params);
   const toast = useToast();
   const query = useBooking(id);
+  const courses = useBookingShoppingList(id);
   const regenerate = useRegenerateShoppingList();
+  const update = useUpdateBooking();
   const [aRecalculer, setARecalculer] = useState(false);
+  const [aPoser, setAPoser] = useState<BookingStatus | null>(null);
 
   if (query.isPending) {
     return (
@@ -92,25 +105,10 @@ export default function ReservationDetailPage({
 
   const b = query.data;
   const portions = bookingPortions(b);
-  const heures =
-    b.startsAt && b.endsAt
-      ? `${new Date(b.startsAt).toLocaleTimeString("fr-FR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        })} → ${new Date(b.endsAt).toLocaleTimeString("fr-FR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        })}`
-      : null;
-
-  /** Les lignes de la liste, regroupées par rayon comme en magasin. */
-  const rayons = new Map<string, { name: string; quantity: string | null }[]>();
-  for (const it of b.shoppingList?.items ?? []) {
-    const cle = it.aisle ?? "";
-    const bucket = rayons.get(cle) ?? [];
-    bucket.push({ name: it.name, quantity: it.quantity });
-    rayons.set(cle, bucket);
-  }
+  const groupes = courses.data?.groups ?? [];
+  const net = money(b.netCents);
+  const commission = money(b.commissionCents);
+  const paye = money(b.paidCents);
 
   return (
     <div className="space-y-6">
@@ -143,9 +141,9 @@ export default function ReservationDetailPage({
               {b.startsAt ? formatDateLong(b.startsAt) : "Date à confirmer"}
             </h2>
             <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/65">
-              {heures && (
+              {b.timeSlot && (
                 <span className="inline-flex items-center gap-1.5">
-                  <Clock className="h-4 w-4 text-terra-soft" aria-hidden /> {heures}
+                  <Clock className="h-4 w-4 text-terra-soft" aria-hidden /> {b.timeSlot}
                 </span>
               )}
               {portions > 0 && (
@@ -160,16 +158,40 @@ export default function ReservationDetailPage({
               </span>
             </p>
           </div>
-          {b.priceCents != null && (
+          {b.amountTtc != null && (
             <div className="flex flex-col items-start lg:items-end">
               <p className="font-display text-3xl font-bold text-terra-soft">
-                {euros(Math.round(b.priceCents / 100))}
+                {euros(Math.round(b.amountTtc / 100))}
               </p>
-              <p className="text-xs text-white/60">payés par le client</p>
+              <p className="text-xs text-white/60">
+                payés par le client
+                {paye && b.paidCents !== b.amountTtc ? ` · ${paye} encaissés` : ""}
+              </p>
             </div>
           )}
         </div>
       </motion.section>
+
+      {/* ── Un report en cours ───────────────────────────────────────────── */}
+      {b.reschedule?.status === "pending" && (
+        <section className="card border-terra/30 bg-terra/8 p-5">
+          <p className="flex items-start gap-2 text-[13px] font-semibold text-terra-deep">
+            <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            Un report attend une réponse
+          </p>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-ink-mid">
+            {b.reschedule.proposedBy === "chef" ? "Le batch cooker" : "Le client"} propose
+            le {formatDateLong(b.reschedule.to)} au lieu du{" "}
+            {formatDateLong(b.reschedule.from)}.
+            {b.reschedule.expiresAt &&
+              ` Sans réponse avant le ${formatDateLong(b.reschedule.expiresAt)}, la prestation garde son heure.`}
+          </p>
+          <p className="mt-1.5 text-[12px] leading-relaxed text-ink-soft">
+            La console ne répond pas à leur place : aucune route ne le permet, et
+            ce serait décider pour eux.
+          </p>
+        </section>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
@@ -179,23 +201,25 @@ export default function ReservationDetailPage({
               <UtensilsCrossed className="h-4 w-4 text-terra" aria-hidden /> Plats
               commandés
             </h3>
-            {(b.bookingMeals?.length ?? 0) === 0 ? (
+            {(b.meals?.length ?? 0) === 0 ? (
               <p className="text-sm text-ink-soft">
                 Aucun plat rattaché à cette réservation.
               </p>
             ) : (
               <ul className="divide-y divide-[rgba(0,35,75,0.06)]">
-                {b.bookingMeals!.map((m) => (
+                {b.meals!.map((m) => (
                   <li
                     key={m.mealId}
                     className="flex items-center justify-between gap-3 py-2.5"
                   >
                     <span className="min-w-0">
                       <span className="block text-sm font-semibold text-navy">
-                        {m.meal?.name ?? "Plat retiré du catalogue"}
+                        {m.name ?? "Plat retiré du catalogue"}
                       </span>
                       <span className="block font-mono text-[11px] text-ink-soft">
-                        {m.mealId.slice(0, 8)}…
+                        {m.recipeVersion != null
+                          ? `recette v${m.recipeVersion} · ${m.mealId.slice(0, 8)}…`
+                          : `${m.mealId.slice(0, 8)}…`}
                       </span>
                     </span>
                     <Badge tone="navy" dot={false}>
@@ -215,11 +239,14 @@ export default function ReservationDetailPage({
                   <ShoppingBasket className="h-4 w-4 text-terra" aria-hidden /> Liste de
                   courses
                 </h3>
-                {b.shoppingList?.generatedAt && (
-                  <p className="mt-0.5 text-[12px] text-ink-soft">
-                    Calculée le {formatDateLong(b.shoppingList.generatedAt)}
-                  </p>
-                )}
+                <p className="mt-0.5 text-[12px] text-ink-soft">
+                  {courses.data?.generatedAt
+                    ? `Calculée le ${formatDateLong(courses.data.generatedAt)}`
+                    : "Calculée depuis les recettes de la prestation"}
+                  {b.shoppingByClient
+                    ? " · les courses sont à la charge du client"
+                    : " · les courses sont à la charge du batch cooker"}
+                </p>
               </div>
               <button
                 onClick={() => setARecalculer(true)}
@@ -235,28 +262,40 @@ export default function ReservationDetailPage({
               </button>
             </div>
 
-            {rayons.size === 0 ? (
+            {courses.isPending ? (
+              <div className="space-y-2">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="h-9 animate-pulse rounded-xl bg-cream-soft" />
+                ))}
+              </div>
+            ) : groupes.length === 0 ? (
               <p className="text-sm leading-relaxed text-ink-soft">
-                Aucune liste pour cette réservation. Elle se calcule depuis les
-                recettes de ses plats : si aucun n&apos;a de recette, il n&apos;y a
-                rien à calculer.
+                Aucune liste. Elle se calcule depuis les recettes des plats : si
+                aucun n&apos;a de recette, il n&apos;y a rien à calculer.
               </p>
             ) : (
               <div className="space-y-4">
-                {[...rayons.entries()].map(([rayon, lignes]) => (
-                  <div key={rayon || "sans-rayon"}>
+                {groupes.map((g) => (
+                  <div key={g.aisle || "sans-rayon"}>
                     <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.16em] text-ink-soft">
-                      {aisleLabel(rayon) ?? "Sans rayon"}
+                      {aisleLabel(g.aisle) ?? "Sans rayon"}
                     </p>
                     <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {lignes.map((l, i) => (
+                      {g.lines.map((l, i) => (
                         <li
                           key={`${l.name}-${i}`}
                           className="flex items-center justify-between gap-2 rounded-xl bg-cream-soft px-3 py-2 text-sm"
                         >
-                          <span className="min-w-0 text-navy">{l.name}</span>
-                          <span className="shrink-0 text-xs text-ink-soft">
-                            {l.quantity ?? ""}
+                          <span className="min-w-0 text-navy">
+                            {l.name}
+                            {l.edited && (
+                              <span className="ml-2 text-[10px] font-semibold uppercase text-terra-deep">
+                                corrigée
+                              </span>
+                            )}
+                          </span>
+                          <span className="shrink-0 text-xs tabular-nums text-ink-soft">
+                            {l.qty.toLocaleString("fr-FR")} {l.unit}
                           </span>
                         </li>
                       ))}
@@ -266,6 +305,39 @@ export default function ReservationDetailPage({
               </div>
             )}
           </section>
+
+          {/* ── Consignes et photos ────────────────────────────────────── */}
+          {b.notes && (
+            <section className="card p-6">
+              <h3 className="mb-2 flex items-center gap-2 font-display text-base font-bold text-navy">
+                <Sparkles className="h-4 w-4 text-terra" aria-hidden /> Consignes du
+                client
+              </h3>
+              <p className="rounded-xl bg-cream-soft px-4 py-3 text-sm leading-relaxed text-ink-mid">
+                {b.notes}
+              </p>
+            </section>
+          )}
+
+          {(b.photos?.length ?? 0) > 0 && (
+            <section className="card p-6">
+              <h3 className="mb-3 font-display text-base font-bold text-navy">
+                Photos de la session
+              </h3>
+              <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {b.photos!.map((p) => (
+                  <li key={p.id} className="overflow-hidden rounded-xl bg-cream-soft">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={p.url}
+                      alt={p.caption ?? ""}
+                      className="aspect-[4/3] w-full object-cover"
+                    />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
 
         {/* ── Colonne de droite ─────────────────────────────────────────── */}
@@ -275,23 +347,21 @@ export default function ReservationDetailPage({
               <UserRound className="h-4 w-4 text-terra" aria-hidden /> Le client
             </h3>
             {b.client ? (
-              <dl className="space-y-2 text-sm">
-                <Row label="Nom" value={b.client.fullName ?? "Non renseigné"} />
-                <Row label="Email" value={b.client.email ?? "—"} mono />
-                {b.client.role && <Row label="Rôle" value={b.client.role} />}
-              </dl>
+              <>
+                <p className="text-sm font-semibold text-navy">
+                  {b.client.name ?? "Nom non renseigné"}
+                </p>
+                <Link
+                  href={`/clients/${b.client.id}`}
+                  className="btn btn-outline btn-sm mt-3 w-full"
+                >
+                  Sa fiche client
+                </Link>
+              </>
             ) : (
               <p className="text-sm text-ink-soft">
-                Client non renvoyé par l&apos;API pour cette réservation.
+                Client non renvoyé pour cette réservation.
               </p>
-            )}
-            {b.clientId && (
-              <Link
-                href={`/clients/${b.clientId}`}
-                className="btn btn-outline btn-sm mt-3 w-full"
-              >
-                <Mail className="h-3 w-3" aria-hidden /> Sa fiche client
-              </Link>
             )}
           </section>
 
@@ -299,15 +369,30 @@ export default function ReservationDetailPage({
             <h3 className="mb-3 flex items-center gap-2 font-display text-base font-bold text-navy">
               <ChefHat className="h-4 w-4 text-terra" aria-hidden /> Le batch cooker
             </h3>
-            {b.chefProfileId ? (
+            {b.chef ? (
               <>
-                <p className="font-mono text-[11px] leading-relaxed text-ink-soft">
-                  {b.chefProfileId}
+                <p className="text-sm font-semibold text-navy">
+                  {b.chef.displayName ?? "Nom non renseigné"}
                 </p>
-                <p className="mt-2 text-[13px] leading-relaxed text-ink-mid">
-                  Son nom n&apos;est pas renvoyé sur une réservation — seul son
-                  identifiant de profil l&apos;est.
-                </p>
+                {b.serviceOffer?.name && (
+                  <p className="mt-0.5 text-[12px] text-ink-soft">
+                    Offre réservée : {b.serviceOffer.name}
+                  </p>
+                )}
+                {net && (
+                  <dl className="hairline mt-3 space-y-1.5 border-t pt-3 text-[13px]">
+                    <Row
+                      label={b.commissionEstimated ? "Net estimé" : "Net perçu"}
+                      value={net}
+                    />
+                    {commission && <Row label="Commission" value={commission} />}
+                  </dl>
+                )}
+                {b.commissionEstimated && (
+                  <p className="mt-2 text-[11px] leading-relaxed text-ink-soft">
+                    Estimé : la commission se fixe au paiement.
+                  </p>
+                )}
               </>
             ) : (
               <p className="text-sm text-ink-soft">
@@ -316,33 +401,56 @@ export default function ReservationDetailPage({
             )}
           </section>
 
+          {(b.addressLine || b.city) && (
+            <section className="card p-5">
+              <h3 className="mb-2 flex items-center gap-2 font-display text-base font-bold text-navy">
+                <MapPin className="h-4 w-4 text-terra" aria-hidden /> Où
+              </h3>
+              <p className="text-[13px] leading-relaxed text-ink-mid">
+                {b.addressLine}
+                {b.addressLine && b.city ? ", " : ""}
+                {b.city}
+              </p>
+              {b.arrivedAt && (
+                <p className="mt-2 text-[12px] text-ink-soft">
+                  Arrivée pointée le {formatDateLong(b.arrivedAt)}
+                </p>
+              )}
+            </section>
+          )}
+
+          {/* ── L'outil du support ─────────────────────────────────────── */}
           <section className="card p-5">
             <h3 className="flex items-center gap-2 font-display text-base font-bold text-navy">
-              <Info className="h-4 w-4 text-ink-soft" aria-hidden /> Pas disponible
+              <Wallet className="h-4 w-4 text-terra" aria-hidden /> Forcer un statut
             </h3>
-            <ul className="mt-2 space-y-1.5 text-[13px] leading-relaxed text-ink-mid">
-              {[
-                "L’adresse de la session",
-                "Le règlement et son statut",
-                "La part du batch cooker et la commission",
-                "Annuler ou déplacer la réservation",
-              ].map((x) => (
-                <li key={x} className="flex items-start gap-2">
-                  <span
-                    aria-hidden
-                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-ink-soft/50"
-                  />
-                  <span>
-                    {x} — <strong className="font-semibold text-navy">N/A</strong>
-                  </span>
-                </li>
+            <p className="mt-2 text-[13px] leading-relaxed text-ink-mid">
+              La console passe outre les règles du client et du batch cooker.
+              Chaque changement est <strong className="font-semibold">audité</strong> :
+              c&apos;est pour réparer une situation, pas pour aller plus vite.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {BOOKING_STATUSES.filter((s) => s !== b.status).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setAPoser(s)}
+                  disabled={update.isPending}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
+                    s === "disputed" || s === "cancelled"
+                      ? "bg-danger-soft text-danger hover:bg-danger/15"
+                      : "bg-cream-soft text-ink-mid hover:bg-cream-deep",
+                  )}
+                >
+                  {bookingStatusLabel[s]}
+                </button>
               ))}
-            </ul>
+            </div>
           </section>
 
           {!isBookingOpen(b) && (
             <p className="flex items-start gap-2 px-1 text-[12px] leading-relaxed text-ink-soft">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
               Cette réservation n&apos;est plus en cours : recalculer sa liste de
               courses n&apos;a plus d&apos;effet utile.
             </p>
@@ -362,8 +470,7 @@ export default function ReservationDetailPage({
                 "Les corrections du batch cooker ont été conservées.",
               );
             },
-            onError: (e) =>
-              toast.error("Le recalcul a échoué", adminErrorMessage(e)),
+            onError: (e) => toast.error("Le recalcul a échoué", adminErrorMessage(e)),
           })
         }
         pending={regenerate.isPending}
@@ -372,23 +479,52 @@ export default function ReservationDetailPage({
         detail="Les corrections du batch cooker sont conservées : le geste est sans danger, et utile après un changement de plats ou de portions."
         confirmLabel="Recalculer"
       />
+
+      <ConfirmDialog
+        open={aPoser !== null}
+        onClose={() => setAPoser(null)}
+        onConfirm={() =>
+          aPoser &&
+          update.mutate(
+            { id: b.id, patch: { status: aPoser } },
+            {
+              onSuccess: () => {
+                setAPoser(null);
+                toast.success(
+                  `Statut posé : ${bookingStatusLabel[aPoser].toLowerCase()}`,
+                  "Le changement est inscrit au journal d'audit.",
+                );
+              },
+              onError: (e) => toast.error("Le statut n'a pas changé", adminErrorMessage(e)),
+            },
+          )
+        }
+        pending={update.isPending}
+        tone={aPoser === "disputed" || aPoser === "cancelled" ? "danger" : "primary"}
+        title={
+          aPoser
+            ? `Passer cette réservation en « ${bookingStatusLabel[aPoser].toLowerCase()} » ?`
+            : ""
+        }
+        lead={
+          aPoser === "disputed"
+            ? "Un litige est ouvert sur cette prestation. Le règlement et la rémunération en dépendent."
+            : aPoser === "cancelled"
+              ? "La prestation est annulée, quel que soit son état d'avancement, et le créneau est libéré."
+              : "Le client et le batch cooker verront ce statut dans leur espace."
+        }
+        detail="Vous passez outre les règles habituelles, et le changement est inscrit au journal d'audit avec votre nom."
+        confirmLabel="Poser ce statut"
+      />
     </div>
   );
 }
 
-function Row({
-  label,
-  value,
-  mono,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
+function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4">
       <dt className="text-ink-soft">{label}</dt>
-      <dd className={mono ? "font-mono text-[13px] text-navy" : "text-navy"}>{value}</dd>
+      <dd className="font-semibold text-navy tabular-nums">{value}</dd>
     </div>
   );
 }

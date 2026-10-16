@@ -8,7 +8,10 @@ import {
   ArrowRight,
   CalendarRange,
   ChefHat,
+  ChevronLeft,
+  ChevronRight,
   Info,
+  MapPin,
   RotateCw,
   Search,
 } from "lucide-react";
@@ -17,6 +20,7 @@ import FilterTabs from "@/components/ui/FilterTabs";
 import EmptyState from "@/components/ui/EmptyState";
 import { euros, formatDate } from "@/lib/utils";
 import {
+  BOOKING_STATUSES,
   bookingMealNames,
   bookingPortions,
   bookingStatusLabel,
@@ -24,62 +28,59 @@ import {
   isBookingOpen,
   useBookings,
   type Booking,
+  type BookingStatus,
 } from "@/lib/api/bookings";
 import { adminErrorMessage } from "@/lib/api/errors";
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Les réservations — `GET /bookings`.
+   Les réservations — `GET /admin/bookings`.
 
-   L'écran tournait sur `lib/mock/reservations.ts` et montrait un statut de
-   paiement, un créneau nommé, une formule et un chef par son nom. Une
-   réservation porte une référence, deux bornes horaires, un statut, un prix
-   TTC en centimes, ses plats et son client. C'est ce qui est affiché.
+   La route du 16/10 remplace `GET /bookings`, qui rendait toute la base d'un
+   bloc **et était appelable par n'importe quel compte connecté**. Elle est
+   paginée et filtrée côté serveur : le filtre par statut et la page partent
+   dans l'URL, et ce qui est compté est exact.
 
-   La route rend toute la base d'un bloc : le filtre, la recherche et le tri
-   sont faits ici. L'écran le dit, parce que c'est ce qui cassera le jour où il
-   y aura mille réservations.
+   La recherche, elle, reste locale : l'API n'a pas de `?q=`. L'écran le dit —
+   elle ne porte que sur la page affichée.
    ───────────────────────────────────────────────────────────────────────────── */
 
-type Filter = "all" | "open" | "history" | string;
+type Filter = "all" | BookingStatus;
+
+const PAR_PAGE = 25;
 
 export default function ReservationsPage() {
-  const query = useBookings();
   const [filter, setFilter] = useState<Filter>("all");
+  const [page, setPage] = useState(1);
   const [recherche, setRecherche] = useState("");
 
-  const toutes = query.data ?? [];
+  const query = useBookings({
+    page,
+    limit: PAR_PAGE,
+    status: filter === "all" ? undefined : filter,
+  });
 
-  const counts = toutes.reduce<Record<string, number>>((acc, b) => {
-    if (b.status) acc[b.status] = (acc[b.status] ?? 0) + 1;
-    return acc;
-  }, {});
-  const statuts = Object.keys(counts).sort(
-    (a, b) => (counts[b] ?? 0) - (counts[a] ?? 0),
-  );
+  const lignes = query.data?.data ?? [];
+  const meta = query.data?.meta;
+  const total = meta?.total ?? lignes.length;
 
   const q = recherche.trim().toLowerCase();
-  const liste = toutes
-    .filter((b) =>
-      filter === "all"
-        ? true
-        : filter === "open"
-          ? isBookingOpen(b)
-          : filter === "history"
-            ? !isBookingOpen(b)
-            : b.status === filter,
-    )
-    .filter(
-      (b) =>
-        !q ||
-        (b.reference ?? "").toLowerCase().includes(q) ||
-        (b.client?.fullName ?? "").toLowerCase().includes(q) ||
-        (b.client?.email ?? "").toLowerCase().includes(q) ||
-        bookingMealNames(b).some((n) => n.toLowerCase().includes(q)),
-    )
-    .sort((a, b) => (b.startsAt ?? "").localeCompare(a.startsAt ?? ""));
+  const visibles = lignes.filter(
+    (b) =>
+      !q ||
+      (b.reference ?? "").toLowerCase().includes(q) ||
+      (b.client?.name ?? "").toLowerCase().includes(q) ||
+      (b.chef?.displayName ?? "").toLowerCase().includes(q) ||
+      (b.city ?? "").toLowerCase().includes(q) ||
+      bookingMealNames(b).some((n) => n.toLowerCase().includes(q)),
+  );
 
-  const ouvertes = toutes.filter(isBookingOpen).length;
-  const total = toutes.reduce((n, b) => n + (b.priceCents ?? 0), 0);
+  const ouvertes = lignes.filter(isBookingOpen).length;
+  const sommePage = lignes.reduce((n, b) => n + (b.amountTtc ?? b.priceCents ?? 0), 0);
+
+  function changerFiltre(f: Filter) {
+    setFilter(f);
+    setPage(1);
+  }
 
   if (query.isError) {
     return (
@@ -98,27 +99,27 @@ export default function ReservationsPage() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-3 gap-3 lg:gap-4">
-        <MiniStat label="Réservations" value={query.isPending ? "…" : toutes.length} />
-        <MiniStat label="En cours" value={query.isPending ? "…" : ouvertes} />
         <MiniStat
-          label="Chiffre d'affaires"
-          value={query.isPending ? "…" : euros(Math.round(total / 100))}
+          label={filter === "all" ? "Réservations" : bookingStatusLabel[filter]}
+          value={query.isPending ? "…" : total}
+        />
+        <MiniStat
+          label="En cours sur cette page"
+          value={query.isPending ? "…" : ouvertes}
+        />
+        <MiniStat
+          label="Montant de la page"
+          value={query.isPending ? "…" : euros(Math.round(sommePage / 100))}
         />
       </div>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <FilterTabs<Filter>
           value={filter}
-          onChange={setFilter}
+          onChange={changerFiltre}
           options={[
-            { id: "all", label: "Toutes", count: toutes.length },
-            { id: "open", label: "En cours", count: ouvertes },
-            { id: "history", label: "Terminées", count: toutes.length - ouvertes },
-            ...statuts.map((s) => ({
-              id: s,
-              label: bookingStatusLabel[s] ?? s,
-              count: counts[s] ?? 0,
-            })),
+            { id: "all", label: "Toutes" },
+            ...BOOKING_STATUSES.map((s) => ({ id: s, label: bookingStatusLabel[s] })),
           ]}
         />
         <div className="relative lg:w-64">
@@ -129,8 +130,8 @@ export default function ReservationsPage() {
           <input
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
-            placeholder="Référence, client, plat…"
-            aria-label="Rechercher une réservation"
+            placeholder="Référence, client, ville…"
+            aria-label="Rechercher dans cette page"
             className="input-base pl-9"
           />
         </div>
@@ -142,50 +143,72 @@ export default function ReservationsPage() {
             <div key={i} className="card h-20 animate-pulse" />
           ))}
         </div>
-      ) : toutes.length === 0 ? (
+      ) : total === 0 ? (
         <div className="card">
           <EmptyState
             Icon={CalendarRange}
-            title="Aucune réservation"
-            text="La réservation n'est pas encore ouverte côté API : POST /bookings répond 501. Rien ne peut arriver ici avant que le backend ne l'ouvre."
+            title={filter === "all" ? "Aucune réservation" : "Aucune réservation dans cet état"}
+            text={
+              filter === "all"
+                ? "Dès qu'un client réservera un batch cooker, sa prestation apparaîtra ici."
+                : "Changez de filtre pour voir les autres."
+            }
           />
         </div>
-      ) : liste.length === 0 ? (
+      ) : visibles.length === 0 ? (
         <p className="card p-6 text-sm text-ink-soft">
-          Aucune réservation ne correspond
-          {q ? ` à « ${recherche} »` : " à ce filtre"}.
+          Aucune réservation de cette page ne correspond à «&nbsp;{recherche}&nbsp;». La
+          recherche ne porte que sur la page affichée : l&apos;API n&apos;en propose pas.
         </p>
       ) : (
-        <ul className="space-y-3">
-          {liste.map((b, i) => (
-            <BookingRow key={b.id} booking={b} index={i} />
-          ))}
-        </ul>
+        <>
+          <ul className="space-y-3">
+            {visibles.map((b, i) => (
+              <BookingRow key={b.id} booking={b} index={i} />
+            ))}
+          </ul>
+
+          {meta && (meta.totalPages ?? 1) > 1 && (
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[12px] text-ink-soft">
+                Page {meta.page} sur {meta.totalPages} · {total} réservation
+                {total > 1 ? "s" : ""}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={meta.page <= 1}
+                  className="btn btn-outline btn-sm disabled:opacity-40"
+                >
+                  <ChevronLeft className="h-3 w-3" aria-hidden /> Précédente
+                </button>
+                <button
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={!meta.hasNextPage && meta.page >= (meta.totalPages ?? 1)}
+                  className="btn btn-outline btn-sm disabled:opacity-40"
+                >
+                  Suivante <ChevronRight className="h-3 w-3" aria-hidden />
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <section className="card p-5">
         <h3 className="flex items-center gap-2 font-display text-base font-bold text-navy">
           <Info className="h-4 w-4 text-ink-soft" aria-hidden />
-          Ce que l&apos;API ne sait pas encore faire
+          Ce que l&apos;API ne fait pas encore
         </h3>
         <ul className="mt-2 space-y-1.5 text-[13px] leading-relaxed text-ink-mid">
           <li>
-            <strong>Réserver</strong> — <code>POST /bookings</code> répond{" "}
-            <code>501</code>. Le tunnel de réservation du site ne peut donc pas
-            aboutir : c&apos;est le plus gros manque du produit aujourd&apos;hui.
+            <strong>Chercher</strong> — aucun <code>?q=</code> : la recherche
+            ci-dessus ne porte que sur la page affichée.
           </li>
           <li>
-            <strong>Filtrer et paginer</strong> — <code>GET /bookings</code> rend
-            toute la base d&apos;un bloc. Ce qui est trié ici l&apos;est côté
-            navigateur, et ne tiendra pas à l&apos;échelle.
-          </li>
-          <li>
-            <strong>Le règlement</strong> — aucun statut de paiement sur une
-            réservation, aucune route de paiement.
-          </li>
-          <li>
-            <strong>Le nom du batch cooker</strong> — seul son{" "}
-            <code>chefProfileId</code> est renvoyé.
+            <strong>Le règlement</strong> — <code>paidCents</code> dit combien a
+            été encaissé, mais il n&apos;y a pas d&apos;écran de suivi des
+            paiements côté console.
           </li>
         </ul>
       </section>
@@ -196,6 +219,7 @@ export default function ReservationsPage() {
 function BookingRow({ booking: b, index }: { booking: Booking; index: number }) {
   const plats = bookingMealNames(b);
   const portions = bookingPortions(b);
+  const impaye = b.status === "pending";
 
   return (
     <motion.li
@@ -225,9 +249,9 @@ function BookingRow({ booking: b, index }: { booking: Booking; index: number }) 
         <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
             <span className="text-sm font-semibold text-navy">
-              {b.client?.fullName ?? b.client?.email ?? "Client non nommé"}
+              {b.client?.name ?? "Client non nommé"}
             </span>
-            <Badge tone={isBookingOpen(b) ? "info" : "neutral"} dot>
+            <Badge tone={impaye ? "warning" : isBookingOpen(b) ? "info" : "neutral"} dot>
               {bookingStatusText(b.status)}
             </Badge>
           </p>
@@ -235,8 +259,8 @@ function BookingRow({ booking: b, index }: { booking: Booking; index: number }) 
             {[
               b.reference,
               b.startsAt ? formatDate(b.startsAt) : null,
+              b.timeSlot,
               portions > 0 ? `${portions} portions` : null,
-              plats.length > 0 ? `${plats.length} plat${plats.length > 1 ? "s" : ""}` : null,
             ]
               .filter(Boolean)
               .join(" · ") || "—"}
@@ -246,15 +270,22 @@ function BookingRow({ booking: b, index }: { booking: Booking; index: number }) 
           )}
         </div>
 
-        {b.chefProfileId && (
-          <span className="hidden items-center gap-1.5 text-[11px] text-ink-soft sm:inline-flex">
-            <ChefHat className="h-3.5 w-3.5" aria-hidden /> Batch cooker assigné
-          </span>
-        )}
+        <div className="hidden min-w-0 flex-col items-start text-[11px] text-ink-soft sm:flex">
+          {b.chef?.displayName && (
+            <span className="inline-flex items-center gap-1.5">
+              <ChefHat className="h-3.5 w-3.5" aria-hidden /> {b.chef.displayName}
+            </span>
+          )}
+          {b.city && (
+            <span className="inline-flex items-center gap-1.5">
+              <MapPin className="h-3.5 w-3.5" aria-hidden /> {b.city}
+            </span>
+          )}
+        </div>
 
-        {b.priceCents != null && (
+        {b.amountTtc != null && (
           <span className="font-display text-sm font-bold text-navy">
-            {euros(Math.round(b.priceCents / 100))}
+            {euros(Math.round(b.amountTtc / 100))}
           </span>
         )}
 

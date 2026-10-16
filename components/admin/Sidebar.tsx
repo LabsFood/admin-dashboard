@@ -50,7 +50,7 @@ export default function Sidebar() {
     ...BADGES_MAQUETTE,
     "/demandes": aAttribuer.length,
     "/batchcookers": candidatures.data?.meta?.total ?? 0,
-    "/reservations": (reservations.data ?? []).filter(isBookingOpen).length,
+    "/reservations": (reservations.data?.data ?? []).filter(isBookingOpen).length,
   };
 
   const handleLogout = () => {
