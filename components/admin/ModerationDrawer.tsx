@@ -8,7 +8,12 @@ import { cn, formatDate } from "@/lib/utils";
 import { countryLabel } from "@/lib/countries";
 import { difficultyLabel, difficultyTone, moderatedLabel, moderatedTone } from "@/lib/catalog-labels";
 import { useAllergens, useDiets, useDishCategories, refLabel } from "@/lib/api/referentials";
-import type { ReviewItem } from "@/lib/api/moderation";
+import {
+  reviewFlagText,
+  useChefDishes,
+  useChefMenus,
+  type ReviewItem,
+} from "@/lib/api/moderation";
 
 /** Les champs qu'on rend déjà : le reste va dans le panneau de la réponse brute. */
 const RENDERED = new Set([
@@ -49,6 +54,13 @@ const RENDERED = new Set([
  * La fiche telle que le client la voit, plus ce que l'API renvoie et que
  * l'écran ne montre pas encore. Une décision de modération se prend sur ce que
  * l'auteur a réellement écrit, pas sur un résumé.
+ *
+ * La file (`GET /admin/dishes`) ne rend qu'une ligne : identité, auteur,
+ * statut, dates et drapeaux. Ni photo, ni pays, ni allergènes. On va donc
+ * chercher la fiche complète sur le contenu du batch cooker
+ * (`/admin/chefs/{id}/dishes` ou `/menus`), qui la rend entière — et on
+ * fusionne les deux. Si elle ne vient pas, l'écran le dit au lieu d'afficher
+ * une fiche à moitié vide comme si c'était l'original.
  */
 export default function ModerationDrawer({
   item,
@@ -61,6 +73,22 @@ export default function ModerationDrawer({
   const allergens = useAllergens();
   const categories = useDishCategories();
   const [rawOpen, setRawOpen] = useState(false);
+
+  // La fiche complète, cherchée chez son auteur. Les deux requêtes dorment
+  // tant que le tiroir est fermé, et seule celle du bon genre s'exécute.
+  const chefId = item?.chefProfileId ?? undefined;
+  const plats = useChefDishes(item?.kind === "dish" ? chefId : undefined);
+  const menus = useChefMenus(item?.kind === "menu" ? chefId : undefined);
+  const source = item?.kind === "menu" ? menus : plats;
+  const complete = (source.data ?? []).find((x) => x.id === item?.id) ?? null;
+
+  /* Ce que la file donne, complété par la fiche quand elle arrive. */
+  const fiche: ReviewItem | null = item
+    ? complete
+      ? { ...complete, flags: item.flags, reviewState: item.reviewState, raw: item.raw }
+      : item
+    : null;
+  const incomplete = Boolean(item && !complete && !source.isPending);
 
   const extra = item
     ? Object.entries(item.raw).filter(
@@ -88,13 +116,15 @@ export default function ModerationDrawer({
         </button>
       }
     >
-      {item && (
+      {fiche && (
         <div className="space-y-5">
-          {item.imageUrl ? (
+          {source.isPending ? (
+            <div className="aspect-[16/10] w-full animate-pulse rounded-2xl bg-cream-soft" />
+          ) : fiche.imageUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
-              src={item.imageUrl}
-              alt={item.name}
+              src={fiche.imageUrl}
+              alt={fiche.name}
               className="aspect-[16/10] w-full rounded-2xl object-cover"
             />
           ) : (
@@ -104,60 +134,82 @@ export default function ModerationDrawer({
             </p>
           )}
 
+          {incomplete && (
+            <p className="rounded-2xl bg-cream-soft px-4 py-3 text-[13px] leading-relaxed text-ink-mid">
+              La fiche complète n’a pas pu être retrouvée chez son auteur : ce
+              qui suit est la ligne de la file, qui ne porte ni photo, ni pays,
+              ni allergènes. À vérifier sur sa vitrine avant de décider.
+            </p>
+          )}
+
+          {fiche.flags.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              {fiche.flags.map((f) => (
+                <Badge
+                  key={f}
+                  tone={f === "no-allergens-declared" ? "warning" : "info"}
+                  dot
+                >
+                  {reviewFlagText(f)}
+                </Badge>
+              ))}
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone={moderatedTone[item.status]} dot>
-              {moderatedLabel[item.status]}
+            <Badge tone={moderatedTone[fiche.status]} dot>
+              {moderatedLabel[fiche.status]}
             </Badge>
-            {item.difficulty && (
-              <Badge tone={difficultyTone[item.difficulty]}>
-                {difficultyLabel[item.difficulty]}
+            {fiche.difficulty && (
+              <Badge tone={difficultyTone[fiche.difficulty]}>
+                {difficultyLabel[fiche.difficulty]}
               </Badge>
             )}
-            {item.category && (
-              <Badge tone="navy">{refLabel(categories.data, item.category)}</Badge>
+            {fiche.category && (
+              <Badge tone="navy">{refLabel(categories.data, fiche.category)}</Badge>
             )}
-            {item.portions != null && (
-              <Badge tone="neutral">{item.portions} portions</Badge>
+            {fiche.portions != null && (
+              <Badge tone="neutral">{fiche.portions} portions</Badge>
             )}
-            {item.prepMinutes != null && (
-              <Badge tone="neutral">{item.prepMinutes} min</Badge>
+            {fiche.prepMinutes != null && (
+              <Badge tone="neutral">{fiche.prepMinutes} min</Badge>
             )}
           </div>
 
-          {item.description && (
-            <p className="text-sm leading-relaxed text-ink-mid">{item.description}</p>
+          {fiche.description && (
+            <p className="text-sm leading-relaxed text-ink-mid">{fiche.description}</p>
           )}
 
           <dl className="hairline space-y-2.5 border-t pt-3 text-[13px]">
-            <Row label="Pays annoncé" value={countryLabel(item.country) || "—"} />
+            <Row label="Pays annoncé" value={countryLabel(fiche.country) || "—"} />
             <Row
               label="Mis en ligne"
-              value={item.publishedAt ? formatDate(item.publishedAt) : "—"}
+              value={fiche.publishedAt ? formatDate(fiche.publishedAt) : "—"}
             />
             <Row
               label="Dernière relecture"
-              value={item.reviewedAt ? formatDate(item.reviewedAt) : "jamais relu"}
+              value={fiche.reviewedAt ? formatDate(fiche.reviewedAt) : "jamais relu"}
             />
-            {item.kind === "menu" && item.dishCount != null && (
-              <Row label="Plats au menu" value={String(item.dishCount)} />
+            {fiche.kind === "menu" && fiche.dishCount != null && (
+              <Row label="Plats au menu" value={String(fiche.dishCount)} />
             )}
           </dl>
 
-          {(item.diets.length > 0 || item.customDiets.length > 0) && (
+          {(fiche.diets.length > 0 || fiche.customDiets.length > 0) && (
             <Block title="Régimes déclarés">
               <div className="flex flex-wrap gap-1.5">
-                {item.diets.map((d) => (
+                {fiche.diets.map((d) => (
                   <span key={d} className="chip-teal">
                     {refLabel(diets.data, d)}
                   </span>
                 ))}
-                {item.customDiets.map((d) => (
+                {fiche.customDiets.map((d) => (
                   <span key={d} className="chip-teal italic">
                     {d}
                   </span>
                 ))}
               </div>
-              {item.customDiets.length > 0 && (
+              {fiche.customDiets.length > 0 && (
                 <p className="mt-1.5 text-[11px] leading-relaxed text-ink-soft">
                   En italique : tapé à la main, hors liste de référence.
                 </p>
@@ -166,12 +218,12 @@ export default function ModerationDrawer({
           )}
 
           <Block title="Allergènes déclarés">
-            {item.allergensNone ? (
+            {fiche.allergensNone ? (
               <p className="text-[13px] text-success">
                 Aucun des 14 allergènes — déclaré explicitement par le batch
                 cooker.
               </p>
-            ) : item.allergens.length === 0 && item.customAllergens.length === 0 ? (
+            ) : fiche.allergens.length === 0 && fiche.customAllergens.length === 0 ? (
               <p className="rounded-md bg-warning-soft px-3 py-2.5 text-[13px] leading-relaxed text-[#8A6212]">
                 Ni liste, ni mention «&nbsp;aucun&nbsp;». La fiche est muette sur
                 un point réglementé : c&apos;est le premier motif de suspension.
@@ -179,18 +231,18 @@ export default function ModerationDrawer({
             ) : (
               <>
                 <div className="flex flex-wrap gap-1.5">
-                  {item.allergens.map((a) => (
+                  {fiche.allergens.map((a) => (
                     <span key={a} className="chip-danger">
                       {refLabel(allergens.data, a)}
                     </span>
                   ))}
-                  {item.customAllergens.map((a) => (
+                  {fiche.customAllergens.map((a) => (
                     <span key={a} className="chip-danger italic">
                       {a}
                     </span>
                   ))}
                 </div>
-                {item.customAllergens.length > 0 && (
+                {fiche.customAllergens.length > 0 && (
                   <p className="mt-1.5 text-[11px] leading-relaxed text-ink-soft">
                     En italique : hors des 14 réglementés.
                   </p>

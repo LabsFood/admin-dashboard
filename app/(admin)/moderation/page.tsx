@@ -21,10 +21,10 @@ import ReasonDialog from "@/components/ui/ReasonDialog";
 import { useToast } from "@/components/ui/Toaster";
 import ModerationDrawer from "@/components/admin/ModerationDrawer";
 import { cn, formatDate, timeAgo } from "@/lib/utils";
-import { countryLabel } from "@/lib/countries";
 import { moderatedLabel, moderatedTone, reasonCodeHint, reasonCodeLabel } from "@/lib/catalog-labels";
 import {
   REASON_CODES,
+  reviewFlagText,
   useMarkReviewed,
   useModerate,
   useReviewQueue,
@@ -227,13 +227,15 @@ function QueueRow({
   const [dialog, setDialog] = useState<"suspend" | "reinstate" | null>(null);
 
   const Icon = item.kind === "menu" ? LayoutList : UtensilsCrossed;
-  // Une fiche muette sur les allergènes est le premier motif de suspension :
-  // autant le voir depuis la liste.
-  const allergenGap =
-    item.kind === "dish" &&
-    !item.allergensNone &&
-    item.allergens.length === 0 &&
-    item.customAllergens.length === 0;
+  /*
+   * Ce qui mérite un regard vient de `flags`, décidé par l'API.
+   *
+   * On le calculait ici depuis `allergens` et `allergensNone` — deux champs
+   * que cette route n'envoie pas. Résultat : « allergènes non déclarés »
+   * s'affichait sur **chaque** ligne de la file, y compris les fiches
+   * complètes.
+   */
+  const drapeaux = item.flags;
 
   function markReviewed() {
     review.mutate(
@@ -291,21 +293,17 @@ function QueueRow({
       className="card p-4"
     >
       <div className="flex flex-wrap items-center gap-4">
-        {item.imageUrl ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={item.imageUrl}
-            alt=""
-            className="h-14 w-14 shrink-0 rounded-xl object-cover"
-          />
-        ) : (
-          <span
-            aria-hidden
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-cream-deep text-ink-soft"
-          >
-            <Icon className="h-5 w-5" />
-          </span>
-        )}
+        {/*
+         * Pas de vignette ici : `GET /admin/dishes` ne rend pas `imageUrl`.
+         * La photo arrive dans le tiroir, qui va la chercher sur la fiche
+         * complète du batch cooker.
+         */}
+        <span
+          aria-hidden
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-cream-deep text-ink-soft"
+        >
+          <Icon className="h-5 w-5" />
+        </span>
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -324,17 +322,22 @@ function QueueRow({
                 Menu{item.dishCount != null ? ` · ${item.dishCount} plats` : ""}
               </Badge>
             )}
-            {allergenGap && (
-              <Badge tone="warning" dot>
-                Allergènes non déclarés
+            {drapeaux.map((f) => (
+              <Badge
+                key={f}
+                tone={f === "no-allergens-declared" ? "warning" : "info"}
+                dot
+              >
+                {reviewFlagText(f)}
               </Badge>
-            )}
+            ))}
           </div>
           <p className="mt-1 truncate font-mono text-[11px] text-ink-soft">
             {[
               item.chefName ?? "Batch cooker inconnu",
-              countryLabel(item.country) || null,
-              item.prepMinutes ? `${item.prepMinutes} min` : null,
+              item.kind === "menu" && item.dishCount != null
+                ? `${item.dishCount} plats`
+                : null,
             ]
               .filter(Boolean)
               .join(" · ")}

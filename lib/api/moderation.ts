@@ -67,14 +67,59 @@ export interface ReviewItem {
   chefName: string | null;
   /** Nombre de plats, pour un menu. */
   dishCount: number | null;
+  /**
+   * Ce qui mérite un regard, **décidé par l'API**.
+   *
+   * C'est la seule source fiable sur cette route : elle ne renvoie ni les
+   * allèrgènes, ni le pays, ni la photo. Recalculer « allèrgènes non
+   * déclarés » depuis des champs absents affichait l'avertissement sur
+   * **chaque** ligne.
+   */
+  flags: ReviewFlag[];
+  /** Où en est la relecture, tel que l'API le dit. */
+  reviewState: string | null;
+  /** Depuis quand la ligne attend. */
+  pendingSince: string | null;
   /** La réponse brute : tout ce que l'API renvoie et qu'on n'affiche pas. */
   raw: Record<string, unknown>;
 }
 
+/** Le vocabulaire des drapeaux, tel que la doc de la route l'énumère. */
+export const REVIEW_FLAGS = [
+  "custom-allergen",
+  "custom-diet",
+  "no-allergens-declared",
+  "edited-after-review",
+  "republished-after-suspension",
+  "source-changed",
+] as const;
+
+export type ReviewFlag = (typeof REVIEW_FLAGS)[number];
+
+/** Ce que chaque drapeau veut dire, du point de vue de l'admin. */
+export const reviewFlagLabel: Record<string, string> = {
+  "custom-allergen": "Allèrgène hors liste",
+  "custom-diet": "Régime hors liste",
+  "no-allergens-declared": "Allèrgènes non déclarés",
+  "edited-after-review": "Modifié après relecture",
+  "republished-after-suspension": "Republié après suspension",
+  "source-changed": "La suggestion d'origine a changé",
+};
+
+export const reviewFlagText = (f: string) => reviewFlagLabel[f] ?? f;
+
 /**
- * Normalise une ligne de la file. Le Swagger ne documente pas la réponse
- * (`200` sans schéma) : on lit les noms de champs que l'API emploie déjà
- * ailleurs, et on tolère leurs variantes plutôt que de rendre une ligne vide.
+ * Normalise une ligne de la file.
+ *
+ * Attention à ce que cette route **n'envoie pas** : ni `imageUrl`, ni
+ * `country`, ni `prepMinutes`, ni les allèrgènes. Sa ligne tient en douze
+ * champs — identité, auteur, statut, dates, `flags`. Les champs absents
+ * restent donc à `null`, et l'écran ne doit **rien en déduire** : c'est
+ * `flags` qui dit ce qui mérite un regard.
+ *
+ * Les autres routes de contenu (`/admin/chefs/{id}/dishes`, `/admin/meals`)
+ * rendent la fiche complète, photo comprise : c'est là qu'on va la chercher
+ * quand on ouvre le détail.
  */
 function toReviewItem(raw: unknown, fallbackKind?: ReviewKind): ReviewItem {
   const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
@@ -141,6 +186,9 @@ function toReviewItem(raw: unknown, fallbackKind?: ReviewKind): ReviewItem {
           ? chef.name
           : null),
     dishCount: dishes ? dishes.length : num("dishCount"),
+    flags: arr("flags") as ReviewFlag[],
+    reviewState: str("reviewState"),
+    pendingSince: str("pendingSince"),
     raw: o,
   };
 }

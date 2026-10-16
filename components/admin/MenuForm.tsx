@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -12,17 +12,27 @@ import {
   CalendarRange,
   Check,
   Flame,
+  Image as ImageIcon,
   LayoutList,
   Loader2,
   Save,
   Search,
   ShoppingBasket,
   Trash2,
+  Upload,
   UtensilsCrossed,
+  X,
 } from "lucide-react";
 import Badge from "@/components/ui/Badge";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toaster";
+import {
+  PHOTO_MAX_MB,
+  checkPhoto,
+  photoMessage,
+  useDeleteLabsFoodMenuPhoto,
+  useLabsFoodMenuPhoto,
+} from "@/lib/api/photos";
 import { cn, formatDate } from "@/lib/utils";
 import { countryLabel } from "@/lib/countries";
 import { catalogLabel, catalogTone, difficultyLabel, periodLabel } from "@/lib/catalog-labels";
@@ -653,6 +663,8 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
                 </span>
               </button>
 
+              <CoverField menu={menu} />
+
               <div>
                 <p className="field-label">Statut</p>
                 <div className="flex flex-wrap gap-2">
@@ -805,5 +817,126 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
         }
       />
     </form>
+  );
+}
+
+/* ── La photo de couverture ────────────────────────────────────────────────── */
+
+/**
+ * La couverture d'un menu Lab's Food.
+ *
+ * Les trois routes existaient depuis le 06/10 (`photo/upload-url`,
+ * `photo/confirm`, `DELETE …/photo`) et les hooks étaient écrits — sans un
+ * seul bouton pour les appeler. D'où des cartes de menu sans image alors que
+ * les plats en avaient une.
+ *
+ * Comme pour un plat, l'envoi a besoin de l'identifiant : à la création il
+ * n'existe pas, et `POST /admin/menus` n'accepte pas d'URL. On le dit plutôt
+ * que d'afficher un champ qui ne marcherait pas.
+ */
+function CoverField({ menu }: { menu?: LabsFoodMenu }) {
+  const envoi = useLabsFoodMenuPhoto<LabsFoodMenu>();
+  const retrait = useDeleteLabsFoodMenuPhoto<LabsFoodMenu>();
+  const champ = useRef<HTMLInputElement>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+
+  if (!menu) {
+    return (
+      <div className="flex items-start gap-2.5 rounded-md bg-cream-soft px-3.5 py-3">
+        <ImageIcon className="mt-0.5 h-4 w-4 shrink-0 text-ink-soft" aria-hidden />
+        <p className="text-[12px] leading-relaxed text-ink-mid">
+          Enregistrez d&apos;abord le menu : l&apos;envoi d&apos;une couverture a
+          besoin de son identifiant.
+        </p>
+      </div>
+    );
+  }
+
+  // `menu` est garanti par le retour ci-dessus, mais le narrowing ne suit pas
+  // dans la closure : on le capture.
+  const m = menu;
+
+  function choisir(file: File | null) {
+    setErreur(null);
+    if (!file) return;
+    const probleme = checkPhoto(file);
+    if (probleme) {
+      setErreur(probleme);
+      return;
+    }
+    envoi.mutate(
+      { id: m.id, file },
+      {
+        onSuccess: () => {
+          if (champ.current) champ.current.value = "";
+        },
+        onError: (e) => setErreur(photoMessage(e)),
+      },
+    );
+  }
+
+  return (
+    <div>
+      <p className="field-label">Couverture</p>
+      {menu.imageUrl && (
+        <div className="mb-2 overflow-hidden rounded-2xl bg-cream-deep">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={menu.imageUrl}
+            alt="Couverture du menu"
+            className="aspect-[16/9] w-full object-cover"
+          />
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          ref={champ}
+          id={`cover-${menu.id}`}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="sr-only"
+          onChange={(e) => choisir(e.target.files?.[0] ?? null)}
+        />
+        <label
+          htmlFor={`cover-${menu.id}`}
+          className={cn(
+            "btn btn-outline btn-sm cursor-pointer",
+            envoi.isPending && "pointer-events-none opacity-50",
+          )}
+        >
+          {envoi.isPending ? (
+            <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+          ) : (
+            <Upload className="h-3 w-3" aria-hidden />
+          )}
+          {menu.imageUrl ? "Remplacer" : "Envoyer une photo"}
+        </label>
+        {menu.imageUrl && (
+          <button
+            type="button"
+            onClick={() =>
+              retrait.mutate(menu.id, { onError: (e) => setErreur(photoMessage(e)) })
+            }
+            disabled={retrait.isPending}
+            className="btn btn-sm text-danger hover:bg-danger-soft"
+          >
+            {retrait.isPending ? (
+              <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+            ) : (
+              <X className="h-3 w-3" aria-hidden />
+            )}
+            Retirer
+          </button>
+        )}
+        <span className="text-[11px] text-ink-soft">
+          JPG, PNG ou WebP, {PHOTO_MAX_MB} Mo au plus
+        </span>
+      </div>
+      {erreur && (
+        <p role="alert" className="mt-1.5 text-[12px] leading-relaxed text-danger">
+          {erreur}
+        </p>
+      )}
+    </div>
   );
 }
