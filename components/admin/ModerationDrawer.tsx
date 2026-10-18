@@ -55,10 +55,12 @@ const RENDERED = new Set([
  * l'écran ne montre pas encore. Une décision de modération se prend sur ce que
  * l'auteur a réellement écrit, pas sur un résumé.
  *
- * La file (`GET /admin/dishes`) ne rend qu'une ligne : identité, auteur,
- * statut, dates et drapeaux. Ni photo, ni pays, ni allergènes. On va donc
- * chercher la fiche complète sur le contenu du batch cooker
- * (`/admin/chefs/{id}/dishes` ou `/menus`), qui la rend entière — et on
+ * La file (`GET /admin/dishes`) s'est enrichie le 17/10 : photo, allèrgènes
+ * et temps de préparation y sont maintenant, et la liste les affiche sans
+ * second appel. Elle reste une **liste légère** : description, pays,
+ * catégorie, portions, difficulté et régimes n'y sont pas. Comme une décision
+ * de modération se prend sur ce que l'auteur a écrit, le tiroir va chercher
+ * la fiche entière chez lui (`/admin/chefs/{id}/dishes` ou `/menus`) et
  * fusionne les deux. Si elle ne vient pas, l'écran le dit au lieu d'afficher
  * une fiche à moitié vide comme si c'était l'original.
  */
@@ -137,8 +139,9 @@ export default function ModerationDrawer({
           {incomplete && (
             <p className="rounded-2xl bg-cream-soft px-4 py-3 text-[13px] leading-relaxed text-ink-mid">
               La fiche complète n’a pas pu être retrouvée chez son auteur : ce
-              qui suit est la ligne de la file, qui ne porte ni photo, ni pays,
-              ni allergènes. À vérifier sur sa vitrine avant de décider.
+              qui suit est la ligne de la file, qui porte la photo et les
+              allèrgènes mais ni description, ni pays, ni régimes. À vérifier
+              sur sa vitrine avant de décider.
             </p>
           )}
 

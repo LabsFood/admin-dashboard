@@ -8,10 +8,14 @@ import { euros } from "@/lib/utils";
    Les réservations — `GET /admin/bookings`.
 
    Le 16/10 l'API a remplacé `GET /bookings`, qui rendait toute la base d'un
-   bloc **et restait appelable par n'importe quel compte connecté**. La
-   nouvelle route est paginée, filtrable par client, par batch cooker, par
-   statut et par dates, et réellement réservée aux admins. Les deux problèmes
-   signalés (BLK-14 puis BLK-22) tombent ensemble.
+   bloc, sans pagination ni filtre. La nouvelle route est paginée (100 lignes
+   au plus) et filtrable par client, par batch cooker, par statut et par
+   dates. L'ancienne a été **supprimée le 17/10** : elle répond 404.
+
+   Rectification : nous avions écrit que `GET /bookings` était appelable par
+   n'importe quel compte connecté (BLK-14). Le backend a vérifié — elle était
+   réservée aux admins depuis le 23/09. Seul BLK-22 était fondé : ni filtre,
+   ni pagination.
 
    Conséquence utile : l'onglet « Ses prestations » d'une fiche de batch cooker
    n'a plus à trier la base côté navigateur — `?chefId=` suffit.
@@ -72,8 +76,18 @@ export interface Booking {
   city?: string | null;
   notes?: string | null;
   shoppingByClient?: boolean | null;
-  /** Centimes. */
+  /** Centimes — la prestation seule, sans les courses. */
   priceCents: number;
+  /**
+   * Le frais de courses, séparé depuis le 17/10.
+   *
+   * Il ne s'applique que si l'offre inclut les courses **et** que le client ne
+   * les fait pas lui-même (`shoppingByClient: false`). Il ouvre droit au
+   * crédit d'impôt et entre dans l'assiette de la commission : il se montre
+   * donc sur sa propre ligne, jamais fondu dans le prix.
+   */
+  shoppingFeeCents?: number | null;
+  /** Ce que paie le client : prestation + courses. */
   amountTtc: number;
   amountAfterTax: number;
   currency: string;

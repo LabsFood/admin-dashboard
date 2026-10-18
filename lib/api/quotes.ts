@@ -29,7 +29,9 @@ export type QuoteStatus =
   | "accepted"
   | "declined"
   | "chef_declined"
-  | "cancelled";
+  | "cancelled"
+  /** Classé sans suite par Lab's Food. Définitif, et distinct d'un refus. */
+  | "closed";
 
 export type OfferStatus =
   | "sent"
@@ -110,8 +112,15 @@ export interface QuotePatch {
   cuisine?: string;
   diet?: string[];
   brief?: string;
-  /** Les seuls statuts qui se posent à la main ; les autres suivent les offres. */
-  status?: "submitted" | "in_review";
+  /**
+   * Les seuls statuts qui se posent à la main ; les autres suivent les offres.
+   *
+   * `closed` classe la demande sans suite : possible depuis n'importe quel
+   * statut ouvert, **même quand une offre attend le client** — elle est alors
+   * retirée. C'est définitif (`409 QUOTE_CLOSED` ensuite), et cela ne se
+   * combine pas avec une affectation (`422 CLOSE_OR_ASSIGN`).
+   */
+  status?: "submitted" | "in_review" | "closed";
   /** Un batch cooker vérifié (`userId`), ou `null` pour retirer l'affectation. */
   assignedChefUserId?: string | null;
 }
@@ -235,6 +244,7 @@ export const quoteStatusLabel: Record<QuoteStatus, string> = {
   declined: "Offre refusée",
   chef_declined: "Déclinée par le batch cooker",
   cancelled: "Retirée",
+  closed: "Classée sans suite",
 };
 
 export const quoteStatusTone: Record<QuoteStatus, BadgeTone> = {
@@ -245,6 +255,7 @@ export const quoteStatusTone: Record<QuoteStatus, BadgeTone> = {
   declined: "neutral",
   chef_declined: "danger",
   cancelled: "neutral",
+  closed: "neutral",
 };
 
 /** Ce que ce statut demande, dit du point de vue de l'admin. */
@@ -256,13 +267,17 @@ export const quoteStatusHint: Record<QuoteStatus, string> = {
   declined: "Le client a refusé la dernière offre. Le batch cooker peut en refaire une.",
   chef_declined: "Le batch cooker a décliné. Le client attend qu'on lui en propose un autre.",
   cancelled: "Le client a retiré sa demande.",
+  closed: "Classée par la maison. Elle ne se rouvre pas et ne se réaffecte plus.",
 };
 
 export const QUOTE_STATUSES = Object.keys(quoteStatusLabel) as QuoteStatus[];
 
+/** Une demande encore vivante : ni conclue, ni retirée, ni classée. */
+export const isQuoteOpen = (q: Quote) =>
+  q.status !== "accepted" && q.status !== "cancelled" && q.status !== "closed";
+
 /** Personne pour répondre : à confier à un batch cooker. */
-export const needsChef = (q: Quote) =>
-  !q.assignedChefUserId && q.status !== "accepted" && q.status !== "cancelled";
+export const needsChef = (q: Quote) => !q.assignedChefUserId && isQuoteOpen(q);
 
 export const offerStatusLabel: Record<OfferStatus, string> = {
   sent: "Envoyée",

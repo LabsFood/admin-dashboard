@@ -294,16 +294,25 @@ function QueueRow({
     >
       <div className="flex flex-wrap items-center gap-4">
         {/*
-         * Pas de vignette ici : `GET /admin/dishes` ne rend pas `imageUrl`.
-         * La photo arrive dans le tiroir, qui va la chercher sur la fiche
-         * complète du batch cooker.
+         * La vignette revient : la ligne porte `imageUrl` depuis le 17/10. Un
+         * contenu sans photo garde son icône plutôt qu'un cadre vide — c'est
+         * aussi une information pour le modérateur.
          */}
-        <span
-          aria-hidden
-          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-cream-deep text-ink-soft"
-        >
-          <Icon className="h-5 w-5" />
-        </span>
+        {item.imageUrl ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={item.imageUrl}
+            alt=""
+            className="h-14 w-14 shrink-0 rounded-xl object-cover"
+          />
+        ) : (
+          <span
+            aria-hidden
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-cream-deep text-ink-soft"
+          >
+            <Icon className="h-5 w-5" />
+          </span>
+        )}
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -338,6 +347,15 @@ function QueueRow({
               item.kind === "menu" && item.dishCount != null
                 ? `${item.dishCount} plats`
                 : null,
+              /* Un menu ne déclare pas ses allèrgènes : ses plats le font. */
+              item.kind === "dish" && item.prepMinutes != null
+                ? `${item.prepMinutes} min`
+                : null,
+              item.kind === "dish" && item.allergensNone
+                ? "sans allèrgène déclaré"
+                : item.kind === "dish" && item.allergens.length > 0
+                  ? `${item.allergens.length} allèrgène${item.allergens.length > 1 ? "s" : ""}`
+                  : null,
             ]
               .filter(Boolean)
               .join(" · ")}

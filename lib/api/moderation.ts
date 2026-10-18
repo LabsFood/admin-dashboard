@@ -111,15 +111,17 @@ export const reviewFlagText = (f: string) => reviewFlagLabel[f] ?? f;
 /**
  * Normalise une ligne de la file.
  *
- * Attention à ce que cette route **n'envoie pas** : ni `imageUrl`, ni
- * `country`, ni `prepMinutes`, ni les allèrgènes. Sa ligne tient en douze
- * champs — identité, auteur, statut, dates, `flags`. Les champs absents
- * restent donc à `null`, et l'écran ne doit **rien en déduire** : c'est
- * `flags` qui dit ce qui mérite un regard.
+ * Depuis le 17/10 la ligne porte `imageUrl`, `allergens`, `allergensNone` et
+ * `prepTime` : la vignette et le badge d'allèrgènes se lisent donc ici, sans
+ * second appel. Sur un **menu**, les trois derniers valent `null` — ce sont
+ * ses plats qui déclarent, pas lui : ne rien déduire d'un `null` sur un menu.
  *
- * Les autres routes de contenu (`/admin/chefs/{id}/dishes`, `/admin/meals`)
- * rendent la fiche complète, photo comprise : c'est là qu'on va la chercher
- * quand on ouvre le détail.
+ * Ce qui manque toujours à cette liste, parce qu'elle reste légère : la
+ * recette (ingrédients, réchauffe, conservation) et le pays. Le tiroir va les
+ * chercher sur `/admin/chefs/{id}/dishes`, qui rend la fiche entière.
+ *
+ * `flags` reste la source de vérité sur ce qui mérite un regard : il est
+ * calculé par l'API, qui voit tout le contenu.
  */
 function toReviewItem(raw: unknown, fallbackKind?: ReviewKind): ReviewItem {
   const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;

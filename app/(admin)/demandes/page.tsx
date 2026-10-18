@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
+  Archive,
   ArrowUpRight,
   Calculator,
   CalendarDays,
@@ -35,6 +36,7 @@ import {
   QUOTE_STATUSES,
   centsToEuros,
   dayLabel,
+  isQuoteOpen,
   needsChef,
   offerStatusLabel,
   previewOffer,
@@ -318,11 +320,12 @@ function QuoteCard({
   const [net, setNet] = useState("");
   const [conditions, setConditions] = useState("");
   const [aConfirmer, setAConfirmer] = useState(false);
+  const [aClasser, setAClasser] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
   const client = q.client?.name || q.client?.email || "Client inconnu";
   const chef = q.assignedChef ?? null;
-  const ouverte = q.status !== "accepted" && q.status !== "cancelled";
+  const ouverte = isQuoteOpen(q);
   const offre = q.activeOffer;
   const acceptee = q.offers.find((o) => o.status === "accepted") ?? null;
   const passees = q.offers.filter((o) => o.id !== offre?.id && o.id !== acceptee?.id);
@@ -364,6 +367,23 @@ function QuoteCard({
           );
         },
         onError: (e) => setErreur(quoteError(e)),
+      },
+    );
+  }
+
+  /** Classer sans suite : l'offre en attente est retirée, et c'est définitif. */
+  function classer() {
+    update.mutate(
+      { id: q.id, patch: { status: "closed" } },
+      {
+        onSuccess: () => {
+          setAClasser(false);
+          toast.success(
+            "Demande classée sans suite",
+            `${client} en est averti par email.`,
+          );
+        },
+        onError: (e) => toast.error("La demande n'a pas été classée", quoteError(e)),
       },
     );
   }
@@ -614,6 +634,16 @@ function QuoteCard({
             </div>
           ) : null}
 
+          {ouverte && (
+            <button
+              onClick={() => setAClasser(true)}
+              disabled={update.isPending}
+              className="btn btn-sm mt-2 w-full text-danger hover:bg-danger-soft"
+            >
+              <Archive className="h-3 w-3" aria-hidden /> Classer sans suite
+            </button>
+          )}
+
           {passees.length > 0 && (
             <ul className="mt-3 space-y-1.5">
               {passees.map((o) => (
@@ -632,6 +662,27 @@ function QuoteCard({
           )}
         </div>
       </div>
+
+      {/* Classer : l'offre en attente disparaît, et rien ne revient en arrière. */}
+      <ConfirmDialog
+        open={aClasser}
+        onClose={() => setAClasser(false)}
+        onConfirm={classer}
+        pending={update.isPending}
+        tone="danger"
+        title={`Classer la demande de ${client} sans suite ?`}
+        lead={
+          offre
+            ? `L'offre de ${centsToEuros(offre.clientPriceCents)} qui attend sa réponse est retirée, et il reçoit un email.`
+            : `${client} reçoit un email lui disant que Lab's Food ne donnera pas suite.`
+        }
+        detail={
+          chef
+            ? `${chef.displayName} est prévenu lui aussi. Une demande classée ne se rouvre pas et ne se réaffecte plus.`
+            : "Une demande classée ne se rouvre pas et ne se réaffecte plus."
+        }
+        confirmLabel="Classer sans suite"
+      />
 
       {/* L'offre part chez le client : on montre d'abord ce qu'il lira. */}
       <ConfirmDialog
