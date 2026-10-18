@@ -124,6 +124,8 @@ export interface LabsFoodMenu {
   period: MenuPeriod | null;
   shoppingIncluded: boolean;
   status: MealStatus;
+  /** Photo de couverture, depuis `POST /admin/menus/{id}/photo/*`. */
+  imageUrl?: string | null;
   offeredToChefProfileId?: string | null;
   publishedAt?: string | null;
   createdAt?: string;
@@ -401,6 +403,43 @@ export function useCreateMenuWeek() {
   return useCatalogMutation<MenuWeekInput, MenuWeek>(
     (apiFetch, body) =>
       apiFetch<MenuWeek>("/admin/menu-weeks", { method: "POST", body }),
+    [WEEKS],
+  );
+}
+
+/**
+ * `PATCH /admin/menu-weeks/{id}` — arrivé le 16/10.
+ *
+ * Une semaine se corrigeait en la recomposant : l'API ne savait que créer.
+ * Trois choses à savoir maintenant qu'elle sait modifier :
+ *
+ * - `mealIds` **remplace** la liste, il n'y ajoute pas. `{ mealIds: [] }` vide
+ *   l'ardoise ;
+ * - changer `year` ou `weekNumber` déplace la semaine, et `409 MENU_WEEK_EXISTS`
+ *   si l'autre semaine a déjà son menu ;
+ * - seuls des plats Lab's Food peuvent y figurer (`403 CONTENT_NOT_OWNED`).
+ */
+export function useUpdateMenuWeek() {
+  return useCatalogMutation<
+    { id: string; patch: Partial<MenuWeekInput> },
+    MenuWeek
+  >(
+    (apiFetch, { id, patch }) =>
+      apiFetch<MenuWeek>(`/admin/menu-weeks/${id}`, { method: "PATCH", body: patch }),
+    [WEEKS, MEALS],
+  );
+}
+
+/**
+ * `DELETE /admin/menu-weeks/{id}` — définitif.
+ *
+ * Les plats restent au catalogue : seule leur place sur cette ardoise
+ * disparaît.
+ */
+export function useDeleteMenuWeek() {
+  return useCatalogMutation<string, void>(
+    (apiFetch, id) =>
+      apiFetch<void>(`/admin/menu-weeks/${id}`, { method: "DELETE" }),
     [WEEKS],
   );
 }

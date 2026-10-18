@@ -21,10 +21,10 @@ import ReasonDialog from "@/components/ui/ReasonDialog";
 import { useToast } from "@/components/ui/Toaster";
 import ModerationDrawer from "@/components/admin/ModerationDrawer";
 import { cn, formatDate, timeAgo } from "@/lib/utils";
-import { countryLabel } from "@/lib/countries";
 import { moderatedLabel, moderatedTone, reasonCodeHint, reasonCodeLabel } from "@/lib/catalog-labels";
 import {
   REASON_CODES,
+  reviewFlagText,
   useMarkReviewed,
   useModerate,
   useReviewQueue,
@@ -227,13 +227,15 @@ function QueueRow({
   const [dialog, setDialog] = useState<"suspend" | "reinstate" | null>(null);
 
   const Icon = item.kind === "menu" ? LayoutList : UtensilsCrossed;
-  // Une fiche muette sur les allergènes est le premier motif de suspension :
-  // autant le voir depuis la liste.
-  const allergenGap =
-    item.kind === "dish" &&
-    !item.allergensNone &&
-    item.allergens.length === 0 &&
-    item.customAllergens.length === 0;
+  /*
+   * Ce qui mérite un regard vient de `flags`, décidé par l'API.
+   *
+   * On le calculait ici depuis `allergens` et `allergensNone` — deux champs
+   * que cette route n'envoie pas. Résultat : « allergènes non déclarés »
+   * s'affichait sur **chaque** ligne de la file, y compris les fiches
+   * complètes.
+   */
+  const drapeaux = item.flags;
 
   function markReviewed() {
     review.mutate(
@@ -291,6 +293,11 @@ function QueueRow({
       className="card p-4"
     >
       <div className="flex flex-wrap items-center gap-4">
+        {/*
+         * La vignette revient : la ligne porte `imageUrl` depuis le 17/10. Un
+         * contenu sans photo garde son icône plutôt qu'un cadre vide — c'est
+         * aussi une information pour le modérateur.
+         */}
         {item.imageUrl ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
@@ -324,17 +331,31 @@ function QueueRow({
                 Menu{item.dishCount != null ? ` · ${item.dishCount} plats` : ""}
               </Badge>
             )}
-            {allergenGap && (
-              <Badge tone="warning" dot>
-                Allergènes non déclarés
+            {drapeaux.map((f) => (
+              <Badge
+                key={f}
+                tone={f === "no-allergens-declared" ? "warning" : "info"}
+                dot
+              >
+                {reviewFlagText(f)}
               </Badge>
-            )}
+            ))}
           </div>
           <p className="mt-1 truncate font-mono text-[11px] text-ink-soft">
             {[
               item.chefName ?? "Batch cooker inconnu",
-              countryLabel(item.country) || null,
-              item.prepMinutes ? `${item.prepMinutes} min` : null,
+              item.kind === "menu" && item.dishCount != null
+                ? `${item.dishCount} plats`
+                : null,
+              /* Un menu ne déclare pas ses allèrgènes : ses plats le font. */
+              item.kind === "dish" && item.prepMinutes != null
+                ? `${item.prepMinutes} min`
+                : null,
+              item.kind === "dish" && item.allergensNone
+                ? "sans allèrgène déclaré"
+                : item.kind === "dish" && item.allergens.length > 0
+                  ? `${item.allergens.length} allèrgène${item.allergens.length > 1 ? "s" : ""}`
+                  : null,
             ]
               .filter(Boolean)
               .join(" · ")}

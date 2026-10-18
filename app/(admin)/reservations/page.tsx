@@ -36,7 +36,7 @@ import { adminErrorMessage } from "@/lib/api/errors";
    Les réservations — `GET /admin/bookings`.
 
    La route du 16/10 remplace `GET /bookings`, qui rendait toute la base d'un
-   bloc **et était appelable par n'importe quel compte connecté**. Elle est
+   bloc, sans pagination ni filtre, et qui a été supprimée depuis. Elle est
    paginée et filtrée côté serveur : le filtre par statut et la page partent
    dans l'URL, et ce qui est compté est exact.
 

@@ -714,11 +714,10 @@ function Vitrine({ chefProfileId }: { chefProfileId: string }) {
 /**
  * Ses prestations, reconstituées.
  *
- * Il n'y a pas de route « les réservations de ce batch cooker ». Il y a
- * `GET /bookings`, qui rend la base entière sans pagination, et qu'on filtre
- * ici — ce n'est plus le cas depuis le 16/10 : `GET /admin/bookings` accepte
- * `?chefId=`, pagine, et n'est plus ouverte à tout compte connecté. Le tri
- * revient au serveur, et le décompte redevient exact.
+ * Il fallait autrefois lire la base entière et la filtrer ici, faute de route
+ * « les réservations de ce batch cooker ». Depuis le 16/10,
+ * `GET /admin/bookings?chefId=` fait le tri côté serveur et pagine : le
+ * décompte est exact, et la page ne charge plus que ce qu'elle montre.
  */
 function Prestations({ chefProfileId }: { chefProfileId: string }) {
   const q = useBookings({ chefId: chefProfileId, limit: 50 });

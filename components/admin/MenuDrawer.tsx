@@ -133,6 +133,17 @@ export default function MenuDrawer({
     >
       {menu && (
         <div className="space-y-5">
+          {menu.imageUrl && (
+            <div className="overflow-hidden rounded-2xl bg-cream-deep">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={menu.imageUrl}
+                alt=""
+                className="aspect-[16/9] w-full object-cover"
+              />
+            </div>
+          )}
+
           {menu.pitch && (
             <p className="text-sm leading-relaxed text-ink-mid">{menu.pitch}</p>
           )}

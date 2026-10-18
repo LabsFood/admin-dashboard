@@ -12,6 +12,7 @@ import {
   Info,
   Loader2,
   MapPin,
+  Receipt,
   RefreshCw,
   RotateCw,
   ShoppingBasket,
@@ -107,6 +108,9 @@ export default function ReservationDetailPage({
   const portions = bookingPortions(b);
   const groupes = courses.data?.groups ?? [];
   const net = money(b.netCents);
+  /* Le frais de courses a sa ligne : il entre dans le crédit d'impôt et dans
+     l'assiette de la commission, il ne doit pas disparaître dans le prix. */
+  const courses_ = money(b.shoppingFeeCents);
   const commission = money(b.commissionCents);
   const paye = money(b.paidCents);
 
@@ -363,6 +367,32 @@ export default function ReservationDetailPage({
                 Client non renvoyé pour cette réservation.
               </p>
             )}
+          </section>
+
+          <section className="card p-5">
+            <h3 className="mb-3 flex items-center gap-2 font-display text-base font-bold text-navy">
+              <Receipt className="h-4 w-4 text-terra" aria-hidden /> Ce que paie le
+              client
+            </h3>
+            <dl className="space-y-1.5 text-[13px]">
+              <Row label="Prestation" value={money(b.priceCents) ?? "—"} />
+              <Row
+                label="Courses"
+                value={
+                  b.shoppingByClient
+                    ? "à la charge du client"
+                    : (courses_ ?? "non facturées")
+                }
+              />
+              <Row label="Total TTC" value={money(b.amountTtc) ?? "—"} />
+              <Row
+                label="Après crédit d'impôt"
+                value={money(b.amountAfterTax) ?? "—"}
+              />
+              {b.paidCents != null && (
+                <Row label="Déjà encaissé" value={money(b.paidCents) ?? "—"} />
+              )}
+            </dl>
           </section>
 
           <section className="card p-5">
