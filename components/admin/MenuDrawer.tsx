@@ -27,6 +27,7 @@ import {
   type MealStatus,
 } from "@/lib/api/catalog";
 import { ApiError } from "@/lib/api/client";
+import { adminErrorMessage } from "@/lib/api/errors";
 
 const STATUSES: MealStatus[] = ["published", "draft", "archived"];
 
@@ -311,7 +312,7 @@ export default function MenuDrawer({
                         onError: (e) =>
                           toast.error(
                             "La suppression a échoué",
-                            e instanceof Error ? e.message : undefined,
+                            adminErrorMessage(e),
                           ),
                       })
                     }

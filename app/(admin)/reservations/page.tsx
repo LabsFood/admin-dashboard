@@ -7,13 +7,16 @@ import {
   AlertTriangle,
   ArrowRight,
   CalendarRange,
+  Check,
   ChefHat,
   ChevronLeft,
   ChevronRight,
   Info,
+  Loader2,
   MapPin,
   RotateCw,
   Search,
+  Users,
 } from "lucide-react";
 import Badge from "@/components/ui/Badge";
 import FilterTabs from "@/components/ui/FilterTabs";
@@ -29,7 +32,12 @@ import {
   useBookings,
   type Booking,
   type BookingStatus,
+  money,
+  useBookingSupplements,
+  useSetBookingSupplements,
+  type BookingSupplements,
 } from "@/lib/api/bookings";
+import { useToast } from "@/components/ui/Toaster";
 import { adminErrorMessage } from "@/lib/api/errors";
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -112,6 +120,8 @@ export default function ReservationsPage() {
           value={query.isPending ? "…" : euros(Math.round(sommePage / 100))}
         />
       </div>
+
+      <SupplementsCard />
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <FilterTabs<Filter>
@@ -303,5 +313,197 @@ function MiniStat({ label, value }: { label: string; value: string | number }) {
         {label}
       </p>
     </div>
+  );
+}
+
+/* ── Les suppléments ───────────────────────────────────────────────────────── */
+
+/**
+ * Ce qu'une formule comprend, et ce qui se facture au-delà.
+ *
+ * Ces trois nombres valent pour tout le réseau : ils décident du prix que le
+ * client voit pendant qu'il compose sa réservation
+ * (`GET /service-offers/{id}/price` les applique). Les réservations déjà
+ * créées gardent leurs montants — changer ces réglages ne récrit pas le passé.
+ */
+function SupplementsCard() {
+  const toast = useToast();
+  const reglages = useBookingSupplements();
+  const save = useSetBookingSupplements();
+  const [editing, setEditing] = useState(false);
+  const [brouillon, setBrouillon] = useState<BookingSupplements | null>(null);
+
+  const d = reglages.data;
+  const v = brouillon;
+
+  /* Les bornes sont celles du bon sens, pas de l'API : elle revérifie. */
+  const valide =
+    v != null &&
+    Number.isFinite(v.includedPersons) &&
+    v.includedPersons >= 1 &&
+    v.includedPersons <= 50 &&
+    Number.isFinite(v.extraPersonCents) &&
+    v.extraPersonCents >= 0 &&
+    v.extraPersonCents <= 100_000 &&
+    Number.isFinite(v.extraMealCents) &&
+    v.extraMealCents >= 0 &&
+    v.extraMealCents <= 100_000;
+
+  return (
+    <section className="card p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-terra/10 text-terra-deep">
+            <Users className="h-4 w-4" aria-hidden />
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-navy">
+              Suppléments de réservation
+            </p>
+            {reglages.isError ? (
+              <p className="text-[12px] text-danger">
+                {adminErrorMessage(reglages.error)}
+              </p>
+            ) : (
+              <p className="text-[12px] leading-relaxed text-ink-soft">
+                {d
+                  ? `${d.includedPersons} personne${d.includedPersons > 1 ? "s" : ""} comprise${d.includedPersons > 1 ? "s" : ""} dans une formule, puis ${money(d.extraPersonCents)} par personne. Chaque plat en plus : ${money(d.extraMealCents)}.`
+                  : "Lecture des réglages…"}
+              </p>
+            )}
+            <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
+              Vaut pour les prochaines réservations. Celles déjà créées gardent
+              leurs montants.
+            </p>
+          </div>
+        </div>
+
+        {!editing && (
+          <button
+            onClick={() => {
+              if (!d) return;
+              setBrouillon({
+                includedPersons: d.includedPersons,
+                extraPersonCents: d.extraPersonCents,
+                extraMealCents: d.extraMealCents,
+              });
+              setEditing(true);
+            }}
+            disabled={!d}
+            className="btn btn-outline btn-sm shrink-0"
+          >
+            Modifier
+          </button>
+        )}
+      </div>
+
+      {editing && v && (
+        <form
+          className="hairline mt-4 border-t pt-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!valide) return;
+            save.mutate(
+              {
+                includedPersons: v.includedPersons,
+                extraPersonCents: v.extraPersonCents,
+                extraMealCents: v.extraMealCents,
+              },
+              {
+                onSuccess: () => {
+                  setEditing(false);
+                  toast.success(
+                    "Suppléments mis à jour",
+                    "Ils s'appliquent aux prochaines réservations.",
+                  );
+                },
+                onError: (error) =>
+                  toast.error("Réglages inchangés", adminErrorMessage(error)),
+              },
+            );
+          }}
+        >
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <label className="block">
+              <span className="field-label">Personnes comprises</span>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={v.includedPersons}
+                onChange={(e) =>
+                  setBrouillon({ ...v, includedPersons: Number(e.target.value) })
+                }
+                className="input-base"
+                autoFocus
+              />
+            </label>
+            <label className="block">
+              <span className="field-label">Par personne en plus (€)</span>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={(v.extraPersonCents / 100).toString()}
+                onChange={(e) =>
+                  setBrouillon({
+                    ...v,
+                    extraPersonCents: Math.round(Number(e.target.value) * 100),
+                  })
+                }
+                className="input-base"
+              />
+            </label>
+            <label className="block">
+              <span className="field-label">Par plat en plus (€)</span>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={(v.extraMealCents / 100).toString()}
+                onChange={(e) =>
+                  setBrouillon({
+                    ...v,
+                    extraMealCents: Math.round(Number(e.target.value) * 100),
+                  })
+                }
+                className="input-base"
+              />
+            </label>
+          </div>
+
+          <p className="mt-3 rounded-xl bg-cream-soft px-3.5 py-2.5 text-[12px] leading-relaxed text-ink-mid">
+            Un client de {v.includedPersons + 2} personnes avec un plat en plus
+            paiera{" "}
+            <strong className="font-semibold text-navy">
+              {money(v.extraPersonCents * 2 + v.extraMealCents)}
+            </strong>{" "}
+            au-dessus du prix de la formule.
+          </p>
+
+          <div className="mt-3 flex gap-2">
+            <button
+              type="submit"
+              disabled={!valide || save.isPending}
+              className="btn btn-primary btn-sm"
+            >
+              {save.isPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+              ) : (
+                <Check className="h-3 w-3" aria-hidden />
+              )}
+              Enregistrer
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              className="btn btn-ghost btn-sm"
+            >
+              Annuler
+            </button>
+          </div>
+        </form>
+      )}
+    </section>
   );
 }

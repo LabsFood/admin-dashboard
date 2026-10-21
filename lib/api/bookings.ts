@@ -330,3 +330,54 @@ export const bookingPortions = (b: Booking) =>
 
 export const bookingMealNames = (b: Booking) =>
   (b.meals ?? []).map((m) => m.name).filter((n): n is string => Boolean(n));
+
+/* ── Les suppléments d'une réservation ─────────────────────────────────────── */
+
+/**
+ * `GET` / `PUT /admin/settings/booking-supplements` — arrivé le 18/10.
+ *
+ * Une formule comprend un nombre de personnes ; au-delà, chaque convive se
+ * facture, et chaque plat ajouté aussi. Ces trois nombres valent pour **tout
+ * le réseau** : ils ne se règlent pas batch cooker par batch cooker, et c'est
+ * `GET /service-offers/{id}/price` qui les applique au moment où un client
+ * compose sa réservation.
+ *
+ * Ils ne touchent pas aux réservations déjà créées : celles-ci portent leurs
+ * montants.
+ */
+export interface BookingSupplements {
+  /** Personnes comprises dans le prix d'une formule. */
+  includedPersons: number;
+  /** Centimes, par personne au-delà. */
+  extraPersonCents: number;
+  /** Centimes, par plat ajouté. */
+  extraMealCents: number;
+  updatedAt?: string | null;
+}
+
+const SUPPLEMENTS = ["admin", "settings", "booking-supplements"] as const;
+
+export function useBookingSupplements() {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: SUPPLEMENTS,
+    queryFn: () => apiFetch<BookingSupplements>("/admin/settings/booking-supplements"),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useSetBookingSupplements() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Omit<BookingSupplements, "updatedAt">) =>
+      apiFetch<BookingSupplements>("/admin/settings/booking-supplements", {
+        method: "PUT",
+        body,
+      }),
+    onSuccess: (s) => {
+      qc.setQueryData(SUPPLEMENTS, s);
+      qc.invalidateQueries({ queryKey: BOOKINGS });
+    },
+  });
+}
