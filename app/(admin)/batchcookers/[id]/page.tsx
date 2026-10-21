@@ -15,8 +15,11 @@ import {
   IdCard,
   LayoutList,
   Loader2,
+  Mail,
   MapPin,
   RotateCw,
+  Send,
+  ShieldCheck,
   UtensilsCrossed,
 } from "lucide-react";
 import Badge from "@/components/ui/Badge";
@@ -28,7 +31,12 @@ import { moderatedLabel, moderatedTone } from "@/lib/catalog-labels";
 import {
   useChefApplication,
   useChefShowcase,
+  useResendInvitation,
   useSetChefVerification,
+  useSetSapExternalStatus,
+  SAP_EXTERNAL_LABEL,
+  SAP_EXTERNAL_STATUSES,
+  type SapExternalStatus,
   verificationMessage,
 } from "@/lib/api/admin";
 import {
@@ -217,6 +225,10 @@ export default function BatchCookerPage({
         </dl>
 
         {c.isVerified && <MiseEnLigne chefProfileId={c.id} enLigne={c.isActive} />}
+
+        {c.userId && <LienConnexion userId={c.userId} email={c.email} />}
+
+        {c.isVerified && <StatutsSap chefProfileId={c.id} />}
       </section>
 
       {/* ── Onglets ───────────────────────────────────────────────────── */}
@@ -814,6 +826,193 @@ function Prestations({ chefProfileId }: { chefProfileId: string }) {
 }
 
 /* ── Petits blocs ──────────────────────────────────────────────────────────── */
+
+/* ── Le lien de connexion ──────────────────────────────────────────────────── */
+
+/**
+ * Renvoyer son lien de connexion à un batch cooker.
+ *
+ * Il n'a pas de mot de passe à réinitialiser : son compte s'ouvre par un lien
+ * reçu par email. Si ce lien n'est jamais arrivé — service d'envoi muet, boîte
+ * pleine, adresse mal saisie — il ne peut rien faire seul, et nous croyons à
+ * un candidat qui ne donne pas suite. C'était la fiche DEM-01.
+ *
+ * L'API dit si l'email est **parti** (`delivered`). On le répète tel quel :
+ * un échec silencieux est exactement ce qu'on cherche à ne plus reproduire.
+ */
+function LienConnexion({ userId, email }: { userId: string; email: string | null }) {
+  const renvoyer = useResendInvitation();
+  const r = renvoyer.data;
+
+  return (
+    <div className="hairline mt-4 border-t pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="flex items-center gap-2 text-[13px] font-semibold text-navy">
+            <Mail className="h-3.5 w-3.5 text-ink-soft" aria-hidden /> Lien de
+            connexion
+          </p>
+          <p className="mt-0.5 max-w-prose text-[11px] leading-relaxed text-ink-soft">
+            Son compte s&apos;ouvre par un lien reçu par email, jamais par un mot
+            de passe. S&apos;il ne l&apos;a pas reçu, il ne peut rien faire seul.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => renvoyer.mutate(userId)}
+          disabled={renvoyer.isPending}
+          className="btn btn-outline btn-sm shrink-0"
+        >
+          {renvoyer.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          ) : (
+            <Send className="h-3.5 w-3.5" aria-hidden />
+          )}
+          Renvoyer le lien
+        </button>
+      </div>
+
+      {r && (
+        <p
+          className={cn(
+            "mt-2 flex items-start gap-1.5 text-[12px] leading-relaxed",
+            r.delivered ? "text-success" : "text-danger",
+          )}
+        >
+          {r.delivered ? (
+            <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          ) : (
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          )}
+          {r.delivered
+            ? `Lien envoyé à ${r.sentTo}${
+                r.expiresAt
+                  ? `, valable jusqu'au ${new Date(r.expiresAt).toLocaleString("fr-FR", {
+                      day: "numeric",
+                      month: "long",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}`
+                  : ""
+              }.`
+            : `L'email n'est pas parti vers ${r.sentTo || (email ?? "son adresse")}. Le service d'envoi est muet : prévenez l'équipe technique plutôt que de réessayer.`}
+        </p>
+      )}
+      {renvoyer.isError && (
+        <p role="alert" className="mt-2 flex items-start gap-1.5 text-[12px] text-danger">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          {adminErrorMessage(renvoyer.error)}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ── Les statuts SAP instruits par la maison ───────────────────────────────── */
+
+/**
+ * L'affiliation CRCESU et l'avance immédiate URSSAF.
+ *
+ * Ces deux statuts décident de ce qu'un client peut utiliser pour payer. Ils
+ * s'obtiennent auprès du CRCESU et de l'URSSAF, pas chez nous : la console ne
+ * fait que **noter la réponse** reçue. L'espace du batch cooker les affiche en
+ * lecture seule et renvoie à l'équipe — c'est ici que l'équipe répond.
+ *
+ * Réserve honnête : `GET /admin/chefs/{id}` ne rend pas ces deux statuts. On
+ * ne peut donc pas afficher la valeur courante avant d'avoir écrit — l'écran
+ * le dit, et montre ce que l'API renvoie après l'enregistrement.
+ */
+function StatutsSap({ chefProfileId }: { chefProfileId: string }) {
+  const save = useSetSapExternalStatus(chefProfileId);
+  const [crcesu, setCrcesu] = useState<SapExternalStatus | "">("");
+  const [urssaf, setUrssaf] = useState<SapExternalStatus | "">("");
+
+  const rien = crcesu === "" && urssaf === "";
+
+  return (
+    <div className="hairline mt-4 border-t pt-4">
+      <p className="flex items-center gap-2 text-[13px] font-semibold text-navy">
+        <ShieldCheck className="h-3.5 w-3.5 text-ink-soft" aria-hidden /> Affiliation
+        CESU et avance immédiate
+      </p>
+      <p className="mt-0.5 max-w-prose text-[11px] leading-relaxed text-ink-soft">
+        Notez ici ce que le CRCESU et l&apos;URSSAF ont répondu. Ces deux statuts
+        décident de ce qu&apos;un client peut utiliser pour le payer, et son
+        espace les affiche sans pouvoir les changer.
+      </p>
+
+      <div className="mt-3 flex flex-wrap items-end gap-3">
+        <label className="min-w-44 flex-1">
+          <span className="field-label">Affiliation CRCESU</span>
+          <select
+            value={crcesu}
+            onChange={(e) => setCrcesu(e.target.value as SapExternalStatus | "")}
+            className="input-base"
+          >
+            <option value="">Ne pas changer</option>
+            {SAP_EXTERNAL_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {SAP_EXTERNAL_LABEL[s]}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="min-w-44 flex-1">
+          <span className="field-label">Avance immédiate URSSAF</span>
+          <select
+            value={urssaf}
+            onChange={(e) => setUrssaf(e.target.value as SapExternalStatus | "")}
+            className="input-base"
+          >
+            <option value="">Ne pas changer</option>
+            {SAP_EXTERNAL_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {SAP_EXTERNAL_LABEL[s]}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <button
+          type="button"
+          onClick={() =>
+            save.mutate({
+              ...(crcesu ? { crcesuAffiliationStatus: crcesu } : {}),
+              ...(urssaf ? { urssafTiersPrestationStatus: urssaf } : {}),
+            })
+          }
+          disabled={rien || save.isPending}
+          className="btn btn-primary btn-sm"
+        >
+          {save.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          ) : (
+            <Check className="h-3.5 w-3.5" aria-hidden />
+          )}
+          Enregistrer
+        </button>
+      </div>
+
+      {save.isSuccess && (
+        <p className="mt-2 flex items-start gap-1.5 text-[12px] text-success">
+          <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          Statuts enregistrés. Son espace les affiche désormais.
+        </p>
+      )}
+      {save.isError && (
+        <p role="alert" className="mt-2 flex items-start gap-1.5 text-[12px] text-danger">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          {adminErrorMessage(save.error)}
+        </p>
+      )}
+      <p className="mt-2 text-[11px] leading-relaxed text-ink-soft">
+        La fiche ne rend pas la valeur actuelle de ces deux statuts : laissez
+        « ne pas changer » sur celui que vous ne touchez pas.
+      </p>
+    </div>
+  );
+}
 
 function Bloc({ titre, children }: { titre: string; children: React.ReactNode }) {
   return (
