@@ -53,6 +53,7 @@ import {
   type AdminChefDetail,
 } from "@/lib/api/chefs";
 import { ApiError } from "@/lib/api/client";
+import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import { adminErrorMessage } from "@/lib/api/errors";
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -229,6 +230,25 @@ export default function BatchCookerPage({
         {c.userId && <LienConnexion userId={c.userId} email={c.email} />}
 
         {c.isVerified && <StatutsSap chefProfileId={c.id} />}
+
+        {c.userId && (
+          <div className="hairline mt-4 border-t pt-4">
+            <p className="mb-1 text-[13px] font-semibold text-navy">
+              Fermer ce compte
+            </p>
+            <p className="mb-3 max-w-prose text-[11px] leading-relaxed text-ink-soft">
+              Définitif : le compte Clerk est supprimé et la personne ne peut plus
+              se connecter. L&apos;API refuse tant qu&apos;une réservation est
+              ouverte.
+            </p>
+            <DeleteAccountButton
+              userId={c.userId}
+              nom={c.displayName ?? c.fullName ?? "ce batch cooker"}
+              role="batch cooker"
+              retourVers="/batchcookers"
+            />
+          </div>
+        )}
       </section>
 
       {/* ── Onglets ───────────────────────────────────────────────────── */}
