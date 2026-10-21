@@ -18,6 +18,7 @@ import {
   RotateCw,
   ShieldCheck,
   Sparkles,
+  Trash2,
   Wallet,
 } from "lucide-react";
 import Badge from "@/components/ui/Badge";
@@ -26,6 +27,7 @@ import { cn, euros, initials } from "@/lib/utils";
 import { clientTone, clientLabel } from "@/lib/status";
 import { useClient, useUpdateClient } from "@/lib/api/admin";
 import WriteToUserButton from "@/components/admin/WriteToUserButton";
+import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import { toClientView, type ClientView } from "@/lib/api/adapt";
 import { ApiError } from "@/lib/api/client";
 import type { ClientStatus } from "@/lib/mock/types";
@@ -236,6 +238,24 @@ function ClientDetail({ id, client }: { id: string; client: ClientView }) {
           </section>
 
           <WriteToUserButton userId={client.userId} variant="card" />
+
+          <section className="card p-5">
+            <h4 className="mb-1 flex items-center gap-2 font-display text-base font-bold text-navy">
+              <Trash2 className="h-4 w-4 text-danger" />
+              Fermer ce compte
+            </h4>
+            <p className="mb-3 text-xs leading-relaxed text-ink-mid">
+              Définitif : le compte Clerk est supprimé et la personne ne peut plus
+              se connecter. L&apos;API refuse tant qu&apos;une réservation est
+              ouverte.
+            </p>
+            <DeleteAccountButton
+              userId={client.userId}
+              nom={client.name || client.email}
+              role="client"
+              retourVers="/clients"
+            />
+          </section>
         </aside>
 
         {/* Colonne droite : activité */}

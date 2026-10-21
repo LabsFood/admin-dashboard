@@ -463,3 +463,58 @@ export function useSetSapExternalStatus(chefProfileId: string | undefined) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "chefs"] }),
   });
 }
+
+/* ── Supprimer un compte ───────────────────────────────────────────────────── */
+
+export interface DeletedUser {
+  id: string;
+  /** `deleted` : la ligne est partie. `anonymised` : elle reste, vidée. */
+  outcome: string;
+}
+
+/** Ce que l'API renvoie quand elle refuse : les prestations qui bloquent. */
+export interface DeleteRefused {
+  code: string;
+  message: string;
+  bookings: { id?: string; reference?: string | null; status?: string; startsAt?: string }[];
+}
+
+/**
+ * `DELETE /admin/users/{id}` — supprime un compte, quel que soit son rôle.
+ *
+ * Ce que l'API fait vraiment, et qu'il faut dire avant de cliquer :
+ *
+ * - **le compte Clerk est supprimé** : la personne ne peut plus se connecter,
+ *   et rien ne la fera revenir ;
+ * - la ligne en base part avec, **sauf si des prestations passées la
+ *   référencent** : elle reste alors vidée de son nom, de son email et de son
+ *   téléphone (`outcome: anonymised`), et la page publique d'un batch cooker
+ *   passe hors ligne ;
+ * - **refusé tant qu'une réservation est ouverte** (`409
+ *   USER_HAS_OPEN_BOOKINGS`), et la réponse dit lesquelles.
+ *
+ * L'identifiant attendu est celui du **compte** (`userId`), pas celui de la
+ * page d'un batch cooker ni de sa candidature.
+ */
+export function useDeleteUser() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) =>
+      apiFetch<DeletedUser>(`/admin/users/${userId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "chefs"] });
+      qc.invalidateQueries({ queryKey: ["chef-applications"] });
+      qc.invalidateQueries({ queryKey: ["admin", "clients"] });
+      qc.invalidateQueries({ queryKey: ["admin", "users"] });
+    },
+  });
+}
+
+/** Les prestations qui empêchent la suppression, s'il y en a. */
+export function blockingBookings(error: unknown): DeleteRefused["bookings"] {
+  const body = (error as { body?: unknown })?.body;
+  if (!body || typeof body !== "object") return [];
+  const list = (body as DeleteRefused).bookings;
+  return Array.isArray(list) ? list : [];
+}
