@@ -389,3 +389,77 @@ export function useDocumentDownload(id: string) {
       ),
   });
 }
+
+/* ── Renvoyer le lien de connexion ─────────────────────────────────────────── */
+
+export interface Invitation {
+  /** `magic-link` : l'API n'envoie pas de mot de passe. */
+  channel: string;
+  sentTo: string;
+  /** `false` : l'email n'est pas parti — service d'envoi muet ou mal configuré. */
+  delivered: boolean;
+  expiresAt: string | null;
+}
+
+/**
+ * `POST /admin/chef-users/{id}/resend-invitation` — l'identifiant attendu est
+ * celui du **compte** (`userId`), pas celui de la page ni de la candidature.
+ *
+ * C'est le recours de la fiche DEM-01 : un batch cooker qui n'a jamais reçu
+ * son lien, ou dont le lien a expiré, ne peut rien faire seul — il n'a pas de
+ * mot de passe à réinitialiser. La réponse dit si l'email est **parti**, et
+ * l'écran le répète : un `delivered: false` silencieux est précisément ce qui
+ * avait fait croire à un candidat sans suite.
+ */
+export function useResendInvitation() {
+  const apiFetch = useApiFetch();
+  return useMutation({
+    mutationFn: (userId: string) =>
+      apiFetch<Invitation>(`/admin/chef-users/${userId}/resend-invitation`, {
+        method: "POST",
+      }),
+  });
+}
+
+/* ── Les statuts SAP instruits par l'équipe ────────────────────────────────── */
+
+/** Ce que l'API accepte pour les deux statuts externes. */
+export const SAP_EXTERNAL_STATUSES = [
+  "not_requested",
+  "requested",
+  "approved",
+  "refused",
+] as const;
+
+export type SapExternalStatus = (typeof SAP_EXTERNAL_STATUSES)[number];
+
+export const SAP_EXTERNAL_LABEL: Record<string, string> = {
+  not_requested: "Non demandée",
+  requested: "Demandée",
+  approved: "Approuvée",
+  refused: "Refusée",
+};
+
+/**
+ * `PATCH /admin/chefs/{id}/sap-external-status`.
+ *
+ * L'affiliation CRCESU et l'avance immédiate URSSAF ne se décident pas chez
+ * nous : elles s'obtiennent auprès du CRCESU et de l'URSSAF. La console note
+ * ici ce que ces organismes ont répondu — et l'espace du batch cooker, qui
+ * affiche ces deux statuts en lecture seule, cesse d'être un cul-de-sac.
+ */
+export function useSetSapExternalStatus(chefProfileId: string | undefined) {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      crcesuAffiliationStatus?: SapExternalStatus;
+      urssafTiersPrestationStatus?: SapExternalStatus;
+    }) =>
+      apiFetch<unknown>(`/admin/chefs/${chefProfileId}/sap-external-status`, {
+        method: "PATCH",
+        body,
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "chefs"] }),
+  });
+}
