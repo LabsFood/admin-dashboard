@@ -56,6 +56,7 @@ import { ApiError } from "@/lib/api/client";
 import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import ZonesEditor from "@/components/admin/ZonesEditor";
 import PhotoDeProfil from "@/components/admin/PhotoDeProfil";
+import ChefAgendaEtArgent from "@/components/admin/ChefAgendaEtArgent";
 import { adminErrorMessage } from "@/lib/api/errors";
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -301,6 +302,11 @@ export default function BatchCookerPage({
       {onglet === "vitrine" && <Vitrine chefProfileId={c.id} />}
       {onglet === "prestations" && <Prestations chefProfileId={c.id} />}
 
+      <ChefAgendaEtArgent
+        chefProfileId={c.id}
+        enLigne={Boolean(c.isActive && c.isVerified)}
+      />
+
       {/* Ce que la console ne sait pas montrer, nommé plutôt qu'inventé. */}
       <section className="card p-5">
         <h3 className="font-display text-base font-bold text-navy">
@@ -308,15 +314,13 @@ export default function BatchCookerPage({
         </h3>
         <ul className="mt-2 space-y-1.5 text-[13px] leading-relaxed text-ink-mid">
           <li>
-            <strong>Son agenda et ses disponibilités</strong> — aucune route ne les
-            expose, nulle part dans l&apos;API.
+            <strong>Ce qui occupe son agenda</strong> — ses créneaux libres se
+            lisent, mais l&apos;API ne dit jamais ce qui rend une heure
+            indisponible. Ses prestations figurent dans l&apos;onglet voisin ;
+            ses blocs et ses journées fermées, nulle part.
           </li>
           <li>
             <strong>Ses avis et sa note</strong> — pas de module d&apos;avis.
-          </li>
-          <li>
-            <strong>Sa rémunération</strong> — les transactions ne se lisent ni
-            par chef, ni du tout.
           </li>
         </ul>
       </section>
