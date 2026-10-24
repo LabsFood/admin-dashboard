@@ -533,3 +533,67 @@ export function blockingBookings(error: unknown): DeleteRefused["bookings"] {
   const list = (body as DeleteRefused).bookings;
   return Array.isArray(list) ? list : [];
 }
+
+/* ── Les zones d'un batch cooker ───────────────────────────────────────────── */
+
+export interface InterventionCity {
+  name: string;
+  dept: string;
+  insee: string;
+}
+
+export interface InterventionZoneInput {
+  regionCode: string;
+  regionLabel: string;
+  scope: "region" | "cities";
+  cities: InterventionCity[];
+}
+
+/**
+ * `PATCH /admin/chefs/{id}/zones` — arrivée le 24/10.
+ *
+ * Le batch cooker ne peut pas le faire lui-même : ses zones ont été vérifiées
+ * sur pièces pendant la candidature. La console le peut, et c'est audité.
+ *
+ * **La liste est remplacée en entier**, et il y a un piège : l'API rend les
+ * villes d'une zone comme de simples noms (`cities: string[]`) alors qu'elle
+ * attend des objets complets (`{ name, dept, insee }`). On ne peut donc pas
+ * renvoyer telle quelle une zone au scope `cities` lue sur la fiche — le code
+ * INSEE manque. Tant que la lecture ne rend pas ces objets, l'éditeur ne
+ * propose que des régions entières, et prévient de ce qu'il remplace.
+ */
+export function useUpdateChefZones(chefProfileId: string) {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (interventionZones: InterventionZoneInput[]) =>
+      apiFetch(`/admin/chefs/${chefProfileId}/zones`, {
+        method: "PATCH",
+        body: { interventionZones },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chefs"] });
+      qc.invalidateQueries({ queryKey: ["chef", chefProfileId] });
+    },
+  });
+}
+
+/**
+ * `DELETE /admin/users/{id}/avatar` — retirer la photo de profil de quelqu'un.
+ *
+ * Pour une photo qui n'a rien à faire sur une vitrine publique. Le compte
+ * n'est pas touché : la personne peut en déposer une autre. `{id}` est
+ * l'identifiant du **compte**, pas celui de la fiche.
+ */
+export function useDeleteUserAvatar() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) =>
+      apiFetch(`/admin/users/${userId}/avatar`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chefs"] });
+      qc.invalidateQueries({ queryKey: ["clients"] });
+    },
+  });
+}

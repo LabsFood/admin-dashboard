@@ -28,6 +28,7 @@ import { clientTone, clientLabel } from "@/lib/status";
 import { useClient, useUpdateClient } from "@/lib/api/admin";
 import WriteToUserButton from "@/components/admin/WriteToUserButton";
 import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
+import PhotoDeProfil from "@/components/admin/PhotoDeProfil";
 import { toClientView, type ClientView } from "@/lib/api/adapt";
 import { ApiError } from "@/lib/api/client";
 import type { ClientStatus } from "@/lib/mock/types";
@@ -109,9 +110,13 @@ function ClientDetail({ id, client }: { id: string; client: ClientView }) {
           >
             <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-terra/25 blur-3xl" />
             <div className="relative flex flex-col items-center text-center">
-              <span className="flex h-20 w-20 items-center justify-center rounded-full bg-terra font-display text-2xl font-bold text-white">
-                {initials(client.name)}
-              </span>
+              <PhotoDeProfil
+                userId={client.userId}
+                nom={client.name}
+                url={client.avatarUrl}
+                tone="terra"
+                className="h-20 w-20 rounded-full font-display text-2xl"
+              />
               <p className="mt-3 font-display text-xl font-bold">
                 {client.name}
               </p>

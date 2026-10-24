@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +30,7 @@ export default function ConfirmDialog({
   tone = "primary",
   pending = false,
   error = null,
+  children,
 }: {
   open: boolean;
   onClose: () => void;
@@ -44,6 +45,8 @@ export default function ConfirmDialog({
   tone?: "primary" | "danger";
   pending?: boolean;
   error?: string | null;
+  /** Ce que le geste demande de préciser avant d'être confirmé. */
+  children?: ReactNode;
 }) {
   const action = useRef<HTMLButtonElement>(null);
 
@@ -84,6 +87,8 @@ export default function ConfirmDialog({
         {detail && (
           <p className="mt-2 text-[13px] leading-relaxed text-ink-soft">{detail}</p>
         )}
+
+        {children}
 
         {error && (
           <p
