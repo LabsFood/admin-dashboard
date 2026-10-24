@@ -21,7 +21,7 @@ import UserForm from "@/components/admin/UserForm";
 import { cn, euros, formatDate, initials } from "@/lib/utils";
 import { clientTone, clientLabel } from "@/lib/status";
 import { useClients } from "@/lib/api/admin";
-import { toClientView, type ClientView } from "@/lib/api/adapt";
+import { rowToClientView, type ClientView } from "@/lib/api/adapt";
 import type { ClientStatus } from "@/lib/mock/types";
 
 type Filter = "all" | ClientStatus;
@@ -39,7 +39,7 @@ export default function ClientsPage() {
   const { data, isPending, isError, error, refetch } = useClients();
 
   const clients = useMemo<ClientView[]>(
-    () => (data?.data ?? []).map(toClientView),
+    () => (data?.data ?? []).map(rowToClientView),
     [data],
   );
 

@@ -5,9 +5,10 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useApiFetch } from "./client";
+import { ApiError, useApiFetch } from "./client";
 import { adminErrorMessage } from "./errors";
 import type {
+  AdminClientRow,
   ChefApplicationDetail,
   ChefApplicationRow,
   ChefApplicationsQuery,
@@ -52,21 +53,35 @@ export function useClients({ status, page, limit, enabled }: ClientsQuery = {}) 
 
   return useQuery({
     queryKey: ["clients", { status: status ?? "all", page, limit }],
-    queryFn: () => apiFetch<Paginated<ClientProfile>>(`/admin/clients${query}`),
+    queryFn: () => apiFetch<Paginated<AdminClientRow>>(`/admin/clients${query}`),
     enabled: enabled ?? true,
   });
 }
 
-/** `GET /admin/clients/{id}` — un profil client par id de profil. */
+/**
+ * `GET /admin/clients/{id}` — un profil client par id **de profil**.
+ *
+ * Deux pièges que l'API documente et qu'il faut absorber ici :
+ *
+ * - un id inconnu répond `200` **avec un corps vide**, pas `404`. Sans ce
+ *   garde-fou, le corps `null` traversait l'adaptateur et la page affichait
+ *   « Chargement impossible » suivi d'une erreur JavaScript ;
+ * - l'id attendu est celui de `client_profiles`, jamais celui du compte.
+ */
 export function useClient(id: string | undefined) {
   const apiFetch = useApiFetch();
 
   return useQuery({
     queryKey: ["clients", "detail", id],
     queryFn: async () => {
-      const res = await apiFetch<ClientProfile | { data: ClientProfile }>(
+      const res = await apiFetch<ClientProfile | { data: ClientProfile } | null>(
         `/admin/clients/${id}`,
       );
+      // Corps vide : la ressource n'existe pas. On le dit comme tel plutôt que
+      // de laisser un `null` se propager jusqu'à l'affichage.
+      if (!res) {
+        throw new ApiError(404, "Aucun profil client avec cet identifiant.");
+      }
       // Tolérant : l'API enveloppe les listes dans `{ data, meta }`, on accepte
       // la même enveloppe sur la ressource unitaire si elle arrive un jour.
       return "data" in res ? res.data : res;

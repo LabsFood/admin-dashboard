@@ -1,17 +1,28 @@
-import type { ClientProfile, ClientStatus, Role } from "./types";
+import type { AdminClientRow, ClientProfile, ClientStatus, Role } from "./types";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Adaptation `client_profiles` (API) → modèle d'affichage de la console.
 
-   L'API fournit désormais l'adresse, la composition du foyer et les dates de
-   création. Restent absents : le CA et le nombre de sessions (endpoints
-   commandes/réservations non exposés). Ces derniers sont laissés à `null` et
-   rendus par un placeholder « — » côté page.
+   Une ligne de `GET /admin/clients` n'est pas un profil : c'est un **couple**
+   `{ user, clientProfile }`, et `clientProfile` vaut `null` tant que la
+   personne n'a pas enregistré ses goûts. La console lisait ces lignes comme
+   des profils plats : l'identité s'affichait (elle est au premier niveau),
+   mais l'`id` n'existait pas — chaque carte pointait vers `/clients/undefined`.
+   C'est ce que les testeurs voyaient en ne pouvant « pas voir le profil d'un
+   client ».
+
+   On distingue donc les deux cas, au lieu de les confondre : un compte sans
+   profil est un vrai compte, il s'affiche avec ce qu'on sait de lui et dit ce
+   qui manque, plutôt que de promettre une fiche qui répondra 404.
+
+   Restent absents de l'API en lecture : l'adresse, le foyer, le CA et le
+   nombre de sessions. Les deux premiers sont pourtant acceptés en écriture par
+   `PATCH /admin/clients/{id}` — demande n° 6 au backend.
    ───────────────────────────────────────────────────────────────────────────── */
 
 export interface ClientView {
-  /** id du profil (`client_profiles.id`) — sert de clé de route. */
-  id: string;
+  /** id du profil (`client_profiles.id`) — clé de route, `null` sans profil. */
+  id: string | null;
   /** uuid `users.id` — attendu par `PATCH /admin/users/{id}/role`. */
   userId: string;
   name: string;
@@ -34,15 +45,44 @@ export interface ClientView {
   householdSize: number | null;
   /** Date de création du profil (`client_profiles.created_at`). */
   createdAt: string | null;
+  /** `false` quand la personne n'a pas encore enregistré ses goûts. */
+  hasProfile: boolean;
   // ── Champs non fournis par l'API (placeholder « — ») ──────────────────────
   ordersCount: number | null;
   totalSpent: number | null;
   lastOrderAt: string | null;
 }
 
+/**
+ * Une ligne de liste — `{ user, clientProfile }` — vers le modèle d'affichage.
+ * L'identité vient toujours du compte ; les goûts, du profil s'il existe.
+ */
+export function rowToClientView(row: AdminClientRow): ClientView {
+  const vue = toClientView({
+    ...(row.clientProfile ?? {
+      id: "",
+      userId: row.user.id,
+      dietaryPreferences: [],
+      allergies: [],
+      dislikes: [],
+      favorites: [],
+      spiceLevel: 0,
+      kitchenNotes: null,
+    }),
+    user: row.user,
+  });
+  return {
+    ...vue,
+    id: row.clientProfile?.id ?? null,
+    userId: row.user.id,
+    hasProfile: row.clientProfile !== null,
+  };
+}
+
 export function toClientView(p: ClientProfile): ClientView {
   return {
-    id: p.id,
+    id: p.id || null,
+    hasProfile: Boolean(p.id),
     userId: p.userId,
     name: p.user?.fullName?.trim() || p.user?.email || "Client",
     email: p.user?.email ?? "",

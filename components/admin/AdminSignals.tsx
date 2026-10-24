@@ -26,6 +26,7 @@ import { catalogLabel } from "@/lib/catalog-labels";
 import { useChefApplications, useClients } from "@/lib/api/admin";
 import { useLabsFoodMenus, useMeals } from "@/lib/api/catalog";
 import { useReviewQueue } from "@/lib/api/moderation";
+import { rowToClientView } from "@/lib/api/adapt";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Ce que la barre du haut de la console sait dire.
@@ -71,16 +72,18 @@ function useAdminPaletteItems(actif: boolean): {
       });
     }
 
-    for (const c of clients.data?.data ?? []) {
-      const nom = c.user?.fullName?.trim() || c.user?.email || "Client";
+    for (const ligne of clients.data?.data ?? []) {
+      const c = rowToClientView(ligne);
       out.push({
-        id: `client:${c.id}`,
-        label: nom,
-        hint: c.addressCity ?? undefined,
+        id: `client:${c.id ?? c.userId}`,
+        label: c.name,
+        // Sans profil, on le dit : la fiche n'existe pas encore, et la
+        // recherche mène à la liste des comptes plutôt qu'à un 404.
+        hint: c.hasProfile ? (c.city ?? undefined) : "profil non renseigné",
         group: "Clients",
-        href: `/clients/${c.id}`,
+        href: c.id ? `/clients/${c.id}` : "/utilisateurs",
         Icon: Users,
-        keywords: `${c.user?.email ?? ""} ${initials(nom)} client`,
+        keywords: `${c.email} ${initials(c.name)} client`,
       });
     }
 

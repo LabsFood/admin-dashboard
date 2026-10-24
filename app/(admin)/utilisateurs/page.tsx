@@ -32,7 +32,7 @@ import WriteToUserButton from "@/components/admin/WriteToUserButton";
 import { cn, initials, timeAgo } from "@/lib/utils";
 import { roleLabel, roleTone } from "@/lib/status";
 import { useClients } from "@/lib/api/admin";
-import { toClientView } from "@/lib/api/adapt";
+import { rowToClientView } from "@/lib/api/adapt";
 import { forgetUser, useRecentUsers } from "@/lib/recent-users";
 import type { Role } from "@/lib/api/types";
 
@@ -148,14 +148,16 @@ export default function UtilisateursPage() {
   const [sorting, setSorting] = useState<SortingState>([{ id: "name", desc: false }]);
 
   const rows = useMemo<UserRow[]>(() => {
-    const fromApi: UserRow[] = (data?.data ?? []).map(toClientView).map((c) => ({
+    const fromApi: UserRow[] = (data?.data ?? []).map(rowToClientView).map((c) => ({
       key: `api-${c.id}`,
       userId: c.userId,
       name: c.name,
       email: c.email,
       role: c.role,
       origin: "client",
-      href: `/clients/${c.id}`,
+      // Sans profil enregistré, il n'y a pas de fiche à ouvrir : la colonne
+      // reste vide plutôt que de mener à une page introuvable.
+      href: c.id ? `/clients/${c.id}` : undefined,
     }));
 
     // Un compte créé ici qui s'est déjà connecté remonte aussi de l'API :

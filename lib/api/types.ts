@@ -36,6 +36,19 @@ export interface Me {
 export type ClientStatus = "vip" | "active" | "prospect" | "inactive";
 
 /** Ligne `client_profiles` telle que renvoyée par l'API. */
+/**
+ * Une ligne de `GET /admin/clients`.
+ *
+ * Ce n'est pas un profil : c'est le compte **et** son profil, qui vaut `null`
+ * tant que la personne n'a pas enregistré ses goûts depuis l'espace client.
+ * L'id attendu par `GET|PATCH /admin/clients/{id}` est celui du **profil**,
+ * pas celui du compte — d'où le besoin de garder les deux.
+ */
+export interface AdminClientRow {
+  user: NonNullable<ClientProfile["user"]> & { avatarUrl?: string | null };
+  clientProfile: ClientProfile | null;
+}
+
 export interface ClientProfile {
   id: string;
   userId: string;
