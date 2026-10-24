@@ -15,7 +15,7 @@ import AdminSignals from "@/components/admin/AdminSignals";
 import { useAdminMessagingSocket } from "@/lib/api/messaging";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
-  const { isAuthenticated, isReady, signOut } = useAuth();
+  const { isAuthenticated, isReady, signOut, hardSignOut } = useAuth();
   const me = useMe();
   const router = useRouter();
 
@@ -63,7 +63,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         detail="Votre session a peut-être expiré pendant que l'onglet dormait. Reconnectez-vous : c'est le plus sûr."
         actions={
           <>
-            <button onClick={signOut} className="btn btn-navy">
+            <button onClick={hardSignOut} className="btn btn-navy">
               <LogOut className="h-4 w-4" /> Se reconnecter
             </button>
             <button onClick={() => window.location.reload()} className="btn btn-outline">
@@ -102,7 +102,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         }
         actions={
           <>
-            <button onClick={signOut} className="btn btn-navy">
+            <button
+              onClick={expiree || injoignable ? hardSignOut : signOut}
+              className="btn btn-navy"
+            >
               <LogOut className="h-4 w-4" />
               {expiree ? "Se reconnecter" : "Se déconnecter"}
             </button>
