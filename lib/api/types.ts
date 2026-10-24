@@ -73,6 +73,7 @@ export interface ClientProfile {
     fullName: string | null;
     phone: string | null;
     role: Role;
+    avatarUrl?: string | null;
   };
 }
 

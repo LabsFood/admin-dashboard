@@ -55,6 +55,7 @@ import {
 import { ApiError } from "@/lib/api/client";
 import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import ZonesEditor from "@/components/admin/ZonesEditor";
+import PhotoDeProfil from "@/components/admin/PhotoDeProfil";
 import { adminErrorMessage } from "@/lib/api/errors";
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -158,9 +159,12 @@ export default function BatchCookerPage({
       <section className="card p-5 lg:p-6">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div className="flex min-w-0 items-start gap-4">
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-navy text-base font-bold text-white">
-              {initials(nom)}
-            </span>
+            <PhotoDeProfil
+              userId={c.userId}
+              nom={nom}
+              url={c.avatarUrl}
+              className="h-14 w-14 rounded-2xl text-base"
+            />
             <div className="min-w-0">
               <h2 className="font-display text-xl font-bold leading-tight text-navy">
                 {nom}

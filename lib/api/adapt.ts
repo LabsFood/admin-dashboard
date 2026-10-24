@@ -47,6 +47,8 @@ export interface ClientView {
   createdAt: string | null;
   /** `false` quand la personne n'a pas encore enregistré ses goûts. */
   hasProfile: boolean;
+  /** Photo de profil du compte, `null` quand il n'y en a pas. */
+  avatarUrl: string | null;
   // ── Champs non fournis par l'API (placeholder « — ») ──────────────────────
   ordersCount: number | null;
   totalSpent: number | null;
@@ -76,6 +78,7 @@ export function rowToClientView(row: AdminClientRow): ClientView {
     id: row.clientProfile?.id ?? null,
     userId: row.user.id,
     hasProfile: row.clientProfile !== null,
+    avatarUrl: row.user.avatarUrl ?? null,
   };
 }
 
@@ -83,6 +86,7 @@ export function toClientView(p: ClientProfile): ClientView {
   return {
     id: p.id || null,
     hasProfile: Boolean(p.id),
+    avatarUrl: p.user?.avatarUrl ?? null,
     userId: p.userId,
     name: p.user?.fullName?.trim() || p.user?.email || "Client",
     email: p.user?.email ?? "",

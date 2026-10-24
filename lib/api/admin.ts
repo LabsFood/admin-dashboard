@@ -577,3 +577,23 @@ export function useUpdateChefZones(chefProfileId: string) {
     },
   });
 }
+
+/**
+ * `DELETE /admin/users/{id}/avatar` — retirer la photo de profil de quelqu'un.
+ *
+ * Pour une photo qui n'a rien à faire sur une vitrine publique. Le compte
+ * n'est pas touché : la personne peut en déposer une autre. `{id}` est
+ * l'identifiant du **compte**, pas celui de la fiche.
+ */
+export function useDeleteUserAvatar() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) =>
+      apiFetch(`/admin/users/${userId}/avatar`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chefs"] });
+      qc.invalidateQueries({ queryKey: ["clients"] });
+    },
+  });
+}
