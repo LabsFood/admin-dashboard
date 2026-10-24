@@ -54,6 +54,7 @@ import {
 } from "@/lib/api/chefs";
 import { ApiError } from "@/lib/api/client";
 import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
+import ZonesEditor from "@/components/admin/ZonesEditor";
 import { adminErrorMessage } from "@/lib/api/errors";
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -369,6 +370,12 @@ function ProfilSansCandidature({ chef }: { chef: AdminChefDetail }) {
             ))}
           </ul>
         )}
+
+        <ZonesEditor
+          chefProfileId={chef.id}
+          zones={chef.zones}
+          verifie={chef.isVerified}
+        />
       </div>
     </section>
   );
