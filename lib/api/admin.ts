@@ -439,20 +439,23 @@ export function useResendInvitation() {
 /* ── Les statuts SAP instruits par l'équipe ────────────────────────────────── */
 
 /** Ce que l'API accepte pour les deux statuts externes. */
-export const SAP_EXTERNAL_STATUSES = [
-  "not_requested",
-  "requested",
-  "approved",
-  "refused",
-] as const;
+/**
+ * Les trois valeurs que l'API accepte — l'énumération Prisma `SapExternalStatus`.
+ *
+ * La console en envoyait quatre autres, inventées : `approved`, `requested`,
+ * `not_requested`, `refused`. L'API les refusait toutes, et chaque
+ * enregistrement échouait sur « le champ crcesuAffiliationStatus n'est pas
+ * accepté ». Il n'y a pas de « refusée » : un refus se note en revenant à
+ * `not_started`, la démarche étant à refaire.
+ */
+export const SAP_EXTERNAL_STATUSES = ["not_started", "pending", "active"] as const;
 
 export type SapExternalStatus = (typeof SAP_EXTERNAL_STATUSES)[number];
 
 export const SAP_EXTERNAL_LABEL: Record<string, string> = {
-  not_requested: "Non demandée",
-  requested: "Demandée",
-  approved: "Approuvée",
-  refused: "Refusée",
+  not_started: "Pas de démarche",
+  pending: "Demande en cours",
+  active: "Affiliation active",
 };
 
 /**

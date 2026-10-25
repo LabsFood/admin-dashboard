@@ -2,7 +2,7 @@
 
 import { useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldAlert, RotateCw, LogOut, Clock } from "lucide-react";
+import { ArrowUpRight, ShieldAlert, RotateCw, LogOut, Clock } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useMe } from "@/lib/api/me";
 import { ApiError } from "@/lib/api/client";
@@ -13,6 +13,15 @@ import Splash from "@/components/admin/Splash";
 import { useTooLong } from "@/lib/use-too-long";
 import AdminSignals from "@/components/admin/AdminSignals";
 import { useAdminMessagingSocket } from "@/lib/api/messaging";
+
+/**
+ * Le site de batch cooking et ses deux espaces connectés — à ne pas confondre
+ * avec `NEXT_PUBLIC_SITE_URL`, qui désigne cette console. Une seule session
+ * Clerk sert les deux applications : y renvoyer quelqu'un suffit, il y est
+ * déjà connecté.
+ */
+const BATCHCOOKING_URL =
+  process.env.NEXT_PUBLIC_BATCHCOOKING_URL ?? "https://batchcooking.labsfood.fr";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const { isAuthenticated, isReady, signOut, hardSignOut } = useAuth();
@@ -27,16 +36,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     // On ne redirige vers /login QUE si Clerk lui-même n'a pas de session.
     // Un 401 de l'API alors que Clerk est connecté ne doit PAS rediriger :
     // la page de login renverrait aussitôt ici (session Clerk active) → boucle.
-    if (!isAuthenticated) {
-      router.replace("/login");
-      return;
-    }
-    // Rôle résolu et non admin → compte sans accès console.
-    if (me.isSuccess && !isAdmin) {
-      signOut();
-      router.replace("/login?error=forbidden");
-    }
-  }, [isReady, isAuthenticated, me.isSuccess, isAdmin, signOut, router]);
+    if (!isAuthenticated) router.replace("/login");
+  }, [isReady, isAuthenticated, router]);
 
   /*
    * Une attente peut ne jamais finir : onglet réveillé après des heures, token
@@ -118,9 +119,42 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  // ── Rôle non admin (redirection en cours via l'effet) ────────────────────
+  /*
+   * ── Rôle non admin ──────────────────────────────────────────────────────
+   *
+   * Cet écran déconnectait, puis renvoyait au login. Un batch cooker qui
+   * ouvrait l'URL de la console par erreur — un lien, un favori, une faute de
+   * frappe — perdait donc la session de **son propre espace** : la session
+   * Clerk est la même pour les deux sites. Il s'était trompé de porte, et on
+   * lui prenait ses clés.
+   *
+   * On lui dit où aller, et on ne touche à rien. Changer de compte reste
+   * possible, mais c'est son geste, pas le nôtre.
+   */
   if (!isAdmin) {
-    return <Splash label="Redirection…" />;
+    return (
+      <FullscreenState
+        Icon={ShieldAlert}
+        label="Cette console est réservée à l'administration"
+        detail={
+          role === "chef"
+            ? "Votre espace batch cooker est sur le site, pas ici. Vous y êtes déjà connecté."
+            : role === "client"
+              ? "Votre espace client est sur le site, pas ici. Vous y êtes déjà connecté."
+              : "Ce compte n'a pas accès à la console."
+        }
+        actions={
+          <>
+            <a href={BATCHCOOKING_URL} className="btn btn-navy">
+              <ArrowUpRight className="h-4 w-4" /> Aller sur le site
+            </a>
+            <button onClick={signOut} className="btn btn-outline">
+              <LogOut className="h-4 w-4" /> Changer de compte
+            </button>
+          </>
+        }
+      />
+    );
   }
 
   return (

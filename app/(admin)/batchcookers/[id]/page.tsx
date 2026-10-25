@@ -235,7 +235,13 @@ export default function BatchCookerPage({
 
         {c.userId && <LienConnexion userId={c.userId} email={c.email} />}
 
-        {c.isVerified && <StatutsSap chefProfileId={c.id} />}
+        {c.isVerified && (
+          <StatutsSap
+            chefProfileId={c.id}
+            crcesuActuel={c.crcesuAffiliationStatus}
+            urssafActuel={c.urssafTiersPrestationStatus}
+          />
+        )}
 
         {c.userId && (
           <div className="hairline mt-4 border-t pt-4">
@@ -953,16 +959,30 @@ function LienConnexion({ userId, email }: { userId: string; email: string | null
  * fait que **noter la réponse** reçue. L'espace du batch cooker les affiche en
  * lecture seule et renvoie à l'équipe — c'est ici que l'équipe répond.
  *
- * Réserve honnête : `GET /admin/chefs/{id}` ne rend pas ces deux statuts. On
- * ne peut donc pas afficher la valeur courante avant d'avoir écrit — l'écran
- * le dit, et montre ce que l'API renvoie après l'enregistrement.
+ * Les deux statuts se relisent depuis le 24/10 : la fiche ouvre donc sur leur
+ * valeur courante, au lieu d'un « ne pas changer » qui obligeait à se
+ * rappeler ce qu'on avait noté la fois d'avant.
  */
-function StatutsSap({ chefProfileId }: { chefProfileId: string }) {
+function StatutsSap({
+  chefProfileId,
+  crcesuActuel,
+  urssafActuel,
+}: {
+  chefProfileId: string;
+  crcesuActuel?: SapExternalStatus | null;
+  urssafActuel?: SapExternalStatus | null;
+}) {
   const save = useSetSapExternalStatus(chefProfileId);
-  const [crcesu, setCrcesu] = useState<SapExternalStatus | "">("");
-  const [urssaf, setUrssaf] = useState<SapExternalStatus | "">("");
+  const [crcesu, setCrcesu] = useState<SapExternalStatus>(
+    crcesuActuel ?? "not_started",
+  );
+  const [urssaf, setUrssaf] = useState<SapExternalStatus>(
+    urssafActuel ?? "not_started",
+  );
 
-  const rien = crcesu === "" && urssaf === "";
+  const rien =
+    crcesu === (crcesuActuel ?? "not_started") &&
+    urssaf === (urssafActuel ?? "not_started");
 
   return (
     <div className="hairline mt-4 border-t pt-4">
@@ -981,10 +1001,9 @@ function StatutsSap({ chefProfileId }: { chefProfileId: string }) {
           <span className="field-label">Affiliation CRCESU</span>
           <select
             value={crcesu}
-            onChange={(e) => setCrcesu(e.target.value as SapExternalStatus | "")}
+            onChange={(e) => setCrcesu(e.target.value as SapExternalStatus)}
             className="input-base"
           >
-            <option value="">Ne pas changer</option>
             {SAP_EXTERNAL_STATUSES.map((s) => (
               <option key={s} value={s}>
                 {SAP_EXTERNAL_LABEL[s]}
@@ -997,10 +1016,9 @@ function StatutsSap({ chefProfileId }: { chefProfileId: string }) {
           <span className="field-label">Avance immédiate URSSAF</span>
           <select
             value={urssaf}
-            onChange={(e) => setUrssaf(e.target.value as SapExternalStatus | "")}
+            onChange={(e) => setUrssaf(e.target.value as SapExternalStatus)}
             className="input-base"
           >
-            <option value="">Ne pas changer</option>
             {SAP_EXTERNAL_STATUSES.map((s) => (
               <option key={s} value={s}>
                 {SAP_EXTERNAL_LABEL[s]}
@@ -1013,8 +1031,8 @@ function StatutsSap({ chefProfileId }: { chefProfileId: string }) {
           type="button"
           onClick={() =>
             save.mutate({
-              ...(crcesu ? { crcesuAffiliationStatus: crcesu } : {}),
-              ...(urssaf ? { urssafTiersPrestationStatus: urssaf } : {}),
+              crcesuAffiliationStatus: crcesu,
+              urssafTiersPrestationStatus: urssaf,
             })
           }
           disabled={rien || save.isPending}
@@ -1041,9 +1059,11 @@ function StatutsSap({ chefProfileId }: { chefProfileId: string }) {
           {adminErrorMessage(save.error)}
         </p>
       )}
-      <p className="mt-2 text-[11px] leading-relaxed text-ink-soft">
-        La fiche ne rend pas la valeur actuelle de ces deux statuts : laissez
-        « ne pas changer » sur celui que vous ne touchez pas.
+      <p className="mt-2 max-w-prose text-[11px] leading-relaxed text-ink-soft">
+        Ces deux statuts ne disent pas si le batch cooker <em>accepte</em> le
+        CESU — ça, c&apos;est son choix, dans son espace Rémunération. Ils
+        disent si le CRCESU et l&apos;URSSAF l&apos;ont habilité. Les deux
+        doivent être réunis pour qu&apos;un client puisse le payer ainsi.
       </p>
     </div>
   );
