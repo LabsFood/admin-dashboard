@@ -82,6 +82,13 @@ const FAMILIES: { id: ChefDocumentFamily; label: string; hint: string }[] = [
   },
 ];
 
+/**
+ * Pièces écrites par l'API, que personne ne juge : le mandat SEPA est la preuve
+ * d'une signature recueillie par Stripe. Il se révoque à la banque ou chez
+ * Stripe, pas en le refusant ici — l'API refuse d'ailleurs (403).
+ */
+const SYSTEM_DOCS = new Set<ChefApplicationDocument["type"]>(["sepa-mandate"]);
+
 const DOC_TONE: Record<ChefDocumentStatus, BadgeTone> = {
   valid: "success",
   submitted: "info",
@@ -498,6 +505,7 @@ function DocumentRow({
 
   // On ne décide que d'une pièce déposée : rien à juger sur un dossier vide.
   const deposited = doc.version > 0;
+  const decidable = deposited && !SYSTEM_DOCS.has(doc.type);
   const busy = decide.isPending;
 
   return (
@@ -553,7 +561,7 @@ function DocumentRow({
             Consulter
           </button>
 
-          {doc.status !== "valid" && (
+          {decidable && doc.status !== "valid" && (
             <button
               type="button"
               disabled={busy}
@@ -565,7 +573,7 @@ function DocumentRow({
             </button>
           )}
 
-          {doc.status !== "rejected" && (
+          {decidable && doc.status !== "rejected" && (
             <button
               type="button"
               disabled={busy}

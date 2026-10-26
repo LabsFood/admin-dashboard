@@ -139,7 +139,9 @@ export type ChefDocumentType =
   | "rc-pro"
   | "haccp"
   | "ddpp"
-  | "vigilance";
+  | "vigilance"
+  /** Écrit par l'API quand Stripe confirme la signature : ni déposé, ni jugé. */
+  | "sepa-mandate";
 
 /** Famille d'une pièce, telle que l'API la classe. */
 export type ChefDocumentFamily = "blocking" | "conditional" | "recommended";
