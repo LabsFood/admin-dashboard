@@ -101,9 +101,9 @@ export function useUpdateClient(id: string) {
         method: "PATCH",
         body: patch,
       }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["clients"] });
-    },
+    // Attendu : la fiche est relue avant que l'appelant referme son formulaire,
+    // sinon les anciennes valeurs se réaffichent un instant.
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["clients"] }),
   });
 }
 

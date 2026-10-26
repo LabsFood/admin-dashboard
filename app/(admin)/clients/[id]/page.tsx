@@ -14,14 +14,19 @@ import {
   Home,
   Mail,
   MapPin,
+  Pencil,
   Phone,
+  Plus,
   RotateCw,
   ShieldCheck,
   Sparkles,
   Trash2,
   Wallet,
+  X,
 } from "lucide-react";
 import Badge from "@/components/ui/Badge";
+import { useToast } from "@/components/ui/Toaster";
+import { adminErrorMessage } from "@/lib/api/errors";
 import RoleEditor from "@/components/admin/RoleEditor";
 import { cn, euros, initials } from "@/lib/utils";
 import { clientTone, clientLabel } from "@/lib/status";
@@ -34,6 +39,28 @@ import { ApiError } from "@/lib/api/client";
 import type { ClientStatus } from "@/lib/mock/types";
 
 const DASH = "—";
+
+/** Le profil culinaire, dans l'ordre où le client le remplit. */
+const PREFS = [
+  { key: "dietaryPreferences", title: "Régimes", tone: "teal" },
+  { key: "allergies", title: "Allergies", tone: "danger" },
+  { key: "dislikes", title: "N'aime pas", tone: "danger" },
+  { key: "favorites", title: "Favoris", tone: "teal" },
+] as const;
+
+type PrefKey = (typeof PREFS)[number]["key"];
+
+/**
+ * Les suggestions de la page profil du client (batchcooking-web). Il écrit des
+ * libellés, pas des codes : une correction doit se lire comme ce qu'il a
+ * lui-même écrit.
+ */
+const SUGGEST: Record<PrefKey, string[]> = {
+  dietaryPreferences: ["Végétarien", "Vegan", "Sans-porc", "Sans-bœuf", "Halal", "Casher", "Sans-gluten", "Sans-lactose"],
+  allergies: ["Fruits à coque", "Arachides", "Œufs", "Poisson", "Crustacés", "Soja", "Sésame"],
+  dislikes: [],
+  favorites: ["Risotto", "Curry", "Lasagnes", "Tajine", "Wok", "Saumon", "Pad thaï"],
+};
 
 export default function ClientDetailPage() {
   const params = useParams<{ id: string }>();
@@ -83,6 +110,9 @@ export default function ClientDetailPage() {
 function ClientDetail({ id, client }: { id: string; client: ClientView }) {
   const update = useUpdateClient(id);
   const [status, setStatus] = useState<ClientStatus>(client.status);
+  const [editingPrefs, setEditingPrefs] = useState(false);
+  const noPrefs =
+    PREFS.every((p) => client[p.key].length === 0) && client.householdSize == null;
 
   const changeStatus = (next: ClientStatus) => {
     const prev = status;
@@ -160,18 +190,35 @@ function ClientDetail({ id, client }: { id: string; client: ClientView }) {
 
           {/* Préférences */}
           <section className="card p-5">
-            <h4 className="mb-3 font-display text-base font-bold text-navy">
+            <h4 className="mb-3 flex items-center justify-between font-display text-base font-bold text-navy">
               Profil culinaire
+              {!editingPrefs && (
+                <button
+                  type="button"
+                  onClick={() => setEditingPrefs(true)}
+                  className="btn btn-sm btn-ghost"
+                >
+                  <Pencil className="h-3 w-3" aria-hidden /> Modifier
+                </button>
+              )}
             </h4>
-            <PrefBlock title="Régimes" items={client.dietaryPreferences} tone="teal" />
-            <PrefBlock title="Allergies" items={client.allergies} tone="danger" />
-            <PrefBlock title="N'aime pas" items={client.dislikes} tone="danger" />
-            <PrefBlock title="Favoris" items={client.favorites} tone="teal" />
-            {client.householdSize != null && (
-              <div className="mt-3 flex items-center gap-2 text-xs text-ink-mid">
-                <Home className="h-3.5 w-3.5 text-ink-soft" />
-                Foyer : {client.householdSize}
-              </div>
+            {editingPrefs ? (
+              <PrefsEditor id={id} client={client} onDone={() => setEditingPrefs(false)} />
+            ) : (
+              <>
+                {PREFS.map((p) => (
+                  <PrefBlock key={p.key} title={p.title} items={client[p.key]} tone={p.tone} />
+                ))}
+                {client.householdSize != null && (
+                  <div className="mt-3 flex items-center gap-2 text-xs text-ink-mid">
+                    <Home className="h-3.5 w-3.5 text-ink-soft" />
+                    Foyer : {client.householdSize}
+                  </div>
+                )}
+                {noPrefs && (
+                  <p className="text-xs text-ink-soft">Aucune préférence renseignée.</p>
+                )}
+              </>
             )}
           </section>
 
@@ -377,6 +424,159 @@ function PrefBlock({
           </span>
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * L'admin corrige le profil culinaire à la place du client (A-17). Seules les
+ * listes changées partent : l'API journalise chaque champ envoyé, avant et
+ * après, et le journal doit dire ce qui a vraiment été corrigé.
+ */
+function PrefsEditor({
+  id,
+  client,
+  onDone,
+}: {
+  id: string;
+  client: ClientView;
+  onDone: () => void;
+}) {
+  const update = useUpdateClient(id);
+  const toast = useToast();
+  const [lists, setLists] = useState<Record<PrefKey, string[]>>(() => ({
+    dietaryPreferences: client.dietaryPreferences,
+    allergies: client.allergies,
+    dislikes: client.dislikes,
+    favorites: client.favorites,
+  }));
+
+  function save() {
+    const patch = Object.fromEntries(
+      PREFS.filter((p) => lists[p.key].join("\n") !== client[p.key].join("\n")).map(
+        (p) => [p.key, lists[p.key]],
+      ),
+    );
+    if (Object.keys(patch).length === 0) return onDone();
+    update.mutate(patch, {
+      onSuccess: () => {
+        toast.success("Profil culinaire corrigé");
+        onDone();
+      },
+      onError: (e) => toast.error("La correction n'est pas enregistrée", adminErrorMessage(e)),
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      {PREFS.map((p) => (
+        <TagsField
+          key={p.key}
+          title={p.title}
+          tone={p.tone}
+          items={lists[p.key]}
+          suggestions={SUGGEST[p.key]}
+          onChange={(items) => setLists((l) => ({ ...l, [p.key]: items }))}
+        />
+      ))}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={save}
+          disabled={update.isPending}
+          className="btn btn-sm btn-navy"
+        >
+          {update.isPending ? "Enregistrement…" : "Enregistrer"}
+        </button>
+        <button
+          type="button"
+          onClick={onDone}
+          disabled={update.isPending}
+          className="btn btn-sm btn-ghost"
+        >
+          Annuler
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TagsField({
+  title,
+  tone,
+  items,
+  suggestions,
+  onChange,
+}: {
+  title: string;
+  tone: "teal" | "danger";
+  items: string[];
+  suggestions: string[];
+  onChange: (items: string[]) => void;
+}) {
+  const [draft, setDraft] = useState("");
+
+  function add(value: string) {
+    const v = value.trim();
+    if (v && !items.some((i) => i.toLowerCase() === v.toLowerCase())) {
+      onChange([...items, v]);
+    }
+    setDraft("");
+  }
+
+  return (
+    <div>
+      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+        {title}
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map((it) => (
+          <span
+            key={it}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full py-0.5 pl-2.5 pr-1.5 text-[11px] font-medium",
+              tone === "teal" ? "bg-teal-pale text-teal" : "bg-danger-soft text-danger",
+            )}
+          >
+            {it}
+            <button
+              type="button"
+              onClick={() => onChange(items.filter((i) => i !== it))}
+              aria-label={`Retirer ${it}`}
+              className="rounded-full p-0.5 hover:bg-white/60"
+            >
+              <X className="h-3 w-3" aria-hidden />
+            </button>
+          </span>
+        ))}
+        {suggestions
+          .filter((s) => !items.includes(s))
+          .map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => add(s)}
+              className="inline-flex items-center gap-1 rounded-full border border-dashed border-[rgba(0,35,75,0.2)] px-2.5 py-0.5 text-[11px] text-ink-mid hover:border-navy/40 hover:text-navy"
+            >
+              <Plus className="h-3 w-3" aria-hidden /> {s}
+            </button>
+          ))}
+      </div>
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            add(draft);
+          }
+        }}
+        // Tapé sans Entrée puis « Enregistrer » : la saisie compte quand même.
+        onBlur={() => add(draft)}
+        placeholder="Autre… puis Entrée"
+        aria-label={`Ajouter — ${title}`}
+        className="input-base mt-1.5 py-1.5 text-xs"
+      />
     </div>
   );
 }
