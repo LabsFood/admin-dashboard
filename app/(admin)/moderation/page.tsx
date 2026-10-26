@@ -375,7 +375,8 @@ function QueueRow({
           </button>
           {item.status === "published" && (
             <>
-              {!item.reviewedAt && (
+              {/* En attente, pas « jamais relu » : une fiche modifiée ou republiée revient avec sa date de relecture. */}
+              {item.pendingSince && (
                 <button
                   onClick={markReviewed}
                   disabled={review.isPending}
