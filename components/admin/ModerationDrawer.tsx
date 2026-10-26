@@ -48,6 +48,9 @@ const RENDERED = new Set([
   "chefProfile",
   "dishes",
   "dishCount",
+  "reviewState",
+  "pendingSince",
+  "flags",
 ]);
 
 /**
@@ -84,12 +87,25 @@ export default function ModerationDrawer({
   const source = item?.kind === "menu" ? menus : plats;
   const complete = (source.data ?? []).find((x) => x.id === item?.id) ?? null;
 
-  /* Ce que la file donne, complété par la fiche quand elle arrive. */
+  /*
+   * Ce que la file donne, complété par la fiche quand elle arrive. La relecture
+   * reste celle de la file : la fiche la range sous `review.*`, et la lire en
+   * tête de fiche affichait « jamais relu » pour tout ce qui l'avait été.
+   */
   const fiche: ReviewItem | null = item
     ? complete
-      ? { ...complete, flags: item.flags, reviewState: item.reviewState, raw: item.raw }
+      ? {
+          ...complete,
+          flags: item.flags,
+          reviewState: item.reviewState,
+          pendingSince: item.pendingSince,
+          reviewedAt: item.reviewedAt,
+          raw: item.raw,
+        }
       : item
     : null;
+  /* Un menu ne déclare ni pays ni allergènes : ce sont ses plats qui le font. */
+  const isDish = fiche?.kind === "dish";
   const incomplete = Boolean(item && !complete && !source.isPending);
 
   const extra = item
@@ -184,7 +200,9 @@ export default function ModerationDrawer({
           )}
 
           <dl className="hairline space-y-2.5 border-t pt-3 text-[13px]">
-            <Row label="Pays annoncé" value={countryLabel(fiche.country) || "—"} />
+            {isDish && (
+              <Row label="Pays annoncé" value={countryLabel(fiche.country) || "—"} />
+            )}
             <Row
               label="Mis en ligne"
               value={fiche.publishedAt ? formatDate(fiche.publishedAt) : "—"}
@@ -193,6 +211,9 @@ export default function ModerationDrawer({
               label="Dernière relecture"
               value={fiche.reviewedAt ? formatDate(fiche.reviewedAt) : "jamais relu"}
             />
+            {fiche.pendingSince && (
+              <Row label="En attente depuis" value={formatDate(fiche.pendingSince)} />
+            )}
             {fiche.kind === "menu" && fiche.dishCount != null && (
               <Row label="Plats au menu" value={String(fiche.dishCount)} />
             )}
@@ -220,39 +241,41 @@ export default function ModerationDrawer({
             </Block>
           )}
 
-          <Block title="Allergènes déclarés">
-            {fiche.allergensNone ? (
-              <p className="text-[13px] text-success">
-                Aucun des 14 allergènes — déclaré explicitement par le batch
-                cooker.
-              </p>
-            ) : fiche.allergens.length === 0 && fiche.customAllergens.length === 0 ? (
-              <p className="rounded-md bg-warning-soft px-3 py-2.5 text-[13px] leading-relaxed text-[#8A6212]">
-                Ni liste, ni mention «&nbsp;aucun&nbsp;». La fiche est muette sur
-                un point réglementé : c&apos;est le premier motif de suspension.
-              </p>
-            ) : (
-              <>
-                <div className="flex flex-wrap gap-1.5">
-                  {fiche.allergens.map((a) => (
-                    <span key={a} className="chip-danger">
-                      {refLabel(allergens.data, a)}
-                    </span>
-                  ))}
-                  {fiche.customAllergens.map((a) => (
-                    <span key={a} className="chip-danger italic">
-                      {a}
-                    </span>
-                  ))}
-                </div>
-                {fiche.customAllergens.length > 0 && (
-                  <p className="mt-1.5 text-[11px] leading-relaxed text-ink-soft">
-                    En italique : hors des 14 réglementés.
-                  </p>
-                )}
-              </>
-            )}
-          </Block>
+          {isDish && (
+            <Block title="Allergènes déclarés">
+              {fiche.allergensNone ? (
+                <p className="text-[13px] text-success">
+                  Aucun des 14 allergènes — déclaré explicitement par le batch
+                  cooker.
+                </p>
+              ) : fiche.allergens.length === 0 && fiche.customAllergens.length === 0 ? (
+                <p className="rounded-md bg-warning-soft px-3 py-2.5 text-[13px] leading-relaxed text-[#8A6212]">
+                  Ni liste, ni mention «&nbsp;aucun&nbsp;». La fiche est muette sur
+                  un point réglementé : c&apos;est le premier motif de suspension.
+                </p>
+              ) : (
+                <>
+                  <div className="flex flex-wrap gap-1.5">
+                    {fiche.allergens.map((a) => (
+                      <span key={a} className="chip-danger">
+                        {refLabel(allergens.data, a)}
+                      </span>
+                    ))}
+                    {fiche.customAllergens.map((a) => (
+                      <span key={a} className="chip-danger italic">
+                        {a}
+                      </span>
+                    ))}
+                  </div>
+                  {fiche.customAllergens.length > 0 && (
+                    <p className="mt-1.5 text-[11px] leading-relaxed text-ink-soft">
+                      En italique : hors des 14 réglementés.
+                    </p>
+                  )}
+                </>
+              )}
+            </Block>
+          )}
 
           {extra.length > 0 && (
             <div className="hairline border-t pt-4">
