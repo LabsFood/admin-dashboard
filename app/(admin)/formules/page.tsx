@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
@@ -20,8 +21,10 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toaster";
 import { cn, euros } from "@/lib/utils";
 import {
+  useChefFormules,
   useFormules,
   useUpdateFormule,
+  type ChefFormule,
   type Formule,
   type FormulePatch,
 } from "@/lib/api/formules";
@@ -149,6 +152,8 @@ export default function FormulesPage() {
         </div>
       )}
 
+      <FormulesDesBatchCookers />
+
       <section className="card p-5">
         <h3 className="flex items-center gap-2 font-display text-base font-bold text-navy">
           <Info className="h-4 w-4 text-ink-soft" aria-hidden />
@@ -171,6 +176,100 @@ export default function FormulesPage() {
       </section>
     </div>
   );
+}
+
+/* ── Les formules des batch cookers ────────────────────────────────────────── */
+
+/**
+ * Ce que chaque batch cooker vend lui-même : une durée et un prix, en plus des
+ * formules de la plateforme. En lecture seule — c'est lui qui les modifie dans
+ * son espace. Regroupées par batch cooker, actives d'abord.
+ */
+function FormulesDesBatchCookers() {
+  const offres = useChefFormules();
+
+  const parChef = new Map<string, { nom: string; offres: ChefFormule[] }>();
+  for (const o of offres.data ?? []) {
+    const groupe = parChef.get(o.chef.id) ?? { nom: o.chef.displayName, offres: [] };
+    groupe.offres.push(o);
+    parChef.set(o.chef.id, groupe);
+  }
+
+  return (
+    <section className="card p-5">
+      <h3 className="font-display text-base font-bold text-navy">
+        Formules des batch cookers
+      </h3>
+      <p className="mt-0.5 text-[13px] text-ink-mid">
+        Chaque batch cooker fixe les siennes : une durée et un prix. Elles se
+        modifient depuis son espace, pas d&apos;ici.
+      </p>
+
+      {offres.isPending ? (
+        <div className="mt-4 h-24 animate-pulse rounded-2xl bg-cream-soft" />
+      ) : offres.isError ? (
+        <p className="mt-4 flex items-start gap-2 text-sm text-danger">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          {adminErrorMessage(offres.error)}
+        </p>
+      ) : parChef.size === 0 ? (
+        <p className="mt-4 text-sm text-ink-soft">
+          Aucun batch cooker n&apos;a encore créé de formule.
+        </p>
+      ) : (
+        <div className="mt-4 space-y-5">
+          {[...parChef.entries()].map(([chefId, groupe]) => (
+            <div key={chefId}>
+              <Link
+                href={`/batchcookers/${chefId}`}
+                className="text-sm font-semibold text-navy hover:text-terra"
+              >
+                {groupe.nom}
+              </Link>
+              <ul className="mt-2 divide-y divide-[rgba(0,35,75,0.08)] rounded-2xl border border-[rgba(0,35,75,0.08)]">
+                {groupe.offres.map((o) => (
+                  <li
+                    key={o.id}
+                    className={cn(
+                      "flex flex-wrap items-center justify-between gap-3 px-4 py-3",
+                      !o.active && "opacity-60",
+                    )}
+                  >
+                    <div className="min-w-0">
+                      <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-navy">
+                        {o.name}
+                        {!o.active && <Badge tone="neutral">Désactivée</Badge>}
+                      </p>
+                      <p className="mt-0.5 text-xs text-ink-soft">
+                        {duree(o.durationMinutes)}
+                        {" · "}
+                        {o.shoppingIncluded
+                          ? `courses comprises (${euros(Math.round(o.shoppingFeeCents / 100))})`
+                          : "courses par le client"}
+                        {" · "}
+                        {o.bookingsCount} réservation{o.bookingsCount > 1 ? "s" : ""}
+                      </p>
+                    </div>
+                    <p className="font-display text-lg font-bold text-navy">
+                      {euros(Math.round(o.priceCents / 100))}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** 180 → « 3 h », 90 → « 1 h 30 », 45 → « 45 min ». */
+function duree(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m} min`;
+  return m === 0 ? `${h} h` : `${h} h ${String(m).padStart(2, "0")}`;
 }
 
 /* ── Une formule ───────────────────────────────────────────────────────────── */

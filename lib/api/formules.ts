@@ -74,6 +74,36 @@ export function useUpdateFormule() {
   });
 }
 
+/* ── Les formules des batch cookers ─────────────────────────────────────────
+   `GET /admin/service-offers`. Chaque batch cooker vend ses propres formules
+   (une durée, un prix) : ce ne sont pas les formules de la plateforme
+   ci-dessus. La console les lit ; c'est le batch cooker qui les modifie.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+export interface ChefFormule {
+  id: string;
+  name: string;
+  description: string | null;
+  durationMinutes: number;
+  /** Centimes, TTC. */
+  priceCents: number;
+  currency: string;
+  shoppingIncluded: boolean;
+  shoppingFeeCents: number;
+  active: boolean;
+  chef: { id: string; displayName: string };
+  bookingsCount: number;
+}
+
+export function useChefFormules() {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: ["admin", "service-offers"],
+    queryFn: () => apiFetch<ChefFormule[]>("/admin/service-offers"),
+    staleTime: 60 * 1000,
+  });
+}
+
 /** Le nom d'une formule depuis son identifiant, ou l'identifiant. */
 export const formuleName = (list: Formule[], id: string) =>
   list.find((f) => f.id === id)?.name ?? id;
