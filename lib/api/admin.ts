@@ -545,6 +545,23 @@ export function useSetChefTierNames() {
   });
 }
 
+/**
+ * `PATCH /admin/chefs/{id}/tier` — le palier d'un batch cooker, tracé dans le
+ * journal d'audit. `{id}` est l'identifiant de la page batch cooker.
+ */
+export function useSetChefTier(chefProfileId: string) {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (tier: ChefTier) =>
+      apiFetch<unknown>(`/admin/chefs/${chefProfileId}/tier`, {
+        method: "PATCH",
+        body: { tier },
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "chefs"] }),
+  });
+}
+
 /* ── Supprimer un compte ───────────────────────────────────────────────────── */
 
 export interface DeletedUser {
