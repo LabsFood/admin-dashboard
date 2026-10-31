@@ -3,15 +3,22 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import {
+  AlertTriangle,
   Bell,
   Building2,
   Check,
   CreditCard,
+  Layers2,
+  Loader2,
   Lock,
   Save,
   UserCircle2,
 } from "lucide-react";
+import InfoPopover from "@/components/ui/InfoPopover";
 import { useAuth } from "@/lib/auth";
+import { useChefTierNames, useSetChefTierNames } from "@/lib/api/admin";
+import { CHEF_TIERS, type ChefTier } from "@/lib/api/chefs";
+import { adminErrorMessage } from "@/lib/api/errors";
 
 export default function ParametresPage() {
   const { user } = useAuth();
@@ -164,7 +171,92 @@ export default function ParametresPage() {
           />
         </Section>
       </div>
+
+      <div className="lg:col-span-2">
+        <PaliersBatchCookers />
+      </div>
     </div>
+  );
+}
+
+/**
+ * Le nom des quatre paliers (module Recettes, R34), branché sur l'API :
+ * `/admin/settings/chef-tiers`. Le batch cooker voit le nouveau nom dans son
+ * espace sans déploiement.
+ */
+function PaliersBatchCookers() {
+  const noms = useChefTierNames();
+  const save = useSetChefTierNames();
+  const [brouillon, setBrouillon] = useState<Record<ChefTier, string> | null>(null);
+  const valeurs = brouillon ?? noms.data?.labels;
+  const incomplet = !valeurs || CHEF_TIERS.some((t) => !valeurs[t].trim());
+
+  return (
+    <Section title="Paliers des batch cookers" eyebrow="Recettes" Icon={Layers2}>
+      <p className="flex items-center gap-1 text-xs text-ink-mid">
+        Le nom de chaque palier, tel que le voient le batch cooker et la console.
+        <InfoPopover label="À quoi servent les paliers ?">
+          Chaque batch cooker reçoit un palier depuis sa fiche (le premier
+          d&apos;office). Renommer un palier ne change le palier de personne.
+          Aucune facturation et aucune règle de publication n&apos;en dépendent
+          encore.
+        </InfoPopover>
+      </p>
+
+      {noms.isPending ? (
+        <div className="h-24 animate-pulse rounded-xl bg-cream-soft" />
+      ) : noms.isError || !valeurs ? (
+        <p role="alert" className="flex items-start gap-1.5 text-[12px] text-danger">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          {adminErrorMessage(noms.error)}
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {CHEF_TIERS.map((tier, i) => (
+            <label key={tier} className="block">
+              <span className="field-label">
+                Palier {i + 1} <span className="font-mono">({tier})</span>
+              </span>
+              <input
+                value={valeurs[tier]}
+                maxLength={40}
+                onChange={(e) => setBrouillon({ ...valeurs, [tier]: e.target.value })}
+                aria-invalid={!valeurs[tier].trim()}
+                className="input-base"
+              />
+            </label>
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() =>
+            brouillon && save.mutate(brouillon, { onSuccess: () => setBrouillon(null) })
+          }
+          disabled={!brouillon || incomplet || save.isPending}
+          className="btn btn-primary"
+        >
+          {save.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          ) : (
+            <Save className="h-4 w-4" aria-hidden />
+          )}
+          Enregistrer les noms
+        </button>
+        {save.isSuccess && !brouillon && (
+          <span className="flex items-center gap-1.5 text-[12px] text-success">
+            <Check className="h-3.5 w-3.5" aria-hidden /> Noms enregistrés.
+          </span>
+        )}
+        {save.isError && (
+          <span role="alert" className="text-[12px] text-danger">
+            {adminErrorMessage(save.error)}
+          </span>
+        )}
+      </div>
+    </Section>
   );
 }
 
