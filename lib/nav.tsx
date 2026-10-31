@@ -8,11 +8,13 @@ import {
   BookOpen,
   Tags,
   Milk,
-  UserPlus,
   Mail,
   Star,
-  ChefHat,
+  ClipboardCheck,
+  Receipt,
   Settings,
+  ShieldCheck,
+  UserCog,
   type LucideIcon,
 } from "lucide-react";
 
@@ -69,7 +71,7 @@ export const NAV_SECTIONS: NavSection[] = [
         Icon: MessageCircle,
         eyebrow: "Communication",
         title: "Messagerie",
-        subtitle: "Conversations avec les clients.",
+        subtitle: "Support, fils clients ↔ batch cookers, signalements.",
       },
       {
         href: "/clients",
@@ -88,9 +90,10 @@ export const NAV_SECTIONS: NavSection[] = [
         href: "/menus",
         label: "Plats & menus",
         Icon: UtensilsCrossed,
-        eyebrow: "Catalogue",
+        eyebrow: "Catalogue Lab's Food",
         title: "Plats & menus",
-        subtitle: "Le menu de la semaine et la bibliothèque de plats.",
+        subtitle:
+          "La bibliothèque de la maison, les menus assemblés et les semaines à l'ardoise.",
       },
       {
         href: "/recettes",
@@ -98,7 +101,16 @@ export const NAV_SECTIONS: NavSection[] = [
         Icon: BookOpen,
         eyebrow: "Inspiration",
         title: "Recettes du monde",
-        subtitle: "La carte des cuisines proposées par les chefs.",
+        subtitle: "Les plats de la maison, rangés par région culinaire.",
+      },
+      {
+        href: "/moderation",
+        label: "Modération",
+        Icon: ShieldCheck,
+        eyebrow: "Catalogue des batch cookers",
+        title: "Modération",
+        subtitle:
+          "Les plats et menus publiés par les batch cookers, à relire ou à retirer.",
       },
       {
         href: "/formules",
@@ -122,14 +134,6 @@ export const NAV_SECTIONS: NavSection[] = [
         subtitle: "Suivi des commandes de la boisson Kossam.",
       },
       {
-        href: "/candidatures",
-        label: "Candidatures chef",
-        Icon: UserPlus,
-        eyebrow: "Recrutement",
-        title: "Candidatures chef",
-        subtitle: "Candidatures reçues via « Devenir chef ».",
-      },
-      {
         href: "/contact",
         label: "Messages contact",
         Icon: Mail,
@@ -151,12 +155,29 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Organisation",
     items: [
       {
-        href: "/equipe",
-        label: "Équipe & chefs",
-        Icon: ChefHat,
-        eyebrow: "Ressources",
-        title: "Équipe & chefs",
-        subtitle: "Chefs, staff et zones de service.",
+        href: "/transactions",
+        label: "Transactions",
+        Icon: Receipt,
+        eyebrow: "Finances",
+        title: "Transactions",
+        subtitle: "Encaissements, commissions et versements, tous circuits confondus.",
+      },
+      {
+        href: "/batchcookers",
+        label: "Batch cookers",
+        Icon: ClipboardCheck,
+        eyebrow: "Recrutement & conformité",
+        title: "Batch cookers",
+        subtitle:
+          "Candidatures, pièces justificatives et validation des comptes.",
+      },
+      {
+        href: "/utilisateurs",
+        label: "Utilisateurs",
+        Icon: UserCog,
+        eyebrow: "Comptes & accès",
+        title: "Utilisateurs",
+        subtitle: "Création de comptes et attribution des rôles.",
       },
       {
         href: "/parametres",

@@ -7,25 +7,51 @@ import Logo from "./Logo";
 import { NAV_SECTIONS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
-import { RESERVATIONS } from "@/lib/mock/reservations";
-import { DEMANDES } from "@/lib/mock/demandes";
-import { THREADS } from "@/lib/mock/messages";
-import { CANDIDATURES } from "@/lib/mock/candidatures";
-import { CONTACT_MESSAGES } from "@/lib/mock/contact";
-import { initials } from "@/lib/utils";
+import { needsChef, useQuotes } from "@/lib/api/quotes";
+import { useChefApplications } from "@/lib/api/admin";
+import { isBookingOpen, useBookings } from "@/lib/api/bookings";
+// import { THREADS } from "@/lib/mock/messages";
+// import { CONTACT_MESSAGES } from "@/lib/mock/contact";
+// import { DEMANDES } from "@/lib/mock/demandes";
+import { useAdminConversationCounts } from "@/lib/api/messaging";
+import { useContactCounts } from "@/lib/api/contact";
 
-const BADGES: Record<string, number> = {
-  "/reservations": RESERVATIONS.filter((r) => r.status === "pending").length,
-  "/demandes": DEMANDES.filter((d) => d.status === "submitted").length,
-  "/messagerie": THREADS.reduce((n, t) => n + t.unreadCount, 0),
-  "/candidatures": CANDIDATURES.filter((c) => c.status === "new").length,
-  "/contact": CONTACT_MESSAGES.filter((c) => c.status === "new").length,
+/*
+ * Il ne reste plus de pastille de maquette : messagerie, contact, demandes,
+ * candidatures et réservations sont comptées sur l'API, plus bas. Une pastille
+ * est une promesse de travail à faire, et une fausse promesse envoie chercher
+ * pour rien — d'où ces lignes gardées en commentaire plutôt que rallumées.
+ */
+const BADGES_MAQUETTE: Record<string, number> = {
+  // "/messagerie": THREADS.reduce((n, t) => n + t.unreadCount, 0),
+  // "/contact": CONTACT_MESSAGES.filter((c) => c.status === "new").length,
+  // "/demandes": DEMANDES.filter((d) => d.status === "submitted").length,
 };
 
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { signOut } = useAuth();
+  // Ce qui attend l'équipe : messages support non lus et conversations signalées.
+  const messaging = useAdminConversationCounts().data;
+  const messagingBadge = (messaging?.unread ?? 0) + (messaging?.flagged ?? 0);
+  // Messages de contact que personne n'a encore ouverts.
+  const contactBadge = useContactCounts().data?.new ?? 0;
+
+  // Deux files réelles, lues une fois et partagées avec les écrans.
+  // Les demandes sur-mesure que personne ne peut encore traiter.
+  const aAttribuer = (useQuotes().data ?? []).filter(needsChef);
+  const candidatures = useChefApplications({ status: "submitted", limit: 1 });
+  // Le cache est partagé avec la vue d'ensemble et l'écran des réservations :
+  // la barre ne tire pas la base une seconde fois.
+  const reservations = useBookings();
+
+  const BADGES: Record<string, number> = {
+    ...BADGES_MAQUETTE,
+    "/demandes": aAttribuer.length,
+    "/batchcookers": candidatures.data?.meta?.total ?? 0,
+    "/reservations": (reservations.data?.data ?? []).filter(isBookingOpen).length,
+  };
 
   const handleLogout = () => {
     signOut();
@@ -37,30 +63,10 @@ export default function Sidebar() {
 
   return (
     <aside className="sticky top-4 my-4 ml-4 hidden h-[calc(100vh-2rem)] w-72 shrink-0 lg:flex">
-      <div className="flex h-full w-full flex-col overflow-hidden rounded-3xl bg-navy text-white shadow-[0_30px_70px_-30px_rgba(0,35,75,0.7)]">
+      <div className="flex h-full w-full flex-col overflow-hidden rounded-2xl bg-navy text-white">
         {/* Logo */}
-        <div className="px-5 pb-3 pt-5">
+        <div className="px-5 pb-5 pt-5">
           <Logo variant="light" />
-        </div>
-
-        {/* Profil */}
-        <div className="mx-4 mb-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3.5">
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-terra text-sm font-bold text-white">
-                {user ? initials(user.name) : "AD"}
-              </div>
-              <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-navy bg-success" />
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">
-                {user?.name ?? "Admin"}
-              </p>
-              <p className="truncate text-[11px] text-white/55">
-                {user?.role ?? "Console admin"}
-              </p>
-            </div>
-          </div>
         </div>
 
         {/* Navigation */}
@@ -73,7 +79,12 @@ export default function Sidebar() {
               <ul className="space-y-0.5">
                 {section.items.map(({ href, label, Icon }) => {
                   const active = isActive(href);
-                  const badge = BADGES[href];
+                  const badge =
+                    href === "/messagerie"
+                      ? messagingBadge
+                      : href === "/contact"
+                        ? contactBadge
+                        : BADGES[href];
                   return (
                     <li key={href}>
                       <Link
@@ -81,7 +92,7 @@ export default function Sidebar() {
                         className={cn(
                           "group flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors",
                           active
-                            ? "bg-terra font-semibold text-white shadow-[0_10px_24px_-12px_rgba(217,105,65,0.8)]"
+                            ? "bg-terra font-semibold text-white"
                             : "text-white/70 hover:bg-white/[0.07] hover:text-white",
                         )}
                       >
@@ -115,7 +126,7 @@ export default function Sidebar() {
         <div className="space-y-2 p-4">
           <Link
             href="/reservations?nouvelle=1"
-            className="group flex w-full items-center justify-between rounded-2xl bg-gradient-to-br from-terra to-terra-deep px-4 py-3 text-sm font-semibold text-white transition-shadow hover:shadow-[0_18px_36px_-12px_rgba(217,105,65,0.7)]"
+            className="group flex w-full items-center justify-between rounded-lg bg-terra px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-terra-deep"
           >
             <span className="flex items-center gap-2">
               <ChefHat className="h-4 w-4" />

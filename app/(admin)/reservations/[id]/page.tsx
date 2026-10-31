@@ -1,61 +1,118 @@
 "use client";
 
-import { useState } from "react";
+import { use, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
+  CalendarClock,
   CalendarRange,
-  Check,
   ChefHat,
   Clock,
+  Info,
+  Loader2,
   MapPin,
-  MessageCircle,
-  Phone,
   Receipt,
+  RefreshCw,
+  RotateCw,
   ShoppingBasket,
   Sparkles,
+  UserRound,
   Users,
+  UtensilsCrossed,
+  Wallet,
 } from "lucide-react";
 import Badge from "@/components/ui/Badge";
-import { euros, formatDateLong } from "@/lib/utils";
-import { reservationTone, paymentTone, paymentLabel } from "@/lib/status";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/Toaster";
+import { cn, euros, formatDateLong } from "@/lib/utils";
+import { aisleLabel } from "@/lib/recipe-fields";
 import {
-  reservationById,
-  RESERVATION_STATUS_LABEL,
-  RESERVATION_STATUS_FLOW,
-} from "@/lib/mock/reservations";
-import { clientById } from "@/lib/mock/clients";
-import type { ReservationStatus } from "@/lib/mock/types";
+  BOOKING_STATUSES,
+  bookingPortions,
+  bookingStatusLabel,
+  bookingStatusText,
+  isBookingOpen,
+  money,
+  useBooking,
+  useBookingShoppingList,
+  useRegenerateShoppingList,
+  useUpdateBooking,
+  type BookingStatus,
+} from "@/lib/api/bookings";
+import { adminErrorMessage } from "@/lib/api/errors";
 
-export default function ReservationDetailPage() {
-  const params = useParams<{ id: string }>();
-  const reservation = reservationById(params.id);
-  const [status, setStatus] = useState<ReservationStatus>(
-    reservation?.status ?? "pending",
-  );
+/* ─────────────────────────────────────────────────────────────────────────────
+   Une réservation — `GET /admin/bookings/{id}`.
 
-  if (!reservation) {
+   Elle arrive complète depuis le 16/10 : le client, le batch cooker **par son
+   nom**, l'adresse de la session, les plats avec la version de recette
+   épinglée, les photos, la part nette et la commission, et la demande de
+   report en cours s'il y en a une.
+
+   Deux actions, et elles ne se valent pas :
+
+   - **recalculer la liste de courses** est sans danger — elle repart des
+     recettes de la prestation et garde les corrections du batch cooker ;
+   - **changer le statut** est l'outil du support. La console peut poser
+     n'importe quel statut, y compris ouvrir un litige, sans les garde-fous
+     des deux autres points de vue. Chaque écriture est auditée — c'est pour
+     réparer, pas pour aller vite.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+export default function ReservationDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+  const toast = useToast();
+  const query = useBooking(id);
+  const courses = useBookingShoppingList(id);
+  const regenerate = useRegenerateShoppingList();
+  const update = useUpdateBooking();
+  const [aRecalculer, setARecalculer] = useState(false);
+  const [aPoser, setAPoser] = useState<BookingStatus | null>(null);
+
+  if (query.isPending) {
     return (
-      <div className="mx-auto max-w-md py-20 text-center">
-        <p className="mb-3 text-5xl">🍳</p>
-        <h2 className="font-display text-2xl font-bold text-navy">
-          Réservation introuvable
-        </h2>
-        <p className="mt-1 text-sm text-ink-mid">
-          Cette session n&apos;existe pas ou a été supprimée.
-        </p>
-        <Link href="/reservations" className="btn btn-primary mt-6">
-          <ArrowLeft className="h-4 w-4" /> Retour aux réservations
-        </Link>
+      <div className="space-y-4">
+        <div className="h-36 animate-pulse rounded-3xl bg-paper" />
+        <div className="h-64 animate-pulse rounded-lg bg-paper" />
       </div>
     );
   }
 
-  const client = clientById(reservation.clientId);
-  const stepIndex = RESERVATION_STATUS_FLOW.indexOf(status);
-  const credit = reservation.amountTTC - reservation.amountAfterTax;
+  if (query.isError || !query.data) {
+    return (
+      <section className="card mx-auto max-w-lg p-6 text-center">
+        <h2 className="font-display text-lg font-bold text-navy">
+          Réservation introuvable
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed text-ink-mid">
+          {adminErrorMessage(query.error)}
+        </p>
+        <div className="mt-5 flex flex-wrap justify-center gap-2">
+          <button onClick={() => query.refetch()} className="btn btn-outline btn-sm">
+            <RotateCw className="h-3 w-3" aria-hidden /> Réessayer
+          </button>
+          <Link href="/reservations" className="btn btn-primary btn-sm">
+            Toutes les réservations
+          </Link>
+        </div>
+      </section>
+    );
+  }
+
+  const b = query.data;
+  const portions = bookingPortions(b);
+  const groupes = courses.data?.groups ?? [];
+  const net = money(b.netCents);
+  /* Le frais de courses a sa ligne : il entre dans le crédit d'impôt et dans
+     l'assiette de la commission, il ne doit pas disparaître dans le prix. */
+  const courses_ = money(b.shoppingFeeCents);
+  const commission = money(b.commissionCents);
+  const paye = money(b.paidCents);
 
   return (
     <div className="space-y-6">
@@ -63,187 +120,186 @@ export default function ReservationDetailPage() {
         href="/reservations"
         className="inline-flex items-center gap-2 text-xs text-ink-mid hover:text-navy"
       >
-        <ArrowLeft className="h-3.5 w-3.5" /> Toutes les réservations
+        <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Toutes les réservations
       </Link>
 
-      {/* En-tête */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
+      {/* ── L'essentiel ──────────────────────────────────────────────────── */}
+      <motion.section
+        initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
         className="relative overflow-hidden rounded-3xl bg-navy p-6 text-white lg:p-8"
       >
-        <div className="pointer-events-none absolute -right-20 -top-20 h-60 w-60 rounded-full bg-terra/25 blur-3xl" />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-terra/25 blur-3xl"
+        />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="flex items-center gap-3">
+          <div className="min-w-0">
+            {b.reference && (
               <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-terra-soft">
-                {reservation.reference}
+                {b.reference}
               </p>
-              <Badge tone={reservationTone[status]} dot>
-                {RESERVATION_STATUS_LABEL[status]}
-              </Badge>
-            </div>
-            <h2 className="mt-2 font-display text-3xl font-bold lg:text-4xl">
-              Formule {reservation.formula}
+            )}
+            <h2 className="mt-2 font-display text-3xl font-bold capitalize leading-tight lg:text-4xl">
+              {b.startsAt ? formatDateLong(b.startsAt) : "Date à confirmer"}
             </h2>
             <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/65">
+              {b.timeSlot && (
+                <span className="inline-flex items-center gap-1.5">
+                  <Clock className="h-4 w-4 text-terra-soft" aria-hidden /> {b.timeSlot}
+                </span>
+              )}
+              {portions > 0 && (
+                <span className="inline-flex items-center gap-1.5">
+                  <Users className="h-4 w-4 text-terra-soft" aria-hidden /> {portions}{" "}
+                  portions
+                </span>
+              )}
               <span className="inline-flex items-center gap-1.5">
-                <CalendarRange className="h-4 w-4 text-terra-soft" />
-                {formatDateLong(reservation.date)}
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <Clock className="h-4 w-4 text-terra-soft" />
-                {reservation.timeSlot}
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <ChefHat className="h-4 w-4 text-terra-soft" />
-                {reservation.chefName}
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <Users className="h-4 w-4 text-terra-soft" />
-                {reservation.persons} pers.
+                <CalendarRange className="h-4 w-4 text-terra-soft" aria-hidden />
+                {bookingStatusText(b.status)}
               </span>
             </p>
           </div>
-          <div className="lg:text-right">
-            <p className="font-display text-3xl font-bold text-terra-soft">
-              {euros(reservation.amountTTC)}
-            </p>
-            <p className="text-xs text-white/55">
-              soit {euros(reservation.amountAfterTax)} après crédit d&apos;impôt
-            </p>
-          </div>
+          {b.amountTtc != null && (
+            <div className="flex flex-col items-start lg:items-end">
+              <p className="font-display text-3xl font-bold text-terra-soft">
+                {euros(Math.round(b.amountTtc / 100))}
+              </p>
+              <p className="text-xs text-white/60">
+                payés par le client
+                {paye && b.paidCents !== b.amountTtc ? ` · ${paye} encaissés` : ""}
+              </p>
+            </div>
+          )}
         </div>
-      </motion.div>
+      </motion.section>
 
-      {/* Suivi + changement de statut */}
-      <section className="card p-6">
-        <div className="mb-5 flex items-center justify-between">
-          <h3 className="font-display text-lg font-bold text-navy">
-            Suivi de la session
-          </h3>
-        </div>
-        {status === "cancelled" ? (
-          <p className="rounded-xl bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
-            Cette réservation a été annulée.
+      {/* ── Un report en cours ───────────────────────────────────────────── */}
+      {b.reschedule?.status === "pending" && (
+        <section className="card border-terra/30 bg-terra/8 p-5">
+          <p className="flex items-start gap-2 text-[13px] font-semibold text-terra-deep">
+            <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            Un report attend une réponse
           </p>
-        ) : (
-          <>
-            <div className="relative grid grid-cols-5 gap-2">
-              <div className="absolute left-0 right-0 top-4 h-0.5 bg-cream-deep" />
-              <div
-                className="absolute left-0 top-4 h-0.5 bg-terra transition-all"
-                style={{
-                  width: `${(stepIndex / (RESERVATION_STATUS_FLOW.length - 1)) * 100}%`,
-                }}
-              />
-              {RESERVATION_STATUS_FLOW.map((step, i) => {
-                const reached = i <= stepIndex;
-                return (
-                  <div
-                    key={step}
-                    className="relative flex flex-col items-center text-center"
-                  >
-                    <span
-                      className={`relative z-10 flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
-                        reached
-                          ? "bg-terra text-white"
-                          : "bg-cream-deep text-ink-soft"
-                      }`}
-                    >
-                      {reached ? (
-                        <Check className="h-4 w-4" strokeWidth={3} />
-                      ) : (
-                        <span className="h-2 w-2 rounded-full bg-current" />
-                      )}
-                    </span>
-                    <p
-                      className={`mt-2 text-[10px] font-semibold uppercase tracking-[0.08em] ${
-                        reached ? "text-navy" : "text-ink-soft"
-                      }`}
-                    >
-                      {RESERVATION_STATUS_LABEL[step]}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-[rgba(0,35,75,0.06)] pt-4">
-              <span className="mr-1 text-xs font-semibold text-ink-soft">
-                Mettre à jour :
-              </span>
-              {RESERVATION_STATUS_FLOW.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setStatus(s)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    s === status
-                      ? "bg-navy text-white"
-                      : "bg-cream-soft text-ink-mid hover:bg-cream-deep"
-                  }`}
-                >
-                  {RESERVATION_STATUS_LABEL[s]}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-      </section>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-ink-mid">
+            {b.reschedule.proposedBy === "chef" ? "Le batch cooker" : "Le client"} propose
+            le {formatDateLong(b.reschedule.to)} au lieu du{" "}
+            {formatDateLong(b.reschedule.from)}.
+            {b.reschedule.expiresAt &&
+              ` Sans réponse avant le ${formatDateLong(b.reschedule.expiresAt)}, la prestation garde son heure.`}
+          </p>
+          <p className="mt-1.5 text-[12px] leading-relaxed text-ink-soft">
+            La console ne répond pas à leur place : aucune route ne le permet, et
+            ce serait décider pour eux.
+          </p>
+        </section>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Colonne principale */}
         <div className="space-y-6 lg:col-span-2">
-          {/* Plats */}
+          {/* ── Plats ───────────────────────────────────────────────────── */}
           <section className="card p-6">
             <h3 className="mb-4 flex items-center gap-2 font-display text-lg font-bold text-navy">
-              <ChefHat className="h-4 w-4 text-terra" /> Plats prévus (
-              {reservation.meals.length})
+              <UtensilsCrossed className="h-4 w-4 text-terra" aria-hidden /> Plats
+              commandés
             </h3>
-            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {reservation.meals.map((m) => (
-                <li
-                  key={m.name}
-                  className="flex items-center gap-3 rounded-2xl bg-cream-soft px-4 py-3"
-                >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-terra/12 text-xs font-bold text-terra-deep">
-                    {m.portions}
-                  </span>
-                  <p className="text-sm font-medium text-navy">{m.name}</p>
-                </li>
-              ))}
-            </ul>
+            {(b.meals?.length ?? 0) === 0 ? (
+              <p className="text-sm text-ink-soft">
+                Aucun plat rattaché à cette réservation.
+              </p>
+            ) : (
+              <ul className="divide-y divide-[rgba(0,35,75,0.06)]">
+                {b.meals!.map((m) => (
+                  <li
+                    key={m.mealId}
+                    className="flex items-center justify-between gap-3 py-2.5"
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-navy">
+                        {m.name ?? "Plat retiré du catalogue"}
+                      </span>
+                      <span className="block font-mono text-[11px] text-ink-soft">
+                        {m.recipeVersion != null
+                          ? `recette v${m.recipeVersion} · ${m.mealId.slice(0, 8)}…`
+                          : `${m.mealId.slice(0, 8)}…`}
+                      </span>
+                    </span>
+                    <Badge tone="navy" dot={false}>
+                      {m.portions} portion{m.portions > 1 ? "s" : ""}
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
 
-          {/* Liste de courses */}
+          {/* ── Liste de courses ───────────────────────────────────────── */}
           <section className="card p-6">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="flex items-center gap-2 font-display text-lg font-bold text-navy">
-                <ShoppingBasket className="h-4 w-4 text-terra" /> Liste de
-                courses
-              </h3>
-              <Badge tone={reservation.shoppingByClient ? "info" : "teal"}>
-                {reservation.shoppingByClient
-                  ? "Courses : client"
-                  : "Courses : Lab's Food"}
-              </Badge>
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="flex items-center gap-2 font-display text-lg font-bold text-navy">
+                  <ShoppingBasket className="h-4 w-4 text-terra" aria-hidden /> Liste de
+                  courses
+                </h3>
+                <p className="mt-0.5 text-[12px] text-ink-soft">
+                  {courses.data?.generatedAt
+                    ? `Calculée le ${formatDateLong(courses.data.generatedAt)}`
+                    : "Calculée depuis les recettes de la prestation"}
+                  {b.shoppingByClient
+                    ? " · les courses sont à la charge du client"
+                    : " · les courses sont à la charge du batch cooker"}
+                </p>
+              </div>
+              <button
+                onClick={() => setARecalculer(true)}
+                disabled={regenerate.isPending}
+                className="btn btn-outline btn-sm shrink-0"
+              >
+                {regenerate.isPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                ) : (
+                  <RefreshCw className="h-3 w-3" aria-hidden />
+                )}
+                Recalculer
+              </button>
             </div>
-            {reservation.shoppingList ? (
+
+            {courses.isPending ? (
+              <div className="space-y-2">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="h-9 animate-pulse rounded-xl bg-cream-soft" />
+                ))}
+              </div>
+            ) : groupes.length === 0 ? (
+              <p className="text-sm leading-relaxed text-ink-soft">
+                Aucune liste. Elle se calcule depuis les recettes des plats : si
+                aucun n&apos;a de recette, il n&apos;y a rien à calculer.
+              </p>
+            ) : (
               <div className="space-y-4">
-                {reservation.shoppingList.map((aisle) => (
-                  <div key={aisle.aisle}>
-                    <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-soft">
-                      {aisle.aisle}
+                {groupes.map((g) => (
+                  <div key={g.aisle || "sans-rayon"}>
+                    <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.16em] text-ink-soft">
+                      {aisleLabel(g.aisle) ?? "Sans rayon"}
                     </p>
                     <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {aisle.items.map((it) => (
+                      {g.lines.map((l, i) => (
                         <li
-                          key={it.name}
-                          className="flex items-center justify-between rounded-xl bg-cream-soft px-3 py-2 text-sm"
+                          key={`${l.name}-${i}`}
+                          className="flex items-center justify-between gap-2 rounded-xl bg-cream-soft px-3 py-2 text-sm"
                         >
-                          <span className="text-navy">{it.name}</span>
-                          <span className="text-xs text-ink-soft">
-                            {it.qty}
+                          <span className="min-w-0 text-navy">
+                            {l.name}
+                            {l.edited && (
+                              <span className="ml-2 text-[10px] font-semibold uppercase text-terra-deep">
+                                corrigée
+                              </span>
+                            )}
+                          </span>
+                          <span className="shrink-0 text-xs tabular-nums text-ink-soft">
+                            {l.qty.toLocaleString("fr-FR")} {l.unit}
                           </span>
                         </li>
                       ))}
@@ -251,127 +307,254 @@ export default function ReservationDetailPage() {
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="text-sm text-ink-soft">
-                Aucune liste détaillée — la liste sera générée à la
-                confirmation.
-              </p>
             )}
           </section>
 
-          {/* Notes */}
-          {reservation.notes && (
-            <section className="rounded-3xl border border-terra/30 bg-terra-pale/30 p-5">
-              <p className="mb-1.5 flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-terra-deep">
-                <Sparkles className="h-3.5 w-3.5" /> Consignes du client
+          {/* ── Consignes et photos ────────────────────────────────────── */}
+          {b.notes && (
+            <section className="card p-6">
+              <h3 className="mb-2 flex items-center gap-2 font-display text-base font-bold text-navy">
+                <Sparkles className="h-4 w-4 text-terra" aria-hidden /> Consignes du
+                client
+              </h3>
+              <p className="rounded-xl bg-cream-soft px-4 py-3 text-sm leading-relaxed text-ink-mid">
+                {b.notes}
               </p>
-              <p className="text-sm text-navy">{reservation.notes}</p>
+            </section>
+          )}
+
+          {(b.photos?.length ?? 0) > 0 && (
+            <section className="card p-6">
+              <h3 className="mb-3 font-display text-base font-bold text-navy">
+                Photos de la session
+              </h3>
+              <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {b.photos!.map((p) => (
+                  <li key={p.id} className="overflow-hidden rounded-xl bg-cream-soft">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={p.url}
+                      alt={p.caption ?? ""}
+                      className="aspect-[4/3] w-full object-cover"
+                    />
+                  </li>
+                ))}
+              </ul>
             </section>
           )}
         </div>
 
-        {/* Sidebar */}
+        {/* ── Colonne de droite ─────────────────────────────────────────── */}
         <aside className="space-y-4">
-          {/* Client */}
           <section className="card p-5">
-            <h4 className="mb-3 font-display text-base font-bold text-navy">
-              Client
-            </h4>
-            <p className="text-sm font-semibold text-navy">
-              {reservation.clientName}
-            </p>
-            {client && (
-              <div className="mt-2 space-y-1.5 text-xs text-ink-mid">
-                <p className="flex items-center gap-1.5">
-                  <Phone className="h-3.5 w-3.5 text-ink-soft" />
-                  {client.phone}
+            <h3 className="mb-3 flex items-center gap-2 font-display text-base font-bold text-navy">
+              <UserRound className="h-4 w-4 text-terra" aria-hidden /> Le client
+            </h3>
+            {b.client ? (
+              <>
+                <p className="text-sm font-semibold text-navy">
+                  {b.client.name ?? "Nom non renseigné"}
                 </p>
-                <p className="flex items-start gap-1.5">
-                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-soft" />
-                  {reservation.address}
-                </p>
-              </div>
-            )}
-            {client && (
-              <Link
-                href={`/clients/${client.id}`}
-                className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-terra hover:underline"
-              >
-                Voir la fiche client
-              </Link>
+                <Link
+                  href={`/clients/${b.client.id}`}
+                  className="btn btn-outline btn-sm mt-3 w-full"
+                >
+                  Sa fiche client
+                </Link>
+              </>
+            ) : (
+              <p className="text-sm text-ink-soft">
+                Client non renvoyé pour cette réservation.
+              </p>
             )}
           </section>
 
-          {/* Récap paiement */}
           <section className="card p-5">
-            <h4 className="mb-3 flex items-center gap-2 font-display text-base font-bold text-navy">
-              <Receipt className="h-4 w-4 text-terra" /> Facturation
-            </h4>
-            <ul className="space-y-2 text-sm">
-              <Row label="Forfait TTC" value={euros(reservation.amountTTC)} />
-              <Row label="Crédit d'impôt SAP" value={`- ${euros(credit)}`} />
+            <h3 className="mb-3 flex items-center gap-2 font-display text-base font-bold text-navy">
+              <Receipt className="h-4 w-4 text-terra" aria-hidden /> Ce que paie le
+              client
+            </h3>
+            <dl className="space-y-1.5 text-[13px]">
+              <Row label="Prestation" value={money(b.priceCents) ?? "—"} />
               <Row
-                label="Reste à charge"
-                value={euros(reservation.amountAfterTax)}
-                bold
+                label="Courses"
+                value={
+                  b.shoppingByClient
+                    ? "à la charge du client"
+                    : (courses_ ?? "non facturées")
+                }
               />
-            </ul>
-            <div className="mt-3 border-t border-[rgba(0,35,75,0.06)] pt-3">
-              <Badge tone={paymentTone[reservation.paymentStatus]} dot>
-                {paymentLabel[reservation.paymentStatus]}
-              </Badge>
+              <Row label="Total TTC" value={money(b.amountTtc) ?? "—"} />
+              <Row
+                label="Après crédit d'impôt"
+                value={money(b.amountAfterTax) ?? "—"}
+              />
+              {b.paidCents != null && (
+                <Row label="Déjà encaissé" value={money(b.paidCents) ?? "—"} />
+              )}
+            </dl>
+          </section>
+
+          <section className="card p-5">
+            <h3 className="mb-3 flex items-center gap-2 font-display text-base font-bold text-navy">
+              <ChefHat className="h-4 w-4 text-terra" aria-hidden /> Le batch cooker
+            </h3>
+            {b.chef ? (
+              <>
+                <p className="text-sm font-semibold text-navy">
+                  {b.chef.displayName ?? "Nom non renseigné"}
+                </p>
+                {b.serviceOffer?.name && (
+                  <p className="mt-0.5 text-[12px] text-ink-soft">
+                    Offre réservée : {b.serviceOffer.name}
+                  </p>
+                )}
+                {net && (
+                  <dl className="hairline mt-3 space-y-1.5 border-t pt-3 text-[13px]">
+                    <Row
+                      label={b.commissionEstimated ? "Net estimé" : "Net perçu"}
+                      value={net}
+                    />
+                    {commission && <Row label="Commission" value={commission} />}
+                  </dl>
+                )}
+                {b.commissionEstimated && (
+                  <p className="mt-2 text-[11px] leading-relaxed text-ink-soft">
+                    Estimé : la commission se fixe au paiement.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-ink-soft">
+                Aucun batch cooker assigné à cette réservation.
+              </p>
+            )}
+          </section>
+
+          {(b.addressLine || b.city) && (
+            <section className="card p-5">
+              <h3 className="mb-2 flex items-center gap-2 font-display text-base font-bold text-navy">
+                <MapPin className="h-4 w-4 text-terra" aria-hidden /> Où
+              </h3>
+              <p className="text-[13px] leading-relaxed text-ink-mid">
+                {b.addressLine}
+                {b.addressLine && b.city ? ", " : ""}
+                {b.city}
+              </p>
+              {b.arrivedAt && (
+                <p className="mt-2 text-[12px] text-ink-soft">
+                  Arrivée pointée le {formatDateLong(b.arrivedAt)}
+                </p>
+              )}
+            </section>
+          )}
+
+          {/* ── L'outil du support ─────────────────────────────────────── */}
+          <section className="card p-5">
+            <h3 className="flex items-center gap-2 font-display text-base font-bold text-navy">
+              <Wallet className="h-4 w-4 text-terra" aria-hidden /> Forcer un statut
+            </h3>
+            <p className="mt-2 text-[13px] leading-relaxed text-ink-mid">
+              La console passe outre les règles du client et du batch cooker.
+              Chaque changement est <strong className="font-semibold">audité</strong> :
+              c&apos;est pour réparer une situation, pas pour aller plus vite.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {BOOKING_STATUSES.filter((s) => s !== b.status).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setAPoser(s)}
+                  disabled={update.isPending}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
+                    s === "disputed" || s === "cancelled"
+                      ? "bg-danger-soft text-danger hover:bg-danger/15"
+                      : "bg-cream-soft text-ink-mid hover:bg-cream-deep",
+                  )}
+                >
+                  {bookingStatusLabel[s]}
+                </button>
+              ))}
             </div>
           </section>
 
-          {/* Actions */}
-          <Link
-            href="/messagerie"
-            className="flex items-center gap-3 rounded-3xl bg-teal p-4 text-white transition-transform hover:-translate-y-0.5"
-          >
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
-              <MessageCircle className="h-4 w-4" />
-            </span>
-            <div className="text-sm">
-              <p className="font-semibold">Contacter le client</p>
-              <p className="text-xs text-white/60">Ouvrir la messagerie</p>
-            </div>
-          </Link>
-
-          <button
-            onClick={() => setStatus("cancelled")}
-            className="w-full text-center text-xs text-ink-soft transition-colors hover:text-danger"
-          >
-            Annuler cette réservation
-          </button>
+          {!isBookingOpen(b) && (
+            <p className="flex items-start gap-2 px-1 text-[12px] leading-relaxed text-ink-soft">
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              Cette réservation n&apos;est plus en cours : recalculer sa liste de
+              courses n&apos;a plus d&apos;effet utile.
+            </p>
+          )}
         </aside>
       </div>
+
+      <ConfirmDialog
+        open={aRecalculer}
+        onClose={() => setARecalculer(false)}
+        onConfirm={() =>
+          regenerate.mutate(b.id, {
+            onSuccess: () => {
+              setARecalculer(false);
+              toast.success(
+                "Liste de courses recalculée",
+                "Les corrections du batch cooker ont été conservées.",
+              );
+            },
+            onError: (e) => toast.error("Le recalcul a échoué", adminErrorMessage(e)),
+          })
+        }
+        pending={regenerate.isPending}
+        title="Recalculer la liste de courses ?"
+        lead="Elle repart des versions de recettes que cette prestation cuisine, mises à l'échelle des portions commandées."
+        detail="Les corrections du batch cooker sont conservées : le geste est sans danger, et utile après un changement de plats ou de portions."
+        confirmLabel="Recalculer"
+      />
+
+      <ConfirmDialog
+        open={aPoser !== null}
+        onClose={() => setAPoser(null)}
+        onConfirm={() =>
+          aPoser &&
+          update.mutate(
+            { id: b.id, patch: { status: aPoser } },
+            {
+              onSuccess: () => {
+                setAPoser(null);
+                toast.success(
+                  `Statut posé : ${bookingStatusLabel[aPoser].toLowerCase()}`,
+                  "Le changement est inscrit au journal d'audit.",
+                );
+              },
+              onError: (e) => toast.error("Le statut n'a pas changé", adminErrorMessage(e)),
+            },
+          )
+        }
+        pending={update.isPending}
+        tone={aPoser === "disputed" || aPoser === "cancelled" ? "danger" : "primary"}
+        title={
+          aPoser
+            ? `Passer cette réservation en « ${bookingStatusLabel[aPoser].toLowerCase()} » ?`
+            : ""
+        }
+        lead={
+          aPoser === "disputed"
+            ? "Un litige est ouvert sur cette prestation. Le règlement et la rémunération en dépendent."
+            : aPoser === "cancelled"
+              ? "La prestation est annulée, quel que soit son état d'avancement, et le créneau est libéré."
+              : "Le client et le batch cooker verront ce statut dans leur espace."
+        }
+        detail="Vous passez outre les règles habituelles, et le changement est inscrit au journal d'audit avec votre nom."
+        confirmLabel="Poser ce statut"
+      />
     </div>
   );
 }
 
-function Row({
-  label,
-  value,
-  bold,
-}: {
-  label: string;
-  value: string;
-  bold?: boolean;
-}) {
+function Row({ label, value }: { label: string; value: string }) {
   return (
-    <li className="flex items-center justify-between">
-      <span className="text-xs uppercase tracking-[0.06em] text-ink-soft">
-        {label}
-      </span>
-      <span
-        className={
-          bold
-            ? "font-display text-lg font-bold text-navy"
-            : "font-medium text-navy"
-        }
-      >
-        {value}
-      </span>
-    </li>
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4">
+      <dt className="text-ink-soft">{label}</dt>
+      <dd className="font-semibold text-navy tabular-nums">{value}</dd>
+    </div>
   );
 }

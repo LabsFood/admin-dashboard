@@ -1,0 +1,134 @@
+"use client";
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Client bas niveau vers l'API Labs Food (NestJS).
+
+   Toutes les routes protégées attendent `Authorization: Bearer <token Clerk>`.
+   Le backend valide le token de session Clerk via JWKS et détermine le rôle
+   applicatif depuis Postgres (`users.role`).
+   ───────────────────────────────────────────────────────────────────────────── */
+
+import { useCallback } from "react";
+import { useAuth } from "@clerk/nextjs";
+
+// Résolue au build : les `NEXT_PUBLIC_*` sont inlinées par Next, elles ne sont
+// PAS relues au runtime. On retombe donc sur le proxy same-origin `/lf-api`
+// (rewrite dans `next.config.ts`) pour ne rien casser si la variable n'est pas
+// fournie au `docker build`. `||` et non `??` : une valeur vide doit aussi
+// déclencher le fallback.
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "/lf-api";
+
+/** Erreur typée levée sur réponse non-2xx. `status` reflète le code HTTP. */
+export class ApiError extends Error {
+  status: number;
+  body: unknown;
+  constructor(status: number, message: string, body?: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
+type Method = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
+
+interface ApiFetchOptions {
+  token: string | null;
+  method?: Method;
+  body?: unknown;
+  signal?: AbortSignal;
+  /** Délai au-delà duquel on cesse d'attendre. 0 pour ne pas limiter. */
+  timeoutMs?: number;
+}
+
+/**
+ * Un appel sans délai maximum ne revient jamais quand le réseau se fige — et
+ * un écran qui l'attend affiche son chargement pour toujours. C'est ce qui
+ * bloquait la console au réveil d'un onglet resté longtemps inactif.
+ */
+const DEFAULT_TIMEOUT_MS = 15_000;
+
+/**
+ * Appel HTTP bas niveau. Injecte le Bearer token et le Content-Type, parse le
+ * JSON, et lève une `ApiError` sur échec. Utilisé par les hooks react-query.
+ */
+export async function apiFetch<T>(
+  path: string,
+  { token, method = "GET", body, signal, timeoutMs = DEFAULT_TIMEOUT_MS }: ApiFetchOptions,
+): Promise<T> {
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+
+  // Le signal de l'appelant et notre minuterie, combinés : le premier des
+  // deux qui se déclenche interrompt la requête.
+  const minuterie = timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : null;
+  const abandon =
+    signal && minuterie
+      ? AbortSignal.any([signal, minuterie])
+      : (signal ?? minuterie ?? undefined);
+
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: abandon,
+    });
+  } catch (cause) {
+    const expire =
+      cause instanceof DOMException &&
+      (cause.name === "TimeoutError" || minuterie?.aborted === true);
+    throw new ApiError(
+      0,
+      expire
+        ? "L'API n'a pas répondu à temps."
+        : "Impossible de joindre l'API.",
+      cause,
+    );
+  }
+
+  const text = await res.text();
+  const data = text ? safeJson(text) : null;
+
+  if (!res.ok) {
+    const message =
+      (data as { message?: string } | null)?.message ??
+      `Requête ${path} échouée (${res.status}).`;
+    throw new ApiError(res.status, message, data);
+  }
+
+  return data as T;
+}
+
+function safeJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+/**
+ * Retourne un `fetcher` lié au token de session Clerk courant.
+ * À utiliser dans les `queryFn` / `mutationFn` de react-query.
+ *
+ * Hypothèse : le backend accepte le token de session Clerk par défaut. S'il
+ * exige un JWT template nommé, remplacer `getToken()` par
+ * `getToken({ template: "<nom>" })`.
+ */
+export function useApiFetch() {
+  const { getToken } = useAuth();
+
+  return useCallback(
+    async <T>(
+      path: string,
+      options: Omit<ApiFetchOptions, "token"> = {},
+    ): Promise<T> => {
+      const token = await getToken();
+      return apiFetch<T>(path, { ...options, token });
+    },
+    [getToken],
+  );
+}

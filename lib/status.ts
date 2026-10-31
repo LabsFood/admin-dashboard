@@ -1,33 +1,14 @@
 import type { BadgeTone } from "@/components/ui/Badge";
+import type { Role } from "@/lib/api/types";
+import type { ContactStatus } from "@/lib/api/contact";
 import type {
-  ReservationStatus,
-  DemandeStatus,
   KossamStatus,
   CandidatureStatus,
-  ContactStatus,
   PaymentStatus,
   ClientStatus,
-  MealStatus,
 } from "@/lib/mock/types";
 
 /* Correspondance statut → couleur de badge, centralisée. */
-
-export const reservationTone: Record<ReservationStatus, BadgeTone> = {
-  pending: "warning",
-  confirmed: "info",
-  shopping: "teal",
-  cooking: "terra",
-  delivered: "success",
-  cancelled: "danger",
-};
-
-export const demandeTone: Record<DemandeStatus, BadgeTone> = {
-  submitted: "warning",
-  "in-review": "info",
-  quoted: "terra",
-  accepted: "success",
-  declined: "danger",
-};
 
 export const kossamTone: Record<KossamStatus, BadgeTone> = {
   new: "warning",
@@ -78,14 +59,23 @@ export const clientLabel: Record<ClientStatus, string> = {
   inactive: "Inactif",
 };
 
-export const mealTone: Record<MealStatus, BadgeTone> = {
-  published: "success",
-  draft: "warning",
-  archived: "neutral",
+/* Rôle applicatif (`users.role`) — RBAC côté API. */
+
+export const roleTone: Record<Role, BadgeTone> = {
+  admin: "terra",
+  chef: "navy",
+  client: "teal",
 };
 
-export const mealLabel: Record<MealStatus, string> = {
-  published: "Publié",
-  draft: "Brouillon",
-  archived: "Archivé",
+export const roleLabel: Record<Role, string> = {
+  admin: "Admin",
+  chef: "Chef·fe",
+  client: "Client",
+};
+
+/** Ce que chaque rôle autorise — affiché sous le sélecteur de rôle. */
+export const roleHint: Record<Role, string> = {
+  admin: "Accès complet à la console d'administration.",
+  chef: "Personnel de cuisine — pas d'accès à la console.",
+  client: "Compte client standard — espace client uniquement.",
 };

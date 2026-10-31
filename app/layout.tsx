@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Montserrat, DM_Mono } from "next/font/google";
 import localFont from "next/font/local";
+import { ClerkProvider } from "@clerk/nextjs";
+import { frFR } from "@clerk/localizations";
 import "./globals.css";
 import Providers from "@/components/Providers";
 
@@ -49,7 +51,9 @@ export default function RootLayout({
       className={`${fraunces.variable} ${montserrat.variable} ${dmMono.variable}`}
     >
       <body className="min-h-screen antialiased">
-        <Providers>{children}</Providers>
+        <ClerkProvider localization={frFR}>
+          <Providers>{children}</Providers>
+        </ClerkProvider>
       </body>
     </html>
   );

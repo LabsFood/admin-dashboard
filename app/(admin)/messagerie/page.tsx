@@ -1,260 +1,248 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
-import { ArrowLeft, Phone, Search, Send, User } from "lucide-react";
-import { cn, formatTime, initials, timeAgo } from "@/lib/utils";
-import { THREADS } from "@/lib/mock/messages";
-import type { ChatThread, ChatMessage } from "@/lib/mock/types";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { AlertTriangle, Loader2, MessageCircle, Search } from "lucide-react";
+import ConversationThread from "@/components/admin/ConversationThread";
+import EmptyState from "@/components/ui/EmptyState";
+import FilterTabs from "@/components/ui/FilterTabs";
+import { cn, initials, timeAgo } from "@/lib/utils";
+import {
+  conversationTitle,
+  useAdminConversation,
+  useAdminConversationCounts,
+  useAdminConversations,
+  useAdminMarkRead,
+  useKeepThreadFresh,
+  type AdminConversation,
+  type InboxFilter,
+} from "@/lib/api/messaging";
 
-const QUICK = [
-  "Bonjour, je reviens vers vous rapidement 🙂",
-  "C'est noté, je transmets au chef.",
-  "Votre liste de courses arrive ce soir.",
-];
+/* ─────────────────────────────────────────────────────────────────────────────
+   Messagerie.
+
+   Trois vues sur les mêmes conversations : la boîte support (ce à quoi l'équipe
+   doit répondre), les fils entre clients et batch cookers (lecture et
+   intervention), et la file des signalements (un numéro ou un email détecté).
+
+   Le fil ouvert est dans l'URL (`?c=<id>`) : un lien vers une conversation
+   l'ouvre même si elle n'est pas dans la vue affichée.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+const EMPTY: Record<InboxFilter, { title: string; text: string }> = {
+  support: {
+    title: "Boîte support vide",
+    text: "Les messages envoyés à l'équipe par les clients et les batch cookers arrivent ici.",
+  },
+  pairs: {
+    title: "Aucune conversation",
+    text: "Les fils entre clients et batch cookers apparaissent dès le premier message.",
+  },
+  flagged: {
+    title: "Aucun signalement",
+    text: "Une conversation est signalée quand un numéro ou un email y est détecté.",
+  },
+};
 
 export default function MessageriePage() {
-  const [threads, setThreads] = useState<ChatThread[]>(THREADS);
-  const [activeId, setActiveId] = useState<string>(THREADS[0].id);
-  const [draft, setDraft] = useState("");
+  return (
+    // `useSearchParams` impose une frontière Suspense.
+    <Suspense fallback={null}>
+      <Messagerie />
+    </Suspense>
+  );
+}
+
+function Messagerie() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const selectedId = useSearchParams().get("c");
+
+  const [filter, setFilter] = useState<InboxFilter>("support");
   const [query, setQuery] = useState("");
-  const [mobileView, setMobileView] = useState<"list" | "chat">("list");
-  const scrollRef = useRef<HTMLDivElement>(null);
 
-  const active = threads.find((t) => t.id === activeId)!;
+  const conversations = useAdminConversations(filter);
+  const counts = useAdminConversationCounts();
+  const markRead = useAdminMarkRead();
 
+  const list = conversations.data?.data ?? [];
+  // Le fil ouvert peut ne pas être dans la vue courante (lien direct, autre onglet).
+  const fetched = useAdminConversation(
+    selectedId && !list.some((c) => c.id === selectedId) ? selectedId : null,
+  );
+  const active =
+    list.find((c) => c.id === selectedId) ?? (selectedId ? fetched.data : null) ?? null;
+
+  useKeepThreadFresh(active);
+
+  const select = (id: string | null) =>
+    router.replace(id ? `${pathname}?c=${id}` : pathname, { scroll: false });
+
+  // Ouvrir un fil support, ou y recevoir un message pendant qu'il est ouvert,
+  // c'est le lire — pour toute l'équipe, la boîte étant partagée.
+  const marked = useRef<string | null>(null);
   useEffect(() => {
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: "smooth",
-    });
-  }, [active.messages.length, activeId]);
+    if (!active || active.type !== "support" || active.unreadCount === 0) return;
+    const stamp = `${active.id}:${active.lastMessageAt}`;
+    if (marked.current === stamp) return;
+    marked.current = stamp;
+    markRead.mutate(active.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `markRead` change à chaque rendu
+  }, [active?.id, active?.unreadCount, active?.lastMessageAt]);
 
-  const openThread = (id: string) => {
-    setActiveId(id);
-    setMobileView("chat");
-    setThreads((ts) =>
-      ts.map((t) =>
-        t.id === id
-          ? {
-              ...t,
-              unreadCount: 0,
-              messages: t.messages.map((m) => ({ ...m, read: true })),
-            }
-          : t,
-      ),
-    );
-  };
-
-  const send = (text: string) => {
-    if (!text.trim()) return;
-    const msg: ChatMessage = {
-      id: `m_${Date.now()}`,
-      from: "admin",
-      text: text.trim(),
-      at: new Date().toISOString(),
-      read: true,
-    };
-    setThreads((ts) =>
-      ts.map((t) =>
-        t.id === activeId
-          ? {
-              ...t,
-              messages: [...t.messages, msg],
-              lastMessageAt: msg.at,
-            }
-          : t,
-      ),
-    );
-    setDraft("");
-  };
-
-  const filtered = threads
-    .filter((t) => t.clientName.toLowerCase().includes(query.toLowerCase()))
-    .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt));
+  const needle = query.trim().toLowerCase();
+  const filtered = needle
+    ? list.filter((c) => conversationTitle(c).toLowerCase().includes(needle))
+    : list;
 
   return (
-    <div className="card grid h-[calc(100vh-11rem)] grid-cols-1 overflow-hidden lg:grid-cols-[320px_1fr]">
-      {/* Liste des conversations */}
-      <div
-        className={cn(
-          "flex flex-col border-r border-[rgba(0,35,75,0.07)]",
-          mobileView === "chat" && "hidden lg:flex",
-        )}
-      >
-        <div className="border-b border-[rgba(0,35,75,0.07)] p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Rechercher un client…"
-              className="input-base pl-9"
-            />
-          </div>
-        </div>
-        <ul className="scroll-thin flex-1 overflow-y-auto">
-          {filtered.map((t) => {
-            const last = t.messages[t.messages.length - 1];
-            return (
-              <li key={t.id}>
-                <button
-                  onClick={() => openThread(t.id)}
-                  className={cn(
-                    "flex w-full items-start gap-3 border-b border-[rgba(0,35,75,0.05)] px-4 py-3.5 text-left transition-colors",
-                    t.id === activeId
-                      ? "bg-terra-pale/35"
-                      : "hover:bg-cream-soft",
-                  )}
-                >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-navy text-xs font-bold text-white">
-                    {initials(t.clientName)}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-sm font-semibold text-navy">
-                        {t.clientName}
-                      </p>
-                      <span className="shrink-0 text-[10px] text-ink-soft">
-                        {timeAgo(t.lastMessageAt)}
-                      </span>
-                    </div>
-                    <p className="truncate text-[11px] text-terra">
-                      {t.topic}
-                    </p>
-                    <p className="mt-0.5 truncate text-xs text-ink-soft">
-                      {last.from === "admin" && "Vous : "}
-                      {last.text}
-                    </p>
-                  </div>
-                  {t.unreadCount > 0 && (
-                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-terra px-1 font-mono text-[10px] font-bold text-white">
-                      {t.unreadCount}
-                    </span>
-                  )}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+    <div className="space-y-4">
+      <FilterTabs<InboxFilter>
+        value={filter}
+        onChange={setFilter}
+        options={[
+          { id: "support", label: "Support", count: counts.data?.unread },
+          { id: "pairs", label: "Clients ↔ batch cookers" },
+          { id: "flagged", label: "Signalements", count: counts.data?.flagged },
+        ]}
+      />
 
-      {/* Conversation */}
-      <div
-        className={cn(
-          "flex flex-col",
-          mobileView === "list" && "hidden lg:flex",
-        )}
-      >
-        {/* En-tête */}
-        <header className="flex items-center gap-3 border-b border-[rgba(0,35,75,0.07)] px-4 py-3.5">
-          <button
-            onClick={() => setMobileView("list")}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-cream-soft text-navy lg:hidden"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-navy text-xs font-bold text-white">
-            {initials(active.clientName)}
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-navy">
-              {active.clientName}
-            </p>
-            <p className="truncate text-[11px] text-ink-soft">
-              {active.topic}
-            </p>
-          </div>
-          <button className="flex h-9 w-9 items-center justify-center rounded-full bg-cream-soft text-navy hover:bg-cream-deep">
-            <Phone className="h-4 w-4" />
-          </button>
-          <button className="flex h-9 w-9 items-center justify-center rounded-full bg-cream-soft text-navy hover:bg-cream-deep">
-            <User className="h-4 w-4" />
-          </button>
-        </header>
-
-        {/* Messages */}
+      <div className="card grid h-[calc(100vh-15rem)] min-h-120 grid-cols-1 overflow-hidden lg:grid-cols-[320px_1fr]">
+        {/* Liste des conversations */}
         <div
-          ref={scrollRef}
-          className="scroll-thin flex-1 space-y-3 overflow-y-auto bg-cream-soft px-4 py-5"
+          className={cn(
+            "flex min-h-0 flex-col border-r border-[rgba(0,35,75,0.07)]",
+            active && "hidden lg:flex",
+          )}
         >
-          {active.messages.map((m) => (
-            <motion.div
-              key={m.id}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25 }}
-              className={cn(
-                "flex",
-                m.from === "admin" ? "justify-end" : "justify-start",
-              )}
-            >
-              <div
-                className={cn(
-                  "max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-sm",
-                  m.from === "admin"
-                    ? "rounded-br-md bg-navy text-white"
-                    : "rounded-bl-md bg-paper text-navy",
-                )}
+          <div className="border-b border-[rgba(0,35,75,0.07)] p-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Rechercher un nom…"
+                aria-label="Rechercher une conversation"
+                className="input-base pl-9"
+              />
+            </div>
+          </div>
+
+          {conversations.isPending ? (
+            <p className="flex items-center justify-center gap-2 py-10 text-sm text-ink-soft">
+              <Loader2 className="h-4 w-4 animate-spin" /> Chargement…
+            </p>
+          ) : conversations.isError ? (
+            <div role="alert" className="p-6 text-center text-sm text-ink-soft">
+              Les conversations n&apos;ont pas pu être chargées.
+              <button
+                onClick={() => conversations.refetch()}
+                className="btn btn-outline btn-sm mx-auto mt-3"
               >
-                {m.text}
-                <span
-                  className={cn(
-                    "mt-1 block text-[10px]",
-                    m.from === "admin" ? "text-white/45" : "text-ink-soft",
-                  )}
-                >
-                  {formatTime(m.at)}
-                </span>
-              </div>
-            </motion.div>
-          ))}
+                Réessayer
+              </button>
+            </div>
+          ) : filtered.length === 0 ? (
+            <EmptyState
+              Icon={MessageCircle}
+              title={needle ? "Aucun résultat" : EMPTY[filter].title}
+              text={
+                needle
+                  ? "Aucune conversation ne correspond à cette recherche."
+                  : EMPTY[filter].text
+              }
+            />
+          ) : (
+            <ul className="scroll-thin flex-1 overflow-y-auto">
+              {filtered.map((c) => (
+                <li key={c.id}>
+                  <ConversationRow
+                    conversation={c}
+                    active={c.id === active?.id}
+                    onSelect={() => select(c.id)}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
-        {/* Composer */}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            send(draft);
-          }}
-          className="border-t border-[rgba(0,35,75,0.07)] p-3"
-        >
-          <div className="mb-2 flex flex-wrap gap-1.5">
-            {QUICK.map((q) => (
-              <button
-                key={q}
-                type="button"
-                onClick={() => setDraft(q)}
-                className="rounded-full bg-cream-soft px-2.5 py-1 text-[11px] text-ink-mid transition-colors hover:bg-terra-pale/50 hover:text-terra-deep"
-              >
-                {q}
-              </button>
-            ))}
+        {/* Conversation */}
+        {active ? (
+          <ConversationThread
+            key={active.id}
+            conversation={active}
+            onBack={() => select(null)}
+          />
+        ) : (
+          <div className="hidden items-center justify-center text-sm text-ink-soft lg:flex">
+            {selectedId && fetched.isPending
+              ? "Chargement de la conversation…"
+              : "Choisissez une conversation."}
           </div>
-          <div className="flex items-end gap-2">
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  send(draft);
-                }
-              }}
-              rows={1}
-              placeholder="Écrire un message…"
-              className="input-base flex-1 resize-none"
-            />
-            <button
-              type="submit"
-              disabled={!draft.trim()}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-terra text-white transition-colors hover:bg-terra-deep disabled:opacity-50"
-            >
-              <Send className="h-4 w-4" />
-            </button>
-          </div>
-        </form>
+        )}
       </div>
     </div>
+  );
+}
+
+function ConversationRow({
+  conversation: c,
+  active,
+  onSelect,
+}: {
+  conversation: AdminConversation;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  const title = conversationTitle(c);
+  const last = c.lastMessage;
+
+  return (
+    <button
+      onClick={onSelect}
+      aria-current={active ? "true" : undefined}
+      className={cn(
+        "flex w-full items-start gap-3 border-b border-[rgba(0,35,75,0.05)] px-4 py-3.5 text-left transition-colors",
+        active ? "bg-terra-pale/35" : "hover:bg-cream-soft",
+      )}
+    >
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-navy text-xs font-bold text-white">
+        {initials(title)}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <p className="truncate text-sm font-semibold text-navy">{title}</p>
+          {c.lastMessageAt && (
+            <span className="shrink-0 text-[10px] text-ink-soft">
+              {timeAgo(c.lastMessageAt)}
+            </span>
+          )}
+        </div>
+        <p className="flex items-center gap-1.5 truncate text-[11px] text-terra">
+          {c.type === "support"
+            ? "Support"
+            : c.booking?.reference
+              ? `Prestation ${c.booking.reference}`
+              : "Sans prestation en cours"}
+          {c.contactFlaggedAt && (
+            <span className="flex items-center gap-1 text-[#8A6212]">
+              <AlertTriangle className="h-3 w-3" /> signalée
+            </span>
+          )}
+        </p>
+        {last && (
+          <p className="mt-0.5 truncate text-xs text-ink-soft">
+            {last.senderRole === "support" && "Équipe : "}
+            {last.body || "Pièce jointe"}
+          </p>
+        )}
+      </div>
+      {c.unreadCount > 0 && (
+        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-terra px-1 font-mono text-[10px] font-bold text-white">
+          {c.unreadCount}
+        </span>
+      )}
+    </button>
   );
 }

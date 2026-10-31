@@ -46,46 +46,6 @@ export interface Client {
   notes: string;
 }
 
-// ─── Catalogue : plats hebdo & recettes ──────────────────────────────────────
-export type Continent =
-  | "Europe"
-  | "Afrique"
-  | "Asie"
-  | "Amériques"
-  | "Moyen-Orient";
-export type MealStatus = "published" | "draft" | "archived";
-export type Difficulty = "Facile" | "Moyen" | "Difficile";
-
-export interface Meal {
-  id: string;
-  name: string;
-  description: string;
-  image: string;
-  continent: Continent;
-  country: string;
-  portions: number;
-  prepTime: number; // minutes
-  dietaryTags: string[];
-  allergens: string[];
-  calories: number;
-  difficulty: Difficulty;
-  isFeatured: boolean;
-  weekNumber: number;
-  timesOrdered: number;
-  status: MealStatus;
-}
-
-// ─── Menus de la semaine (composition) ───────────────────────────────────────
-export interface WeeklyMenu {
-  id: string;
-  title: string;
-  weekNumber: number;
-  startDate: string;
-  endDate: string;
-  mealIds: string[];
-  status: MealStatus;
-}
-
 // ─── Formules ────────────────────────────────────────────────────────────────
 export interface Formule {
   id: string;
@@ -170,25 +130,6 @@ export interface Demande {
   quote: { amountTTC: number; amountAfterTax: number; note?: string } | null;
 }
 
-// ─── Messagerie ──────────────────────────────────────────────────────────────
-export interface ChatMessage {
-  id: string;
-  from: "client" | "admin";
-  text: string;
-  at: string;
-  read: boolean;
-}
-
-export interface ChatThread {
-  id: string;
-  clientId: string;
-  clientName: string;
-  topic: string;
-  lastMessageAt: string;
-  unreadCount: number;
-  messages: ChatMessage[];
-}
-
 // ─── Commandes produit Kossam (site principal) ───────────────────────────────
 export type KossamStatus =
   | "new"
@@ -267,21 +208,6 @@ export interface Candidature {
   interviewDate: string | null;
   internalNotes: string;
   documents: CandidatureDocument[];
-  createdAt: string;
-}
-
-// ─── Messages de contact (site principal) ────────────────────────────────────
-export type ContactStatus = "new" | "read" | "replied" | "archived";
-export type ContactChannel = "form" | "whatsapp" | "email";
-
-export interface ContactMessage {
-  id: string;
-  name: string;
-  email: string;
-  subject: string;
-  message: string;
-  channel: ContactChannel;
-  status: ContactStatus;
   createdAt: string;
 }
 

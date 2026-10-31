@@ -1,98 +1,110 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
+import { useUser, useClerk } from "@clerk/nextjs";
+import { useMe } from "./api/me";
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Authentification simulée (mock). Aucun backend : la session est stockée
-   dans le localStorage. À remplacer par une vraie auth (NextAuth, JWT…).
+   Identité admin adossée à Clerk.
+
+   `useAuth()` fournit l'identité (nom, email), l'état de session Clerk et
+   `signOut`. Le **rôle applicatif** provient désormais de l'API (`GET /me`,
+   source de vérité Postgres) et non plus de `publicMetadata` Clerk — il est
+   exposé ici pour l'affichage (Sidebar, Paramètres).
+
+   La garde d'accès autoritaire (loading / erreur / rôle) est appliquée par le
+   layout `(admin)` via `useMe()` directement, afin de distinguer un rôle non
+   admin d'une API injoignable.
    ───────────────────────────────────────────────────────────────────────────── */
 
 export interface AdminUser {
   name: string;
   email: string;
-  role: string;
+  /** Rôle applicatif issu de `/me` ; `undefined` tant que la requête charge. */
+  role?: string;
 }
 
 interface AuthState {
   user: AdminUser | null;
   isAuthenticated: boolean;
   isReady: boolean;
-  signIn: (email: string, password: string) => { ok: boolean; error?: string };
   signOut: () => void;
-}
-
-const STORAGE_KEY = "labsfood-admin-session";
-
-const DEMO_USER: AdminUser = {
-  name: "Ivy Siyaptze",
-  email: "admin@labsfood.fr",
-  role: "Administratrice",
-};
-
-const AuthContext = createContext<AuthState | null>(null);
-
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AdminUser | null>(null);
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (raw) setUser(JSON.parse(raw) as AdminUser);
-    } catch {
-      /* localStorage indisponible — on ignore */
-    }
-    setIsReady(true);
-  }, []);
-
-  const signIn = (email: string, password: string) => {
-    // Mock : on accepte n'importe quel email/mot de passe non vides.
-    if (!email.trim() || !password.trim()) {
-      return { ok: false, error: "Renseigne ton email et ton mot de passe." };
-    }
-    const next: AdminUser = { ...DEMO_USER, email: email.trim() };
-    setUser(next);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      /* ignore */
-    }
-    return { ok: true };
-  };
-
-  const signOut = () => {
-    setUser(null);
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      /* ignore */
-    }
-  };
-
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isAuthenticated: !!user,
-        isReady,
-        signIn,
-        signOut,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  /**
+   * La sortie de secours, pour les écrans de panne.
+   *
+   * `clerk.signOut()` suppose que Clerk a fini de charger. Or les écrans qui
+   * proposent « Se reconnecter » s'affichent **précisément** quand il n'a pas
+   * fini : onglet réveillé après des heures, jeton que Clerk n'arrive plus à
+   * rafraîchir. Le bouton appelait alors une instance qui n'était pas prête,
+   * ne faisait rien, et ne disait rien — il fallait vider le stockage à la
+   * main pour s'en sortir.
+   *
+   * Celle-ci tente la déconnexion propre, n'attend pas plus de quatre
+   * secondes, puis fait à la place ce que la personne faisait elle-même :
+   * effacer ce que Clerk a laissé, et repartir sur `/login`.
+   */
+  hardSignOut: () => void;
 }
 
 export function useAuth(): AuthState {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth doit être utilisé dans <AuthProvider>");
-  return ctx;
+  const { isLoaded, isSignedIn, user } = useUser();
+  const clerk = useClerk();
+  const me = useMe();
+
+  const email = user?.primaryEmailAddress?.emailAddress ?? "";
+
+  const mapped: AdminUser | null = user
+    ? {
+        name: user.fullName?.trim() || email || "Admin",
+        email,
+        role: me.data?.role,
+      }
+    : null;
+
+  return {
+    user: mapped,
+    isAuthenticated: !!isSignedIn,
+    isReady: isLoaded,
+    signOut: () => clerk.signOut({ redirectUrl: "/login" }),
+    hardSignOut: () => {
+      void sortieDeSecours(() => clerk.signOut());
+    },
+  };
+}
+
+const MARQUEURS_CLERK = [
+  "__session",
+  "__client_uat",
+  "__clerk_db_jwt",
+  "__clerk_handshake",
+];
+
+async function sortieDeSecours(deconnexion: () => Promise<unknown>) {
+  try {
+    await Promise.race([
+      // `.then` plutôt qu'un appel direct : si l'instance n'est pas prête,
+      // elle lève de façon synchrone et la course ne démarrerait jamais.
+      Promise.resolve().then(deconnexion),
+      new Promise((_, rejeter) => setTimeout(() => rejeter(new Error("timeout")), 4000)),
+    ]);
+  } catch {
+    // Tant pis : le nettoyage local suffit à repartir d'un état propre.
+  }
+
+  try {
+    for (const stockage of [window.localStorage, window.sessionStorage]) {
+      for (const clef of Object.keys(stockage)) {
+        if (/clerk/i.test(clef)) stockage.removeItem(clef);
+      }
+    }
+  } catch {
+    // Navigation privée ou stockage bloqué : il n'y avait rien à effacer.
+  }
+
+  // Les cookies que Clerk pose côté navigateur. Ceux marqués httpOnly ne se
+  // touchent pas d'ici, mais ils ne survivent pas à une session effacée.
+  for (const nom of MARQUEURS_CLERK) {
+    document.cookie = `${nom}=; Max-Age=0; path=/`;
+  }
+
+  window.location.replace("/login");
 }
