@@ -27,6 +27,13 @@ export type ChefStateFilter = ChefState | "verified";
 
 export type ChefSort = "recent" | "name";
 
+/**
+ * Les quatre paliers (module Recettes, R34). Des codes neutres : leurs noms se
+ * règlent dans Paramètres, sans déploiement. Aucune facturation n'en dépend.
+ */
+export const CHEF_TIERS = ["tier_1", "tier_2", "tier_3", "tier_4"] as const;
+export type ChefTier = (typeof CHEF_TIERS)[number];
+
 export interface AdminChef {
   /** Identifiant de la page batch cooker. */
   id: string;
