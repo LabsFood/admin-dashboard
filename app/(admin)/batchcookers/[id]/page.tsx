@@ -25,7 +25,7 @@ import {
 import Badge from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
 import WriteToUserButton from "@/components/admin/WriteToUserButton";
-import { cn, euros, formatDate, initials } from "@/lib/utils";
+import { cn, euros, formatDate } from "@/lib/utils";
 import { countryLabel } from "@/lib/countries";
 import { moderatedLabel, moderatedTone } from "@/lib/catalog-labels";
 import {

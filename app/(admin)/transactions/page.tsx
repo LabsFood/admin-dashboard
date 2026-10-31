@@ -287,7 +287,7 @@ function VoletCommissions() {
   const [aLancer, setALancer] = useState(false);
   const [periode, setPeriode] = useState({ periodStart: "", periodEnd: "" });
 
-  const factures = liste.data ?? [];
+  const factures = useMemo(() => liste.data ?? [], [liste.data]);
   const du = useMemo(
     () =>
       factures

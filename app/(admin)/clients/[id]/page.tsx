@@ -28,7 +28,7 @@ import Badge from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toaster";
 import { adminErrorMessage } from "@/lib/api/errors";
 import RoleEditor from "@/components/admin/RoleEditor";
-import { cn, euros, initials } from "@/lib/utils";
+import { cn, euros } from "@/lib/utils";
 import { clientTone, clientLabel } from "@/lib/status";
 import { useClient, useUpdateClient } from "@/lib/api/admin";
 import WriteToUserButton from "@/components/admin/WriteToUserButton";
