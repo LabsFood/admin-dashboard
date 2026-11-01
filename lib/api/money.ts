@@ -410,5 +410,5 @@ export function useAttestation(clientId: string | undefined, year: number) {
 
 export const DECLARATION_TYPE: Record<string, string> = {
   type_a_nova: "NOVA à son nom",
-  type_b_cooperative: "Coopérative",
+  type_b_cooperative: "Sa coopérative SAP",
 };

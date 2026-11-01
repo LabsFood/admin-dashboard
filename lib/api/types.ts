@@ -145,6 +145,8 @@ export type ChefDocumentType =
   | "renewal-receipt"
   | "status-proof"
   | "sap-declaration"
+  /** Voie Type B : attestation d'adhésion à la coopérative SAP qui porte la déclaration. */
+  | "sap-cooperative"
   | "rc-pro"
   | "haccp"
   | "ddpp"
