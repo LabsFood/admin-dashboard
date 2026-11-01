@@ -258,13 +258,40 @@ export interface MissionLine {
   unit: string;
   /** `true` quand le batch cooker a corrigé ou ajouté la ligne. */
   edited?: boolean;
+  /** Réponse du client : il l'a déjà. Rendue seulement si elle porte sur la dernière liste envoyée. */
+  alreadyHave?: boolean;
+  comment?: string | null;
 }
+
+/** L'échange autour de la liste (Recettes §10.7), calculé par l'API. */
+export type ShoppingListStatus =
+  | "preparing"
+  | "sent"
+  | "update_sent"
+  | "final_received"
+  | "frozen";
+
+export const shoppingListStatusLabel: Record<ShoppingListStatus, string> = {
+  preparing: "Pas encore envoyée au client",
+  sent: "Envoyée, sans réponse du client",
+  update_sent: "Mise à jour envoyée, sans nouvelle réponse du client",
+  final_received: "Liste finale reçue du client",
+  frozen: "Figée",
+};
 
 export interface MissionShoppingList {
   missionId: string;
   persons: number | null;
   generatedAt: string | null;
   groups: { aisle: string; lines: MissionLine[] }[];
+  shoppingByClient?: boolean;
+  /** Midi, heure de Paris, la veille de la prestation. */
+  deadline?: string;
+  status?: ShoppingListStatus;
+  /** Nombre d'envois par le batch cooker. */
+  version?: number;
+  sentAt?: string | null;
+  finalReceivedAt?: string | null;
 }
 
 /**
