@@ -13,7 +13,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 Console d'administration interne de Lab's Food (Next.js App Router). Couvre le pilotage
 du batch cooking (reservations, demandes sur-mesure, messagerie, CRM clients), le
 catalogue (plats/menus, recettes du monde, formules & tarifs), le site principal
-(commandes Kossam, candidatures chef, messages de contact, avis) et l'organisation
+(candidatures chef, messages de contact, avis) et l'organisation
 (equipe & chefs, parametres). Voir `lib/nav.tsx` pour la liste exacte des sections.
 
 ## Etat actuel (important)

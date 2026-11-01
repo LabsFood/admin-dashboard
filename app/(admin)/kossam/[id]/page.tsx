@@ -29,6 +29,7 @@ import {
 } from "@/lib/mock/kossam";
 import type { KossamStatus, PaymentStatus } from "@/lib/mock/types";
 
+/** @deprecated Retired from the console on 2026-11-01: linked from nowhere, kept for a possible return. */
 export default function KossamDetailPage() {
   const params = useParams<{ id: string }>();
   const order = kossamById(params.id);
