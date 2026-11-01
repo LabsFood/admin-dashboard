@@ -1,3 +1,9 @@
+## [1.1.0](https://github.com/LabsFood/admin-dashboard/compare/v1.0.0...v1.1.0) (2026-11-01)
+
+### Features
+
+* **nav:** retire the Kossam orders page from the console ([5124579](https://github.com/LabsFood/admin-dashboard/commit/5124579560b641759310c9cebff4d501ad20eaa8))
+
 ## 1.0.0 (2026-10-31)
 
 ### Features
