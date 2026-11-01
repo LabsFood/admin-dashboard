@@ -32,6 +32,7 @@ import {
   bookingPortions,
   bookingStatusLabel,
   bookingStatusText,
+  shoppingListStatusLabel,
   isBookingOpen,
   money,
   useBooking,
@@ -41,6 +42,7 @@ import {
   type BookingStatus,
 } from "@/lib/api/bookings";
 import { adminErrorMessage } from "@/lib/api/errors";
+import InfoPopover from "@/components/ui/InfoPopover";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Une réservation — `GET /admin/bookings/{id}`.
@@ -251,6 +253,27 @@ export default function ReservationDetailPage({
                     ? " · les courses sont à la charge du client"
                     : " · les courses sont à la charge du batch cooker"}
                 </p>
+                {!b.shoppingByClient && courses.data?.status && (
+                  <p className="mt-1.5 flex flex-wrap items-center gap-1 text-[12px] text-ink-mid">
+                    <span className="font-semibold text-navy">
+                      {shoppingListStatusLabel[courses.data.status]}
+                    </span>
+                    {courses.data.sentAt &&
+                      ` · envoyée ${quand(courses.data.sentAt)}` +
+                        ((courses.data.version ?? 0) > 1 ? ` (envoi n° ${courses.data.version})` : "")}
+                    {courses.data.finalReceivedAt &&
+                      ` · réponse du client ${quand(courses.data.finalReceivedAt)}`}
+                    {courses.data.deadline &&
+                      ` · date limite ${quand(courses.data.deadline)}`}
+                    <InfoPopover label="Comment marche l’échange de la liste ?">
+                      Le batch cooker envoie la liste ; le client coche ce qu’il a déjà,
+                      commente une ligne et la renvoie, autant de fois qu’il veut jusqu’à
+                      midi la veille. Les réponses affichées ici sont celles qui comptent :
+                      elles portent sur la dernière liste envoyée. Sans réponse, le batch
+                      cooker achète toute la liste.
+                    </InfoPopover>
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => setARecalculer(true)}
@@ -291,10 +314,22 @@ export default function ReservationDetailPage({
                           className="flex items-center justify-between gap-2 rounded-xl bg-cream-soft px-3 py-2 text-sm"
                         >
                           <span className="min-w-0 text-navy">
-                            {l.name}
+                            <span className={cn(l.alreadyHave && "text-ink-soft line-through")}>
+                              {l.name}
+                            </span>
                             {l.edited && (
                               <span className="ml-2 text-[10px] font-semibold uppercase text-terra-deep">
                                 corrigée
+                              </span>
+                            )}
+                            {l.alreadyHave && (
+                              <span className="ml-2 text-[10px] font-semibold uppercase text-success">
+                                déjà chez le client
+                              </span>
+                            )}
+                            {l.comment && (
+                              <span className="mt-0.5 block text-[12px] italic text-ink-mid">
+                                « {l.comment} »
                               </span>
                             )}
                           </span>
@@ -557,4 +592,14 @@ function Row({ label, value }: { label: string; value: string }) {
       <dd className="font-semibold text-navy tabular-nums">{value}</dd>
     </div>
   );
+}
+
+/** « 3 nov. à 12:00 » : un instant de l’échange autour de la liste. */
+function quand(iso: string): string {
+  return new Date(iso).toLocaleString("fr-FR", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
