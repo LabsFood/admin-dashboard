@@ -15,7 +15,6 @@ import RoleSelect from "@/components/admin/RoleSelect";
 import { cn } from "@/lib/utils";
 import { useProvisionUser } from "@/lib/api/admin";
 import { adminErrorMessage } from "@/lib/api/errors";
-import { rememberUser } from "@/lib/recent-users";
 import type { Me, Role } from "@/lib/api/types";
 
 /**
@@ -59,7 +58,6 @@ export default function UserForm({
       },
       {
         onSuccess: (user) => {
-          rememberUser(user);
           setCreated(user);
           setEmail("");
           setFirstName("");

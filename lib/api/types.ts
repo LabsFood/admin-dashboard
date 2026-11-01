@@ -49,6 +49,15 @@ export interface AdminClientRow {
   clientProfile: ClientProfile | null;
 }
 
+/** Une ligne de `GET /admin/users` : un compte de n'importe quel rôle. */
+export interface AdminUserRow extends Me {
+  createdAt: string;
+  /** Clé de `/clients/{id}` ; `null` sans profil client enregistré. */
+  clientProfileId: string | null;
+  /** Clé de `/batchcookers/{id}` ; `null` pour qui n'est pas batch cooker. */
+  chefProfileId: string | null;
+}
+
 export interface ClientProfile {
   id: string;
   userId: string;

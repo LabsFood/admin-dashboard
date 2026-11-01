@@ -20,7 +20,6 @@ import {
   Rows3,
   Search,
   Users,
-  X,
 } from "lucide-react";
 import Badge from "@/components/ui/Badge";
 import { DataTable, TablePagination } from "@/components/ui/DataTable";
@@ -31,35 +30,26 @@ import RoleEditor from "@/components/admin/RoleEditor";
 import WriteToUserButton from "@/components/admin/WriteToUserButton";
 import { cn, initials, timeAgo } from "@/lib/utils";
 import { roleLabel, roleTone } from "@/lib/status";
-import { useClients } from "@/lib/api/admin";
-import { rowToClientView } from "@/lib/api/adapt";
-import { forgetUser, useRecentUsers } from "@/lib/recent-users";
+import { useUsers } from "@/lib/api/admin";
 import type { Role } from "@/lib/api/types";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Utilisateurs.
 
-   Une seule liste, deux sources : les profils clients renvoyés par l'API, et
-   les comptes provisionnés depuis cette console (mémorisés localement, faute
-   de `GET /admin/users`). Les empiler en deux sections obligeait à chercher la
-   même personne à deux endroits ; la colonne « origine » dit d'où vient la
-   ligne, ce qui suffit.
+   Tous les comptes, quel que soit leur rôle, depuis `GET /admin/users` : c'est
+   la seule liste où figurent les admins, qui n'ont ni fiche client ni fiche
+   batch cooker.
    ───────────────────────────────────────────────────────────────────────────── */
 
-type Origin = "console" | "client";
-
 interface UserRow {
-  key: string;
   /** uuid `users.id` — la clé de `PATCH /admin/users/{id}/role`. */
   userId: string;
   name: string;
   email: string;
   role: Role;
-  origin: Origin;
-  /** Fiche client, quand elle existe. */
+  /** Fiche client ou batch cooker, quand elle existe. */
   href?: string;
-  createdAt?: string;
-  onForget?: () => void;
+  createdAt: string;
 }
 
 const column = createColumnHelper<UserRow>();
@@ -83,9 +73,7 @@ const COLUMNS = [
             ) : (
               <span className="block truncate font-semibold text-navy">{r.name}</span>
             )}
-            {r.createdAt && (
-              <span className="text-[11px] text-ink-soft">Cr\u00e9\u00e9 {timeAgo(r.createdAt)}</span>
-            )}
+            <span className="text-[11px] text-ink-soft">Créé {timeAgo(r.createdAt)}</span>
           </div>
         </div>
       );
@@ -99,18 +87,14 @@ const COLUMNS = [
     meta: { cellClass: "max-w-[16rem] truncate" },
   }),
   column.accessor("role", {
-    header: "R\u00f4le",
+    header: "Rôle",
     cell: (c) => <Badge tone={roleTone[c.getValue()]}>{roleLabel[c.getValue()]}</Badge>,
-    // Le filtre de r\u00f4le est une \u00e9galit\u00e9 stricte, pas une recherche de texte.
+    // Le filtre de rôle est une égalité stricte, pas une recherche de texte.
     filterFn: (row, id, value) => value === "all" || row.getValue(id) === value,
-  }),
-  column.accessor("origin", {
-    header: "Origine",
-    cell: (c) => <OriginTag row={c.row.original} />,
   }),
   column.display({
     id: "roleEditor",
-    header: "R\u00f4le applicatif",
+    header: "Rôle applicatif",
     cell: (c) => (
       <div className="flex items-center justify-end gap-4">
         {/* L'équipe n'a pas de fil support avec elle-même. */}
@@ -138,8 +122,7 @@ const ROLE_FILTERS: { id: "all" | Role; label: string }[] = [
 ];
 
 export default function UtilisateursPage() {
-  const recent = useRecentUsers();
-  const { data, isPending, isError, error, refetch } = useClients();
+  const { data, isPending, isError, error, refetch } = useUsers();
 
   const [query, setQuery] = useState("");
   const [role, setRole] = useState<"all" | Role>("all");
@@ -147,37 +130,24 @@ export default function UtilisateursPage() {
   const [creating, setCreating] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([{ id: "name", desc: false }]);
 
-  const rows = useMemo<UserRow[]>(() => {
-    const fromApi: UserRow[] = (data?.data ?? []).map(rowToClientView).map((c) => ({
-      key: `api-${c.id}`,
-      userId: c.userId,
-      name: c.name,
-      email: c.email,
-      role: c.role,
-      origin: "client",
-      // Sans profil enregistré, il n'y a pas de fiche à ouvrir : la colonne
-      // reste vide plutôt que de mener à une page introuvable.
-      href: c.id ? `/clients/${c.id}` : undefined,
-    }));
-
-    // Un compte créé ici qui s'est déjà connecté remonte aussi de l'API :
-    // on garde la ligne de l'API, qui porte la fiche client.
-    const known = new Set(fromApi.map((r) => r.userId));
-    const fromConsole: UserRow[] = recent
-      .filter((u) => !known.has(u.id))
-      .map((u) => ({
-        key: `local-${u.id}`,
+  const rows = useMemo<UserRow[]>(
+    () =>
+      (data?.data ?? []).map((u) => ({
         userId: u.id,
         name: u.fullName?.trim() || u.email,
         email: u.email,
         role: u.role,
-        origin: "console",
         createdAt: u.createdAt,
-        onForget: () => forgetUser(u.id),
-      }));
-
-    return [...fromConsole, ...fromApi];
-  }, [data, recent]);
+        // Sans profil enregistré, il n'y a pas de fiche à ouvrir : le nom reste
+        // du texte plutôt que de mener à une page introuvable.
+        href: u.clientProfileId
+          ? `/clients/${u.clientProfileId}`
+          : u.chefProfileId
+            ? `/batchcookers/${u.chefProfileId}`
+            : undefined,
+      })),
+    [data],
+  );
 
   const columnFilters: ColumnFiltersState = useMemo(
     () => (role === "all" ? [] : [{ id: "role", value: role }]),
@@ -190,7 +160,7 @@ export default function UtilisateursPage() {
     state: { sorting, globalFilter: query, columnFilters },
     onSortingChange: setSorting,
     onGlobalFilterChange: setQuery,
-    getRowId: (r) => r.key,
+    getRowId: (r) => r.userId,
     // La recherche porte sur le nom et l'email, pas sur les colonnes rendues.
     globalFilterFn: (row, _id, value) => {
       const q = String(value).trim().toLowerCase();
@@ -207,11 +177,13 @@ export default function UtilisateursPage() {
     initialState: { pagination: { pageSize: 12 } },
   });
 
-  // La vue en cartes lit les lignes du tableau : m\u00eame tri, m\u00eame filtre,
-  // m\u00eame page. Changer de vue ne change que la mise en forme.
+  // La vue en cartes lit les lignes du tableau : même tri, même filtre,
+  // même page. Changer de vue ne change que la mise en forme.
   const visible = table.getRowModel().rows.map((r) => r.original);
   const matching = table.getFilteredRowModel().rows.length;
-  const total = rows.length;
+  // Au-delà de 100 comptes, seuls les plus récents sont chargés : le total de
+  // l'API le dit (« 100 utilisateurs sur 140 ») au lieu de le taire.
+  const total = data?.meta.total ?? rows.length;
 
   return (
     <div className="space-y-6">
@@ -344,7 +316,7 @@ export default function UtilisateursPage() {
             ) : (
               <div className="grid grid-cols-1 gap-px bg-[rgba(0,35,75,0.08)] sm:grid-cols-2 xl:grid-cols-3">
                 {visible.map((r) => (
-                  <UserCard key={r.key} row={r} />
+                  <UserCard key={r.userId} row={r} />
                 ))}
               </div>
             )}
@@ -360,12 +332,9 @@ export default function UtilisateursPage() {
           <span className="font-semibold text-navy">
             Nom, prénom et téléphone ne sont pas modifiables ici :
           </span>{" "}
-          l&apos;API expose la création du compte et le changement de rôle, mais
-          aucun endpoint de mise à jour des informations personnelles d&apos;un
-          autre utilisateur. Les comptes marqués{" "}
-          <span className="font-semibold text-navy">Créé ici</span> ne sont
-          mémorisés que dans ce navigateur, faute de{" "}
-          <code className="font-mono">GET /admin/users</code>.
+          l&apos;API ne permet pas de modifier les informations personnelles
+          d&apos;un autre utilisateur. Chacun les change depuis son propre
+          espace.
         </span>
       </p>
 
@@ -438,8 +407,7 @@ function UserCard({ row }: { row: UserRow }) {
       </div>
 
       <div className="mt-3 flex items-center gap-3 text-[11px] text-ink-soft">
-        <OriginTag row={row} />
-        {row.createdAt && <span>Créé {timeAgo(row.createdAt)}</span>}
+        <span>Créé {timeAgo(row.createdAt)}</span>
         {row.role !== "admin" && (
           <WriteToUserButton userId={row.userId} className="ml-auto" />
         )}
@@ -450,28 +418,6 @@ function UserCard({ row }: { row: UserRow }) {
         <RoleEditor userId={row.userId} role={row.role} hint={false} />
       </div>
     </article>
-  );
-}
-
-function OriginTag({ row }: { row: UserRow }) {
-  if (row.origin === "client") {
-    return <span className="text-[11px] text-ink-soft">Fichier clients</span>;
-  }
-  return (
-    <span className="inline-flex items-center gap-2 text-[11px] text-ink-soft">
-      Créé ici
-      {row.onForget && (
-        <button
-          type="button"
-          onClick={row.onForget}
-          title="Retirer de cette liste (ne supprime pas le compte)"
-          className="inline-flex items-center gap-0.5 text-ink-soft hover:text-danger"
-        >
-          <X className="h-3 w-3" />
-          <span className="sr-only">Retirer {row.name} de la liste</span>
-        </button>
-      )}
-    </span>
   );
 }
 

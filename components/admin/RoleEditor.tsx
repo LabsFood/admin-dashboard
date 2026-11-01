@@ -5,7 +5,6 @@ import { AlertTriangle, Check, Loader2 } from "lucide-react";
 import RoleSelect from "@/components/admin/RoleSelect";
 import { adminErrorMessage } from "@/lib/api/errors";
 import { useSetUserRole } from "@/lib/api/admin";
-import { rememberRole } from "@/lib/recent-users";
 import type { Role } from "@/lib/api/types";
 
 /**
@@ -40,7 +39,6 @@ export default function RoleEditor({
         onSuccess: (user) => {
           // On s'aligne sur ce que l'API a réellement persisté.
           setCurrent(user.role);
-          rememberRole(userId, user.role);
           setDone(true);
         },
         onError: () => setCurrent(previous),

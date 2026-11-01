@@ -9,6 +9,7 @@ import { ApiError, useApiFetch } from "./client";
 import { adminErrorMessage } from "./errors";
 import type {
   AdminClientRow,
+  AdminUserRow,
   ChefApplicationDetail,
   ChefApplicationRow,
   ChefApplicationsQuery,
@@ -123,12 +124,29 @@ export interface ProvisionUserInput {
 }
 
 /**
+ * `GET /admin/users` — tous les comptes, admins compris, les plus récents
+ * d'abord. Seule liste où figurent les admins, qui n'ont ni profil client ni
+ * profil batch cooker.
+ *
+ * ponytail: une seule page de 100 (le maximum de l'API), triée et filtrée côté
+ * console ; passer à la pagination serveur quand `meta.hasNextPage` devient vrai.
+ */
+export function useUsers() {
+  const apiFetch = useApiFetch();
+
+  return useQuery({
+    queryKey: ["users"],
+    queryFn: () => apiFetch<Paginated<AdminUserRow>>("/admin/users?limit=100"),
+  });
+}
+
+/**
  * `POST /admin/users` — crée le compte Clerk (Backend API) **et** la ligne
  * Postgres `users` avec le rôle demandé.
  *
- * À noter : aucun `client_profiles` n'est créé au passage. Le compte
- * n'apparaîtra donc pas dans `GET /admin/clients` tant que la personne n'a pas
- * enregistré son profil de goûts depuis l'espace client.
+ * Aucun `client_profiles` n'est créé au passage : le compte apparaît dans
+ * `GET /admin/users`, pas dans `GET /admin/clients` tant que la personne n'a
+ * pas enregistré son profil de goûts depuis l'espace client.
  */
 export function useProvisionUser() {
   const apiFetch = useApiFetch();
@@ -137,7 +155,10 @@ export function useProvisionUser() {
   return useMutation({
     mutationFn: (input: ProvisionUserInput) =>
       apiFetch<Me>("/admin/users", { method: "POST", body: input }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["clients"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["users"] });
+      qc.invalidateQueries({ queryKey: ["clients"] });
+    },
   });
 }
 
@@ -157,6 +178,7 @@ export function useSetUserRole() {
         body: { role },
       }),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["users"] });
       qc.invalidateQueries({ queryKey: ["clients"] });
       // Le rôle de l'admin courant peut avoir changé (auto-rétrogradation).
       qc.invalidateQueries({ queryKey: ["me"] });
