@@ -8,6 +8,8 @@ import { cn, formatDate } from "@/lib/utils";
 import { countryLabel } from "@/lib/countries";
 import { difficultyLabel, difficultyTone, moderatedLabel, moderatedTone } from "@/lib/catalog-labels";
 import { useAllergens, useDiets, useDishCategories, refLabel } from "@/lib/api/referentials";
+import InfoPopover from "@/components/ui/InfoPopover";
+import { problemText } from "@/lib/readiness";
 import {
   reviewFlagText,
   useChefDishes,
@@ -238,6 +240,32 @@ export default function ModerationDrawer({
                   En italique : tapé à la main, hors liste de référence.
                 </p>
               )}
+            </Block>
+          )}
+
+          {isDish && fiche.readiness && (
+            <Block title={fiche.readiness.ready ? "Fiche Prête" : "Fiche pas encore Prête"}>
+              {fiche.readiness.problems.length + fiche.readiness.toPublish.length > 0 ? (
+                <ul className="space-y-1 text-[13px] text-ink-mid">
+                  {[...fiche.readiness.problems, ...fiche.readiness.toPublish].map((p) => (
+                    <li key={`${p.code}-${p.field}`}>· {problemText(p)}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-[13px] text-success">Rien ne manque.</p>
+              )}
+              <p className="mt-1.5 flex items-center gap-1 text-[12px] text-ink-soft">
+                {fiche.allergensVerifiedAt
+                  ? `Allergènes confirmés le ${formatDate(fiche.allergensVerifiedAt)}`
+                  : "Allergènes non confirmés depuis le dernier changement d'ingrédient : pas réservable"}
+                {fiche.recipeVersion != null && ` · version ${fiche.recipeVersion}`}
+                <InfoPopover label="Que vérifie le batch cooker ?">
+                  Il confirme que les allergènes déclarés correspondent aux ingrédients.
+                  Ajouter, retirer ou renommer un ingrédient efface la confirmation : le
+                  plat reste publié mais ne peut plus être réservé avant une nouvelle
+                  confirmation.
+                </InfoPopover>
+              </p>
             </Block>
           )}
 

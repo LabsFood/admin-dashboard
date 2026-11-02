@@ -6,6 +6,7 @@ import {
   Users,
   UtensilsCrossed,
   BookOpen,
+  Carrot,
   Tags,
   Milk,
   Mail,
@@ -102,6 +103,15 @@ export const NAV_SECTIONS: NavSection[] = [
         eyebrow: "Inspiration",
         title: "Recettes du monde",
         subtitle: "Les plats de la maison, rangés par région culinaire.",
+      },
+      {
+        href: "/ingredients",
+        label: "Ingrédients",
+        Icon: Carrot,
+        eyebrow: "Recettes",
+        title: "Liste commune d'ingrédients",
+        subtitle:
+          "Ce que les batch cookers relient à leurs recettes : régimes et saisons s'en calculent.",
       },
       {
         href: "/moderation",

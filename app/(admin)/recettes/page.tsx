@@ -227,6 +227,11 @@ export default function RecettesPage() {
                               {difficultyLabel[m.difficulty]}
                             </Badge>
                           )}
+                          {m.readiness && (
+                            <Badge tone={m.readiness.ready ? "success" : "warning"}>
+                              {m.readiness.ready ? "Prête" : "Pas Prête"}
+                            </Badge>
+                          )}
                           <Badge tone={catalogTone[m.status]}>
                             {catalogLabel[m.status]}
                           </Badge>

@@ -1,12 +1,16 @@
 "use client";
 
 import { useRef, useState } from "react";
+import InfoPopover from "@/components/ui/InfoPopover";
+import { problemText } from "@/lib/readiness";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
+  ArrowDown,
   ArrowLeft,
+  ArrowUp,
   Check,
   Flame,
   GripVertical,
@@ -23,9 +27,20 @@ import { useToast } from "@/components/ui/Toaster";
 import { cn } from "@/lib/utils";
 import { COUNTRIES } from "@/lib/countries";
 import { CONTINENTS, catalogLabel, continentLabel, difficultyLabel } from "@/lib/catalog-labels";
-import { useAllergens, useDiets, useDishCategories } from "@/lib/api/referentials";
+import {
+  DECLARED_DIETS,
+  refLabel,
+  useAllergens,
+  useComputedDiets,
+  useDiets,
+  useDishCategories,
+  useRecipeProfiles,
+  useReheatModes,
+  useStepTypes,
+} from "@/lib/api/referentials";
 import {
   useCreateMeal,
+  useIngredientSearch,
   useUpdateMeal,
   type Continent,
   type Difficulty,
@@ -37,14 +52,21 @@ import {
 } from "@/lib/api/catalog";
 import {
   AISLES,
-  REHEAT_MODES,
   STORAGE_METHODS,
   UNITS,
   cleanIngredients,
   cleanReheating,
+  cleanSteps,
   cleanStorage,
   ingredientReady,
   aisleLabel,
+  linkValid,
+  MONTHS,
+  readSteps,
+  seasonsLine,
+  reheatModesOf,
+  toStepRow,
+  type StepRow,
 } from "@/lib/recipe-fields";
 import { adminErrorMessage } from "@/lib/api/errors";
 import {
@@ -84,6 +106,9 @@ export default function MealForm({
   const diets = useDiets();
   const allergens = useAllergens();
   const categories = useDishCategories();
+  const reheatModes = useReheatModes();
+  const computedDiets = useComputedDiets();
+  const profileList = useRecipeProfiles();
 
   const isEdit = Boolean(meal);
   const isRecette = variant === "recette";
@@ -110,17 +135,24 @@ export default function MealForm({
   const [ingredients, setIngredients] = useState<Ingredient[]>(
     () => normalizeIngredients(meal?.ingredients),
   );
-  const [steps, setSteps] = useState<string[]>(meal?.steps ?? []);
+  const [steps, setSteps] = useState<StepRow[]>(() => readSteps(meal?.steps).map(toStepRow));
+  const [equipment, setEquipment] = useState(meal?.equipment?.join(", ") ?? "");
+  const [declaredDiets, setDeclaredDiets] = useState<string[]>(meal?.declaredDiets ?? []);
+  const [profiles, setProfiles] = useState<string[]>(meal?.profiles ?? []);
+  const [seasonsOverride, setSeasonsOverride] = useState<number[]>(
+    meal?.seasonsOverride ?? [],
+  );
   const [isFeatured, setIsFeatured] = useState(meal?.isFeatured ?? false);
   const [status, setStatus] = useState<MealStatus>(meal?.status ?? "draft");
 
   // Réchauffage et conservation : tenus en chaînes pour qu'un champ vidé reste
   // vide au lieu de retomber sur 0, et convertis à l'envoi.
   const [reheat, setReheat] = useState({
-    mode: meal?.reheating?.mode ?? "",
+    modes: reheatModesOf(meal?.reheating),
     temperature: meal?.reheating?.temperature?.toString() ?? "",
     minutes: meal?.reheating?.minutes?.toString() ?? "",
     note: meal?.reheating?.note ?? "",
+    container: meal?.reheating?.container ?? "",
   });
   const [storage, setStorage] = useState({
     method: meal?.storage?.method ?? "",
@@ -131,14 +163,9 @@ export default function MealForm({
   const saving = create.isPending || update.isPending;
   const error = create.error ?? update.error;
 
-  /** Ce qui manquera au client si on publie en l'état. */
-  const gaps: string[] = [];
-  if (!description.trim()) gaps.push("une description");
-  if (!country) gaps.push("le pays d'origine");
-  if (!imageUrl.trim()) gaps.push("une photo");
-  if (!allergensNone && allergenCodes.length === 0 && !customAllergens.trim()) {
-    gaps.push("les allergènes, ou la mention « aucun »");
-  }
+  /** Recettes §4.11, d'après l'API : la fiche enregistrée, pas le brouillon. */
+  const readiness = meal?.readiness;
+  const manques = readiness ? [...readiness.problems, ...readiness.toPublish] : [];
 
   /**
    * Les lignes d'ingrédient que l'API refuserait. Elle exige les quatre champs
@@ -150,10 +177,12 @@ export default function MealForm({
     (i) => (i.name.trim() || i.qty !== "" || i.unit || i.aisle) && !ingredientReady(i),
   ).length;
 
-  // Même logique sur les deux couples exigés par l'API.
+  const liensInvalides = ingredients.filter((i) => !linkValid(i.link)).length;
+  // Le réchauffage s'enregistre dès qu'un mode est coché ; la conservation, elle,
+  // exige toujours son couple.
   const reheatIncomplet = Boolean(
-    (reheat.mode || reheat.minutes.trim() || reheat.temperature.trim() || reheat.note.trim()) &&
-      (!reheat.mode || !reheat.minutes.trim()),
+    (reheat.minutes.trim() || reheat.temperature.trim() || reheat.note.trim()) &&
+      reheat.modes.length === 0,
   );
   const storageIncomplet = Boolean(
     (storage.method || storage.days.trim() || storage.container.trim()) &&
@@ -188,7 +217,11 @@ export default function MealForm({
       allergensNone,
       customAllergens: allergensNone ? [] : csv(customAllergens),
       ingredients: cleanIngredients(ingredients),
-      steps: steps.map((s) => s.trim()).filter(Boolean),
+      steps: cleanSteps(steps),
+      equipment: csv(equipment),
+      declaredDiets,
+      profiles,
+      seasonsOverride,
       reheating: cleanReheating(reheat),
       storage: cleanStorage(storage),
       isFeatured,
@@ -517,7 +550,140 @@ export default function MealForm({
                   : `${lignesIncompletes} lignes d'ingrédient sont incomplètes : elles ne seront pas enregistrées. L'API exige nom, quantité, unité et rayon.`}
               </p>
             )}
+            {liensInvalides > 0 && (
+              <p className="flex items-start gap-2 rounded-md bg-cream-soft px-3.5 py-2.5 text-[12px] leading-relaxed text-[#8A6212]">
+                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                Un lien doit commencer par http:// ou https:// : sinon il n&apos;est pas
+                enregistré.
+              </p>
+            )}
             <StepRows value={steps} onChange={setSteps} />
+            <Field
+              label="Matériel (facultatif)"
+              hint="Séparé par des virgules. Jamais contrôlé : un mémo pour le cuisinier."
+            >
+              <input
+                value={equipment}
+                onChange={(e) => setEquipment(e.target.value)}
+                placeholder="Cocotte en fonte, mixeur plongeant"
+                className="input-base"
+              />
+            </Field>
+          </section>
+
+          {/* ── Classement (§4.8) ─────────────────────────────────────────── */}
+          <section className="card space-y-4 p-6">
+            <div>
+              <h3 className="flex items-center gap-1 font-display text-base font-bold text-navy">
+                Classement
+                <InfoPopover label="Comment le classement est-il établi ?">
+                  Les régimes et les saisons se calculent d&apos;après la liste commune
+                  d&apos;ingrédients, dès que chaque ligne y est reliée. Halal et casher
+                  se déclarent. Les saisons calculées peuvent être remplacées par vos
+                  mois. Rien ici n&apos;empêche de publier.
+                </InfoPopover>
+              </h3>
+            </div>
+            <div>
+              <p className="field-label">Régimes calculés</p>
+              {!meal ? (
+                <p className="text-[13px] text-ink-soft">Calculés à l&apos;enregistrement.</p>
+              ) : !meal.classification ? (
+                <p className="text-[13px] text-ink-mid">
+                  Non calculé : reliez chaque ingrédient à la liste commune (choisissez-le
+                  dans les suggestions).
+                </p>
+              ) : meal.classification.diets.length === 0 ? (
+                <p className="text-[13px] text-ink-mid">Aucun régime commun à tous les ingrédients.</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {meal.classification.diets.map((c) => (
+                    <span key={c} className="chip-teal">
+                      {refLabel(computedDiets.data, c)}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <p className="field-label">Régimes déclarés</p>
+              <div className="flex flex-wrap gap-1.5">
+                {DECLARED_DIETS.map((d) => {
+                  const on = declaredDiets.includes(d.code);
+                  return (
+                    <button
+                      key={d.code}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => toggle(declaredDiets, setDeclaredDiets, d.code)}
+                      className={cn(on ? "chip-teal" : "chip-muted", "cursor-pointer")}
+                    >
+                      {d.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <p className="field-label">Profils</p>
+              <div className="flex flex-wrap gap-1.5">
+                {profileList.data.map((p) => {
+                  const on = profiles.includes(p.code);
+                  return (
+                    <button
+                      key={p.code}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => toggle(profiles, setProfiles, p.code)}
+                      className={cn(on ? "chip-teal" : "chip-muted", "cursor-pointer")}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <p className="field-label">Saisons</p>
+              <p className="mb-2 text-[12px] text-ink-mid">
+                {seasonsOverride.length
+                  ? `Vos mois : ${seasonsLine(seasonsOverride)}`
+                  : meal?.classification
+                    ? `Calculées : ${seasonsLine(meal.classification.seasonMonths)}`
+                    : "Non calculées pour l'instant."}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {MONTHS.map((m, i) => {
+                  const on = seasonsOverride.includes(i + 1);
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() =>
+                        setSeasonsOverride(
+                          on
+                            ? seasonsOverride.filter((x) => x !== i + 1)
+                            : [...seasonsOverride, i + 1].sort((a, b) => a - b),
+                        )
+                      }
+                      className={cn(on ? "chip-teal" : "chip-muted", "cursor-pointer")}
+                    >
+                      {m}
+                    </button>
+                  );
+                })}
+              </div>
+              {seasonsOverride.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSeasonsOverride([])}
+                  className="mt-2 text-xs text-ink-mid underline underline-offset-2"
+                >
+                  Revenir aux saisons calculées
+                </button>
+              )}
+            </div>
           </section>
 
           {/* ── Ce que le client lit plusieurs jours après la session ─────── */}
@@ -533,20 +699,47 @@ export default function MealForm({
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <Field label="Réchauffer au">
-                <select
-                  value={reheat.mode}
-                  onChange={(e) => setReheat((r) => ({ ...r, mode: e.target.value }))}
-                  className="input-base"
-                >
-                  <option value="">Non précisé</option>
-                  {REHEAT_MODES.map((m) => (
-                    <option key={m.code} value={m.code}>
+            <div>
+              <p className="field-label flex items-center gap-1">
+                Se réchauffe au
+                <InfoPopover label="Changer le réchauffage crée-t-il une version ?">
+                  Non. Les modes et les consignes s&apos;appliquent dès
+                  l&apos;enregistrement, sans nouvelle version et sans nouvelle
+                  vérification des allergènes. La liste des modes se règle dans
+                  Paramètres.
+                </InfoPopover>
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {reheatModes.data.map((m) => {
+                  const on = reheat.modes.includes(m.code);
+                  return (
+                    <button
+                      key={m.code}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() =>
+                        setReheat((r) => ({
+                          ...r,
+                          modes: on ? r.modes.filter((x) => x !== m.code) : [...r.modes, m.code],
+                        }))
+                      }
+                      className={cn(on ? "chip-teal" : "chip-muted", "cursor-pointer")}
+                    >
                       {m.label}
-                    </option>
-                  ))}
-                </select>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <Field label="Contenant conseillé">
+                <input
+                  value={reheat.container}
+                  onChange={(e) => setReheat((r) => ({ ...r, container: e.target.value }))}
+                  placeholder="Plat en verre"
+                  className="input-base"
+                />
               </Field>
               <Field label="Température (°C)">
                 <input
@@ -560,14 +753,13 @@ export default function MealForm({
                   className="input-base"
                 />
               </Field>
-              <Field label="Durée (min)" required={Boolean(reheat.mode)}>
+              <Field label="Durée (min)">
                 <input
                   type="number"
                   min={0}
                   value={reheat.minutes}
                   onChange={(e) => setReheat((r) => ({ ...r, minutes: e.target.value }))}
                   placeholder="15"
-                  aria-invalid={(Boolean(reheat.mode) && !reheat.minutes.trim()) || undefined}
                   className="input-base"
                 />
               </Field>
@@ -631,9 +823,9 @@ export default function MealForm({
               <p className="flex items-start gap-2 rounded-md bg-cream-soft px-3.5 py-2.5 text-[12px] leading-relaxed text-[#8A6212]">
                 <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
                 {reheatIncomplet && storageIncomplet
-                  ? "Le réchauffage demande un mode et une durée ; la conservation, un lieu et un nombre de jours. Incomplets, les deux ne seront pas enregistrés."
+                  ? "Le réchauffage demande au moins un mode ; la conservation, un lieu et un nombre de jours. Incomplets, les deux ne seront pas enregistrés."
                   : reheatIncomplet
-                    ? "Le réchauffage ne s'enregistre qu'avec un mode et une durée : l'API exige les deux."
+                    ? "Le réchauffage ne s'enregistre qu'avec au moins un mode coché."
                     : "La conservation ne s'enregistre qu'avec un lieu et un nombre de jours : l'API exige les deux."}
               </p>
             )}
@@ -698,15 +890,38 @@ export default function MealForm({
             </button>
           </section>
 
-          {gaps.length > 0 && (
+          {meal && readiness && (
             <section className="card p-5">
-              <p className="flex items-start gap-2 text-[13px] font-semibold text-[#8A6212]">
-                <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                Il manquera {gaps.join(", ")}
+              <p className="flex items-center gap-1 text-[13px] font-semibold text-navy">
+                {readiness.ready ? "Fiche Prête" : "Fiche pas encore Prête"}
+                {meal.recipeVersion != null && (
+                  <span className="font-normal text-ink-soft">· version {meal.recipeVersion}</span>
+                )}
+                <InfoPopover label="Que veut dire « Prête » ?">
+                  Tout ce qui sert à cuisiner et à faire les courses est rempli, et les
+                  allergènes sont vérifiés. Pour une recette de la maison,
+                  l&apos;enregistrement vaut vérification dès que les allergènes sont
+                  déclarés. L&apos;origine et le matériel ne sont jamais demandés.
+                </InfoPopover>
               </p>
-              <p className="mt-1.5 text-[12px] leading-relaxed text-ink-soft">
-                L&apos;API accepte l&apos;enregistrement sans. C&apos;est le
-                client qui s&apos;en apercevra.
+              {manques.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {manques.map((m) => (
+                    <li
+                      key={`${m.code}-${m.field}`}
+                      className="flex items-start gap-2 text-[12px] leading-relaxed text-[#8A6212]"
+                    >
+                      <span aria-hidden className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-warning" />
+                      {problemText(m)}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="mt-2 text-[12px] leading-relaxed text-ink-soft">
+                {meal.allergensVerifiedAt
+                  ? `Allergènes vérifiés le ${new Date(meal.allergensVerifiedAt).toLocaleDateString("fr-FR")}.`
+                  : "Allergènes non vérifiés : le plat ne peut pas être réservé."}{" "}
+                Calculé sur la fiche enregistrée.
               </p>
             </section>
           )}
@@ -794,7 +1009,15 @@ function IngredientRows({
 
   return (
     <div>
-      <p className="field-label">Ingrédients</p>
+      <p className="field-label flex items-center gap-1">
+        Ingrédients
+        <InfoPopover label="Quantité fixe, lien, à vérifier : de quoi s'agit-il ?">
+          Une quantité fixe ne change pas avec les portions. Le lien, facultatif, dit
+          où acheter l&apos;ingrédient. Une ligne « à vérifier » vient d&apos;une
+          recette importée : tant qu&apos;elle l&apos;est, la fiche n&apos;est pas
+          Prête.
+        </InfoPopover>
+      </p>
       {value.length === 0 ? (
         <p className="mb-2 text-[13px] text-ink-soft">
           Aucun ingrédient : pas de liste de courses pour ce plat.
@@ -816,13 +1039,7 @@ function IngredientRows({
                   className="h-4 w-4 shrink-0 text-ink-soft/50"
                   aria-hidden
                 />
-                <input
-                  value={row.name}
-                  onChange={(e) => set(i, { name: e.target.value })}
-                  placeholder="Poulet fermier"
-                  aria-label={`Ingrédient ${i + 1}`}
-                  className="input-base min-w-32 flex-1"
-                />
+                <IngredientName row={row} index={i} onChange={(patch) => set(i, patch)} />
                 <input
                   type="number"
                   step="any"
@@ -867,6 +1084,38 @@ function IngredientRows({
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
+                <div className="flex w-full flex-wrap items-center gap-2 pl-6">
+                  <input
+                    type="url"
+                    value={row.link ?? ""}
+                    onChange={(e) => set(i, { link: e.target.value })}
+                    placeholder="Lien (facultatif) : https://…"
+                    aria-label={`Lien de l'ingrédient ${i + 1}`}
+                    aria-invalid={!linkValid(row.link) || undefined}
+                    className="input-base min-w-40 flex-1 py-1.5 text-[13px]"
+                  />
+                  <label className="inline-flex items-center gap-1.5 text-xs text-ink-mid">
+                    <input
+                      type="checkbox"
+                      checked={row.fixedQuantity ?? false}
+                      onChange={(e) => set(i, { fixedQuantity: e.target.checked })}
+                      className="h-3.5 w-3.5 accent-navy"
+                    />
+                    Quantité fixe
+                  </label>
+                  {row.toVerify && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-2.5 py-1 text-[11px] font-semibold text-[#8A6212]">
+                      À vérifier
+                      <button
+                        type="button"
+                        onClick={() => set(i, { toVerify: false })}
+                        className="underline underline-offset-2"
+                      >
+                        C&apos;est vérifié
+                      </button>
+                    </span>
+                  )}
+                </div>
               </li>
             );
           })}
@@ -877,7 +1126,7 @@ function IngredientRows({
         onClick={() =>
           onChange([
             ...value,
-            { name: "", qty: "", unit: "g", aisle: AISLES[0] },
+            { name: "", qty: "", unit: "g", aisle: AISLES[0], link: "", fixedQuantity: false },
           ])
         }
         className="btn btn-sm btn-outline"
@@ -888,16 +1137,97 @@ function IngredientRows({
   );
 }
 
+/**
+ * Le nom d'un ingrédient, avec les suggestions de la liste commune (§4.10).
+ * Choisir une suggestion relie la ligne ; retaper le nom la délie.
+ */
+function IngredientName({
+  row,
+  index,
+  onChange,
+}: {
+  row: Ingredient;
+  index: number;
+  onChange: (patch: Partial<Ingredient>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const search = useIngredientSearch(open && !row.catalogIngredientId ? row.name : "");
+  const matches = search.data ?? [];
+
+  return (
+    <div className="relative min-w-32 flex-1">
+      <input
+        value={row.name}
+        onChange={(e) => {
+          onChange({ name: e.target.value, catalogIngredientId: null });
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder="Poulet fermier"
+        aria-label={`Ingrédient ${index + 1}`}
+        aria-autocomplete="list"
+        className={cn("input-base w-full", row.catalogIngredientId && "pr-14")}
+      />
+      {row.catalogIngredientId && (
+        <span className="chip-teal pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px]">
+          liste
+        </span>
+      )}
+      {open && matches.length > 0 && (
+        <ul
+          role="listbox"
+          className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-[rgba(31,42,55,0.1)] bg-white py-1 shadow-lg"
+        >
+          {matches.map((m) => (
+            <li key={m.id} role="option" aria-selected={false}>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onChange({ name: m.name, catalogIngredientId: m.id });
+                  setOpen(false);
+                }}
+                className="block w-full px-3 py-1.5 text-left text-[13px] text-navy hover:bg-cream-soft"
+              >
+                {m.name}
+                {m.aliases.length > 0 && (
+                  <span className="ml-1.5 text-[11px] text-ink-soft">{m.aliases.join(", ")}</span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function StepRows({
   value,
   onChange,
 }: {
-  value: string[];
-  onChange: (v: string[]) => void;
+  value: StepRow[];
+  onChange: (v: StepRow[]) => void;
 }) {
+  const types = useStepTypes();
+  const set = (i: number, patch: Partial<StepRow>) =>
+    onChange(value.map((s, j) => (j === i ? { ...s, ...patch } : s)));
+  const move = (i: number, by: -1 | 1) => {
+    const next = [...value];
+    [next[i], next[i + by]] = [next[i + by], next[i]];
+    onChange(next);
+  };
+
   return (
     <div>
-      <p className="field-label">Étapes de préparation</p>
+      <p className="field-label flex items-center gap-1">
+        Étapes de préparation
+        <InfoPopover label="Pourquoi un type par étape ?">
+          Préparation, cuisson, refroidissement ou mise en boîte : une étape sans
+          type empêche la fiche d&apos;être Prête. La durée est facultative.
+        </InfoPopover>
+      </p>
       {value.length === 0 ? (
         <p className="mb-2 text-[13px] text-ink-soft">
           Aucune étape écrite pour l&apos;instant.
@@ -912,30 +1242,76 @@ function StepRows({
               >
                 {i + 1}
               </span>
-              <textarea
-                value={step}
-                onChange={(e) =>
-                  onChange(value.map((s, j) => (j === i ? e.target.value : s)))
-                }
-                rows={2}
-                aria-label={`Étape ${i + 1}`}
-                className="input-base flex-1 resize-y"
-              />
-              <button
-                type="button"
-                onClick={() => onChange(value.filter((_, j) => j !== i))}
-                aria-label={`Retirer l'étape ${i + 1}`}
-                className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-danger-soft hover:text-danger"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              <div className="min-w-0 flex-1 space-y-2">
+                <textarea
+                  value={step.text}
+                  onChange={(e) => set(i, { text: e.target.value })}
+                  rows={2}
+                  aria-label={`Étape ${i + 1}`}
+                  className="input-base w-full resize-y"
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={step.type}
+                    onChange={(e) => set(i, { type: e.target.value })}
+                    aria-label={`Type de l'étape ${i + 1}`}
+                    aria-invalid={(step.text.trim() !== "" && !step.type) || undefined}
+                    className="input-base w-44 py-1.5 text-[13px]"
+                  >
+                    <option value="">Type à choisir</option>
+                    {types.data.map((t) => (
+                      <option key={t.code} value={t.code}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    min={0}
+                    value={step.minutes}
+                    onChange={(e) => set(i, { minutes: e.target.value })}
+                    placeholder="Durée"
+                    aria-label={`Durée de l'étape ${i + 1}, en minutes`}
+                    className="input-base w-24 py-1.5 text-[13px]"
+                  />
+                  <span className="text-xs text-ink-soft">min</span>
+                </div>
+              </div>
+              <div className="mt-1 flex shrink-0 flex-col">
+                <button
+                  type="button"
+                  onClick={() => move(i, -1)}
+                  disabled={i === 0}
+                  aria-label={`Monter l'étape ${i + 1}`}
+                  className="flex h-7 w-9 items-center justify-center rounded-md text-ink-soft hover:bg-cream-soft disabled:opacity-30"
+                >
+                  <ArrowUp className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => move(i, 1)}
+                  disabled={i === value.length - 1}
+                  aria-label={`Descendre l'étape ${i + 1}`}
+                  className="flex h-7 w-9 items-center justify-center rounded-md text-ink-soft hover:bg-cream-soft disabled:opacity-30"
+                >
+                  <ArrowDown className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChange(value.filter((_, j) => j !== i))}
+                  aria-label={`Retirer l'étape ${i + 1}`}
+                  className="flex h-9 w-9 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-danger-soft hover:text-danger"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </li>
           ))}
         </ol>
       )}
       <button
         type="button"
-        onClick={() => onChange([...value, ""])}
+        onClick={() => onChange([...value, { text: "", type: "", minutes: "" }])}
         className="btn btn-sm btn-outline"
       >
         <Plus className="h-3 w-3" aria-hidden /> Ajouter une étape
