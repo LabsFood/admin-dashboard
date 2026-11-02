@@ -104,6 +104,12 @@ export interface Booking {
   commissionCents?: number | null;
   commissionEstimated?: boolean | null;
   meals?: BookingMeal[] | null;
+  /** Recettes lot 1 : `verified` seulement quand plus rien n'est à vérifier à la main. */
+  allergyCheck?: "verified" | "unverified";
+  /** Les raisons, en codes : jamais l'allergie elle-même dans une liste. */
+  allergyCheckReasons?: string[];
+  /** Fiche seulement : les plats qui contiennent un allergène du client, à remplacer. */
+  allergyConflicts?: { mealId: string; allergens: string[] }[];
   shoppingList?: ShoppingList | null;
   photos?: { id: string; url: string; caption?: string | null }[] | null;
   reschedule?: {
