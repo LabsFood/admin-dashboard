@@ -20,6 +20,7 @@ import type {
   Paginated,
   Role,
 } from "./types";
+import type { ChefTier } from "./chefs";
 
 /* ── Clients (client_profiles) ─────────────────────────────────────────────── */
 
@@ -499,6 +500,63 @@ export function useSetSapExternalStatus(chefProfileId: string | undefined) {
       apiFetch<unknown>(`/admin/chefs/${chefProfileId}/sap-external-status`, {
         method: "PATCH",
         body,
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "chefs"] }),
+  });
+}
+
+/* ── Les paliers des batch cookers (module Recettes, R34) ──────────────────── */
+
+export interface ChefTierNames {
+  labels: Record<ChefTier, string>;
+  /** `null` : jamais renommés, les noms neutres s'appliquent (« Palier 1 »…). */
+  updatedAt: string | null;
+}
+
+const CHEF_TIER_NAMES = ["admin", "settings", "chef-tiers"] as const;
+
+/** `GET /admin/settings/chef-tiers` — le nom de chacun des quatre codes. */
+export function useChefTierNames() {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: CHEF_TIER_NAMES,
+    queryFn: () => apiFetch<ChefTierNames>("/admin/settings/chef-tiers"),
+  });
+}
+
+/**
+ * `PUT /admin/settings/chef-tiers` — les quatre noms à chaque fois, 40
+ * caractères au plus. Seuls les noms changent : chacun garde son palier.
+ */
+export function useSetChefTierNames() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (labels: Record<ChefTier, string>) =>
+      apiFetch<ChefTierNames>("/admin/settings/chef-tiers", {
+        method: "PUT",
+        body: { labels },
+      }),
+    onSuccess: (data) => {
+      qc.setQueryData(CHEF_TIER_NAMES, data);
+      // Chaque fiche affiche le nom de son palier.
+      qc.invalidateQueries({ queryKey: ["admin", "chefs"] });
+    },
+  });
+}
+
+/**
+ * `PATCH /admin/chefs/{id}/tier` — le palier d'un batch cooker, tracé dans le
+ * journal d'audit. `{id}` est l'identifiant de la page batch cooker.
+ */
+export function useSetChefTier(chefProfileId: string) {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (tier: ChefTier) =>
+      apiFetch<unknown>(`/admin/chefs/${chefProfileId}/tier`, {
+        method: "PATCH",
+        body: { tier },
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "chefs"] }),
   });
