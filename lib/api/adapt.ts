@@ -32,7 +32,12 @@ export interface ClientView {
   role: Role;
   status: ClientStatus;
   dietaryPreferences: string[];
+  /** Codes des 14 allergènes. Vides dans la liste : l'API ne les y envoie pas. */
   allergies: string[];
+  customAllergies: string[];
+  allergiesNone: boolean;
+  allergiesDeclaredAt: string | null;
+  healthConsentAt: string | null;
   dislikes: string[];
   favorites: string[];
   spiceLevel: number;
@@ -95,6 +100,10 @@ export function toClientView(p: ClientProfile): ClientView {
     status: p.status ?? "prospect",
     dietaryPreferences: p.dietaryPreferences ?? [],
     allergies: p.allergies ?? [],
+    customAllergies: p.customAllergies ?? [],
+    allergiesNone: p.allergiesNone ?? false,
+    allergiesDeclaredAt: p.allergiesDeclaredAt ?? null,
+    healthConsentAt: p.healthConsentAt ?? null,
     dislikes: p.dislikes ?? [],
     favorites: p.favorites ?? [],
     spiceLevel: p.spiceLevel ?? 0,
