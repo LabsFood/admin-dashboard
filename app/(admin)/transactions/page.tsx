@@ -21,6 +21,7 @@ import FilterTabs from "@/components/ui/FilterTabs";
 import EmptyState from "@/components/ui/EmptyState";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import ReasonDialog from "@/components/ui/ReasonDialog";
+import InfoPopover from "@/components/ui/InfoPopover";
 import { useToast } from "@/components/ui/Toaster";
 import { adminErrorMessage } from "@/lib/api/errors";
 import {
@@ -37,6 +38,7 @@ import {
   centimes,
   nonSimule,
   useAttestations,
+  useBackfillPaymentInvoices,
   useCesuPayments,
   useCesuProofUrl,
   useCommissionInvoices,
@@ -61,13 +63,14 @@ import {
    douze routes qui existaient depuis le début et que rien n'appelait — ce qui
    veut dire, entre autres, qu'aucune commission n'avait jamais été facturée.
 
-   Quatre circuits, quatre volets, parce qu'ils ne se comparent pas : le CESU
+   Cinq circuits, cinq volets, parce qu'ils ne se comparent pas : le CESU
    est un argent que la plateforme ne voit jamais, la commission est une
-   créance qu'elle prélève, l'avance immédiate est une avance qu'un tiers
+   créance qu'elle prélève, la facture client est un document que le batch
+   cooker émet par la plateforme, l'avance immédiate est une avance qu'un tiers
    consent, et l'attestation fiscale n'est pas un mouvement du tout.
    ───────────────────────────────────────────────────────────────────────────── */
 
-type Volet = "cesu" | "commissions" | "urssaf" | "attestations";
+type Volet = "cesu" | "commissions" | "factures" | "urssaf" | "attestations";
 
 const dateCourte = (iso?: string | null) =>
   iso ? new Date(iso).toLocaleDateString("fr-FR") : "—";
@@ -93,6 +96,7 @@ export default function TransactionsPage() {
         options={[
           { id: "cesu", label: "CESU" },
           { id: "commissions", label: "Commissions" },
+          { id: "factures", label: "Factures clients" },
           { id: "urssaf", label: "Avance immédiate" },
           { id: "attestations", label: "Attestations fiscales" },
         ]}
@@ -100,6 +104,7 @@ export default function TransactionsPage() {
 
       {volet === "cesu" && <VoletCesu />}
       {volet === "commissions" && <VoletCommissions />}
+      {volet === "factures" && <VoletFacturesClients />}
       {volet === "urssaf" && <VoletUrssaf />}
       {volet === "attestations" && <VoletAttestations />}
     </div>
@@ -853,6 +858,147 @@ function VoletAttestations() {
           })}
         </ul>
       </Corps>
+    </div>
+  );
+}
+
+/* ── Factures clients ──────────────────────────────────────────────────────── */
+
+/** Ce que veut dire un code d'échec du rattrapage, pour qui doit décider quoi faire. */
+const ECHEC_RATTRAPAGE: Record<string, string> = {
+  P2002: "numéro pris par un paiement réglé au même moment : relancez",
+  INVOICE_AMOUNT_INVALID: "montant nul ou invalide sur ce paiement",
+};
+
+/**
+ * La facture A est émise au paiement. Seuls les paiements par carte réglés
+ * avant son ouverture n'en ont pas : ce volet les compte, puis les émet.
+ * Compter d'abord n'est pas une précaution de style — une facture émise ne se
+ * retire plus.
+ */
+function VoletFacturesClients() {
+  const toast = useToast();
+  const compter = useBackfillPaymentInvoices();
+  const emettre = useBackfillPaymentInvoices();
+  const [aEmettre, setAEmettre] = useState(false);
+  const enAttente = compter.data?.pending;
+  const resultat = emettre.data;
+
+  const lancerComptage = () =>
+    compter.mutate(true, {
+      onError: (e) => toast.error("Comptage impossible", adminErrorMessage(e)),
+    });
+
+  return (
+    <div className="space-y-5">
+      <Entete
+        Icon={ScrollText}
+        titre="Factures clients"
+        texte="La facture que le client reçoit pour chaque paiement par carte, au nom du batch cooker. Elle est émise au moment du paiement et se télécharge depuis la commande, côté client comme côté batch cooker. Les paiements réglés avant l'ouverture des factures n'en ont pas : ils se rattrapent ici."
+      />
+
+      <div className="card space-y-4 p-5">
+        <h3 className="flex items-center gap-1 font-display text-base font-bold text-navy">
+          Rattrapage des paiements sans facture
+          <InfoPopover label="Comment la facture rattrapée est-elle datée ?">
+            Elle est datée du jour du rattrapage et prend le numéro suivant de la
+            série de l’année (LF-CUS26-00001…), du plus ancien paiement au plus
+            récent. Le PDF indique la vraie date du paiement : une facture n’est
+            jamais antidatée. Seuls les paiements par carte soldés sont concernés :
+            ni CESU ni avance immédiate pour l’instant, ni paiement remboursé.
+          </InfoPopover>
+        </h3>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={lancerComptage}
+            disabled={compter.isPending}
+            className="btn btn-outline btn-sm"
+          >
+            {compter.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RotateCw className="h-3.5 w-3.5" />
+            )}
+            Compter
+          </button>
+          {enAttente !== undefined && (
+            <p className="text-sm text-ink-mid">
+              <span className="font-display text-lg font-bold text-navy">{enAttente}</span>{" "}
+              paiement{enAttente > 1 ? "s" : ""} par carte sans facture.
+            </p>
+          )}
+          {!!enAttente && (
+            <button onClick={() => setAEmettre(true)} className="btn btn-navy btn-sm">
+              <Play className="h-3.5 w-3.5" /> Émettre {enAttente} facture
+              {enAttente > 1 ? "s" : ""}
+            </button>
+          )}
+        </div>
+
+        {resultat && (
+          <div className="rounded-xl bg-cream-soft px-4 py-3 text-sm text-ink-mid">
+            <p>
+              <span className="font-semibold text-navy">
+                {resultat.issued.length} facture{resultat.issued.length > 1 ? "s" : ""}{" "}
+                émise{resultat.issued.length > 1 ? "s" : ""}
+              </span>
+              {resultat.issued.length > 0 &&
+                ` : ${resultat.issued[0].invoiceNumber}${
+                  resultat.issued.length > 1
+                    ? ` à ${resultat.issued[resultat.issued.length - 1].invoiceNumber}`
+                    : ""
+                }`}
+              .
+            </p>
+            {resultat.failed.length > 0 && (
+              <>
+                <p className="mt-2 flex items-center gap-1.5 font-semibold text-navy">
+                  <AlertTriangle className="h-4 w-4 text-terra" />
+                  {resultat.failed.length} paiement
+                  {resultat.failed.length > 1 ? "s" : ""} sans facture
+                </p>
+                <ul className="mt-1 space-y-0.5 text-xs">
+                  {resultat.failed.map((f) => (
+                    <li key={f.paymentId}>
+                      <span className="font-mono">{f.paymentId}</span> —{" "}
+                      {ECHEC_RATTRAPAGE[f.code] ?? f.code}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-xs">
+                  Relancer n’émet que ce qui manque encore.
+                </p>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      <ConfirmDialog
+        open={aEmettre}
+        onClose={() => setAEmettre(false)}
+        onConfirm={() =>
+          emettre.mutate(false, {
+            onSuccess: (r) => {
+              setAEmettre(false);
+              compter.reset();
+              toast.success(
+                `${r.issued.length} facture${r.issued.length > 1 ? "s" : ""} émise${r.issued.length > 1 ? "s" : ""}`,
+                r.failed.length > 0
+                  ? `${r.failed.length} paiement${r.failed.length > 1 ? "s" : ""} en échec : voir le détail.`
+                  : undefined,
+              );
+            },
+            onError: (e) => toast.error("Rattrapage impossible", adminErrorMessage(e)),
+          })
+        }
+        pending={emettre.isPending}
+        title={`Émettre ${enAttente ?? 0} facture${(enAttente ?? 0) > 1 ? "s" : ""} ?`}
+        lead="Chaque paiement par carte sans facture en reçoit une, au nom de son batch cooker, du plus ancien au plus récent. Le client et le batch cooker la voient aussitôt sur la commande."
+        detail="Une facture émise ne se retire plus. Elle est datée d'aujourd'hui et porte la vraie date du paiement."
+        confirmLabel="Émettre les factures"
+      />
     </div>
   );
 }
