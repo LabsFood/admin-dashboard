@@ -62,7 +62,18 @@ export interface ClientProfile {
   id: string;
   userId: string;
   dietaryPreferences: string[];
-  allergies: string[];
+  /**
+   * Les 14 allergènes réglementaires, par code : données de santé. Déclarées par
+   * le client seul, avec consentement. Absentes de `GET /admin/clients` (liste).
+   */
+  allergies?: string[];
+  /** Ce que les 14 ne couvrent pas, avec les mots du client. */
+  customAllergies?: string[];
+  /** « Aucune allergie », dit explicitement. */
+  allergiesNone?: boolean;
+  /** `null` : jamais répondu, aucun menu ne se valide. */
+  allergiesDeclaredAt?: string | null;
+  healthConsentAt?: string | null;
   dislikes: string[];
   favorites: string[];
   spiceLevel: number;
@@ -95,7 +106,6 @@ export interface MeProfile {
 /** Corps de `PATCH /me/profile` et `PATCH /admin/clients/{id}` (partiel). */
 export interface ClientProfilePatch {
   dietaryPreferences?: string[];
-  allergies?: string[];
   dislikes?: string[];
   favorites?: string[];
   spiceLevel?: number;
