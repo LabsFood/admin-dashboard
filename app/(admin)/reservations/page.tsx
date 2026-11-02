@@ -264,6 +264,12 @@ function BookingRow({ booking: b, index }: { booking: Booking; index: number }) 
             <Badge tone={impaye ? "warning" : isBookingOpen(b) ? "info" : "neutral"} dot>
               {bookingStatusText(b.status)}
             </Badge>
+            {/* Un conflit d'allergie ouvert : signalé sans dire l'allergie. */}
+            {b.allergyCheckReasons?.includes("ALLERGEN_CONFLICT") && (
+              <Badge tone="danger" dot>
+                Plat à remplacer (allergie)
+              </Badge>
+            )}
           </p>
           <p className="mt-0.5 truncate font-mono text-[11px] text-ink-soft">
             {[

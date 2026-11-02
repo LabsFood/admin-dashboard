@@ -207,6 +207,20 @@ export default function ReservationDetailPage({
               <UtensilsCrossed className="h-4 w-4 text-terra" aria-hidden /> Plats
               commandés
             </h3>
+            {(b.allergyConflicts?.length ?? 0) > 0 && (
+              <p className="mb-3 flex flex-wrap items-center gap-1 rounded-xl bg-danger-soft px-3 py-2 text-[13px] text-danger">
+                <span className="font-semibold">À remplacer :</span>
+                {b.allergyConflicts!
+                  .map((c) => b.meals?.find((m) => m.mealId === c.mealId)?.name ?? "un plat")
+                  .join(", ")}
+                <InfoPopover label="Pourquoi ce plat est-il à remplacer ?">
+                  Le client a déclaré une allergie après la validation du menu, et ce plat
+                  contient l’allergène. Le client ou le batch cooker le remplace depuis son
+                  espace, même si le menu est figé. Tant que ce n’est pas fait, la
+                  réservation reste signalée.
+                </InfoPopover>
+              </p>
+            )}
             {(b.meals?.length ?? 0) === 0 ? (
               <p className="text-sm text-ink-soft">
                 Aucun plat rattaché à cette réservation.
