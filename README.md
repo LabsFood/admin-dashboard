@@ -29,6 +29,7 @@ Note: The development server is configured to run on port `8035`.
 
 ## Etat du projet
 
-Donnees et authentification **mockees** (`lib/mock/`, `lib/auth.tsx`) — pas encore
-connecte a l'API `LF-BackEnd`. Voir [AGENTS.md](./AGENTS.md) pour le detail du stack,
-des variables d'environnement a venir et de la cible de deploiement.
+Branche sur l'API `LF-BackEnd` (auth Clerk, donnees via TanStack Query, proxy `/lf-api`).
+Seules les pages Avis et Kossam (retiree de la nav) reposent encore sur `lib/mock/`.
+Voir [AGENTS.md](./AGENTS.md) pour le detail du stack, des variables d'environnement
+(`.env.example`) et du deploiement.
