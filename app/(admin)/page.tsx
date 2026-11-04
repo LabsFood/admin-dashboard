@@ -452,9 +452,6 @@ export default function OverviewPage() {
             se pagine mais ne se filtre pas par date d&apos;inscription.
           </li>
           <li>
-            <strong>Kossam</strong> — aucun module, donc aucun chiffre.
-          </li>
-          <li>
             <strong>La liste des prestations</strong> —{" "}
             <code>GET /bookings</code> rend toute la base d&apos;un bloc, sans
             pagination ni filtre : ce qui est montré ici est trié côté console.

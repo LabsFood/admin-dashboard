@@ -14,6 +14,7 @@ import type { KossamStatus } from "@/lib/mock/types";
 
 type Filter = "all" | KossamStatus;
 
+/** @deprecated Retired from the console on 2026-11-01: linked from nowhere, kept for a possible return. */
 export default function KossamPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");

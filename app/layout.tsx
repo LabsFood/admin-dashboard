@@ -32,7 +32,7 @@ const dmMono = DM_Mono({
 export const metadata: Metadata = {
   title: "Lab's Food — Console d'administration",
   description:
-    "Console d'administration Lab's Food : batch cooking, demandes sur-mesure, clients, produits Kossam et site principal.",
+    "Console d'administration Lab's Food : batch cooking, demandes sur-mesure, clients et site principal.",
   icons: { icon: "/favicon.png" },
 };
 

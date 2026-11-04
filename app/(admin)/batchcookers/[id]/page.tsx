@@ -547,7 +547,7 @@ function Profil({ app }: { app: NonNullable<ReturnType<typeof useChefApplication
             app.company?.sap?.path === "type-a"
               ? "Déclaration à son nom"
               : app.company?.sap?.path === "type-b"
-                ? "Par Lab's Food"
+                ? "Par sa coopérative SAP"
                 : undefined
           }
         />

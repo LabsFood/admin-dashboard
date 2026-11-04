@@ -349,7 +349,7 @@ export default function CandidatureDetailPage({
                 company.sap?.path === "type-a"
                   ? `Déclaration propre${company.sap.declarationNumber ? ` · ${company.sap.declarationNumber}` : ""}`
                   : company.sap?.path === "type-b"
-                    ? "Portés par la coopérative"
+                    ? "Par sa coopérative SAP"
                     : undefined
               }
             />

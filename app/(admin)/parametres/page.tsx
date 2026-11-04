@@ -36,7 +36,6 @@ export default function ParametresPage() {
     newReservation: true,
     newDemande: true,
     newMessage: true,
-    kossamOrder: true,
     weeklyReport: false,
   });
 
@@ -107,11 +106,6 @@ export default function ParametresPage() {
             key: "newMessage",
             label: "Message client",
             sub: "Nouveau message dans la messagerie.",
-          },
-          {
-            key: "kossamOrder",
-            label: "Commande Kossam",
-            sub: "Nouvelle commande de produit.",
           },
           {
             key: "weeklyReport",

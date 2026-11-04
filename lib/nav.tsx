@@ -8,7 +8,6 @@ import {
   BookOpen,
   Carrot,
   Tags,
-  Milk,
   Mail,
   Star,
   ClipboardCheck,
@@ -135,14 +134,6 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: "Site principal",
     items: [
-      {
-        href: "/kossam",
-        label: "Commandes Kossam",
-        Icon: Milk,
-        eyebrow: "Produits",
-        title: "Commandes Kossam",
-        subtitle: "Suivi des commandes de la boisson Kossam.",
-      },
       {
         href: "/contact",
         label: "Messages contact",

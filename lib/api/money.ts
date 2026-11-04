@@ -6,7 +6,7 @@ import { ApiError, useApiFetch } from "./client";
 /* ─────────────────────────────────────────────────────────────────────────────
    L'argent, vu de la console.
 
-   Quatre circuits qui n'ont en commun que d'être de l'argent, et qu'il serait
+   Cinq circuits qui n'ont en commun que d'être de l'argent, et qu'il serait
    faux de fondre en une seule table :
 
    - **CESU** : le client déclare avoir remis des titres, le batch cooker
@@ -20,6 +20,9 @@ import { ApiError, useApiFetch } from "./client";
    - **Avance immédiate** : rattachements et demandes de paiement URSSAF. Tant
      que l'accès API n'existe pas, la console répond à la place de l'URSSAF —
      et l'API refuse ces deux routes hors mode simulé.
+   - **Factures clients** : la facture A, au nom du batch cooker, une par
+     paiement par carte. Émise au paiement ; celles des paiements antérieurs
+     à son ouverture se rattrapent depuis la console.
    - **Attestations fiscales** : ce que chaque client pourra déclarer, et la
      part que Lab's Food atteste réellement. Les deux diffèrent, et c'est la
      distinction la plus importante de ce module.
@@ -230,6 +233,34 @@ export function useRunDueCommissions() {
   });
 }
 
+export interface InvoiceBackfillResult {
+  dryRun: boolean;
+  /** Paiements par carte soldés qui n'avaient pas de facture. */
+  pending: number;
+  issued: { paymentId: string; invoiceNumber: string }[];
+  /** Le code de l'API (`INVOICE_AMOUNT_INVALID`, `P2002`…), jamais un message. */
+  failed: { paymentId: string; code: string }[];
+}
+
+/**
+ * Rattraper les factures A des paiements par carte réglés sans elle.
+ *
+ * `dryRun: true` ne fait que compter. `false` émet, du plus ancien paiement au
+ * plus récent : une facture ne se retire jamais, d'où le comptage d'abord.
+ * Chacune est datée du jour du rattrapage, avec la vraie date de paiement sur
+ * le PDF. Relancer n'émet que ce qui manque encore.
+ */
+export function useBackfillPaymentInvoices() {
+  const apiFetch = useApiFetch();
+  return useMutation({
+    mutationFn: (dryRun: boolean) =>
+      apiFetch<InvoiceBackfillResult>("/admin/payment-invoices/backfill", {
+        method: "POST",
+        body: { dryRun },
+      }),
+  });
+}
+
 /** Relance : même facture, même numéro, tentative suivante. */
 export function useRetryDebit() {
   const apiFetch = useApiFetch();
@@ -410,5 +441,5 @@ export function useAttestation(clientId: string | undefined, year: number) {
 
 export const DECLARATION_TYPE: Record<string, string> = {
   type_a_nova: "NOVA à son nom",
-  type_b_cooperative: "Coopérative",
+  type_b_cooperative: "Sa coopérative SAP",
 };

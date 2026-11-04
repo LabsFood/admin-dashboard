@@ -1,3 +1,4 @@
+/* @deprecated Only the retired /kossam page reads this file; it is no longer exported from lib/mock. */
 import type { KossamOrder, KossamStatus } from "./types";
 
 export const KOSSAM_STATUS_LABEL: Record<KossamStatus, string> = {
