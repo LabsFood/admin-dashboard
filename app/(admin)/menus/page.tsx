@@ -112,7 +112,7 @@ export default function MenusPage() {
       <motion.section
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         className="relative overflow-hidden rounded-3xl bg-teal p-6 text-white lg:p-7"
       >
         <div
@@ -267,6 +267,7 @@ export default function MenusPage() {
                   transition={{
                     duration: 0.32,
                     delay: Math.min(i * 0.04, 0.32),
+                    ease: [0.16, 1, 0.3, 1],
                   }}
                   className="card card-hover overflow-hidden text-left"
                 >
@@ -375,6 +376,7 @@ export default function MenusPage() {
                   transition={{
                     duration: 0.32,
                     delay: Math.min(i * 0.05, 0.3),
+                    ease: [0.16, 1, 0.3, 1],
                   }}
                   className="card card-hover"
                 >
@@ -499,6 +501,7 @@ export default function MenusPage() {
                     transition={{
                       duration: 0.32,
                       delay: Math.min(i * 0.05, 0.3),
+                      ease: [0.16, 1, 0.3, 1],
                     }}
                     className={cn(
                       "card card-hover",

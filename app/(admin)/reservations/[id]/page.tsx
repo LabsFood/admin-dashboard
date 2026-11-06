@@ -129,7 +129,7 @@ export default function ReservationDetailPage({
       <motion.section
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         className="relative overflow-hidden rounded-3xl bg-navy p-6 text-white lg:p-8"
       >
         <div

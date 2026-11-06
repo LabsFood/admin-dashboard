@@ -79,7 +79,7 @@ export default function FormulesPage() {
       <motion.section
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         className="grid grid-cols-1 gap-4 sm:grid-cols-3"
       >
         <div className="card flex items-center gap-3 p-5">
@@ -365,7 +365,7 @@ function FormuleCard({
     <motion.article
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.34, delay: Math.min(index * 0.06, 0.3) }}
+      transition={{ duration: 0.34, delay: Math.min(index * 0.06, 0.3), ease: [0.16, 1, 0.3, 1] }}
       className={cn(
         "card relative flex flex-col p-6",
         f.popular && "ring-1 ring-terra/50",

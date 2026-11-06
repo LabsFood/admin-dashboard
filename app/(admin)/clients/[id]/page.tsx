@@ -135,7 +135,7 @@ function ClientDetail({ id, client }: { id: string; client: ClientView }) {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
             className="relative overflow-hidden rounded-3xl bg-navy p-6 text-white"
           >
             <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-terra/25 blur-3xl" />
