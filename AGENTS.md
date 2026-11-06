@@ -85,6 +85,8 @@ Voir `.env.example` (commente). En resume :
 | `API_PROXY_TARGET` | Cible du rewrite `/lf-api` (defaut `https://lf-api.labsfood.fr`) |
 | `NEXT_PUBLIC_SITE_URL` | URL publique de la console |
 | `NEXT_PUBLIC_BATCHCOOKING_URL` | Ou renvoyer un compte non admin |
+| `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_ENVIRONMENT` | Sentry (region UE) : erreurs JS, rendus casses, replay masque sur erreur. Vide = eteint |
+| `SENTRY_ORG`, `SENTRY_AUTH_TOKEN` | Build seulement : envoi des source maps (sans jeton, le build passe sans elles) |
 
 `NEXT_PUBLIC_API_URL` et `API_PROXY_TARGET` sont figees **au build** (inlining Next /
 routes-manifest) : dans l'image Docker, elles passent en `ARG`.

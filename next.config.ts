@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs/config";
 
 // Cible du proxy API (côté serveur). Le navigateur appelle same-origin via
 // /lf-api/* → Next relaie vers l'API officielle, ce qui évite les erreurs CORS.
@@ -31,4 +32,16 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT ?? "admin-dashboard",
+  // Sans jeton, le build passe : seul l'envoi des source maps est sauté.
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  // `.git` n'est pas dans le contexte Docker : Railway fournit le commit.
+  release: { name: process.env.RAILWAY_GIT_COMMIT_SHA },
+  // Les événements passent par la console : les bloqueurs ne les coupent pas.
+  // Exclu du matcher de proxy.ts, sinon Clerk le renverrait vers /login.
+  tunnelRoute: "/monitoring",
+  widenClientFileUpload: true,
+  silent: !process.env.CI,
+});

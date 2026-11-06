@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useAuth } from "@clerk/nextjs";
+import * as Sentry from "@sentry/nextjs";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { makeQueryClient } from "@/lib/api/query-client";
@@ -11,12 +13,22 @@ import Toaster from "@/components/ui/Toaster";
    alimente les appels vers l'API Labs Food, et le Toaster, qui donne à toute
    action son retour. Le Toaster est à l'intérieur du QueryClientProvider pour
    qu'un `onError` de mutation puisse l'appeler. */
+/** Rattache les erreurs Sentry au compte Clerk : l'id seulement, jamais l'email. */
+function SentryUser() {
+  const { isLoaded, userId } = useAuth();
+  useEffect(() => {
+    if (isLoaded) Sentry.setUser(userId ? { id: userId } : null);
+  }, [isLoaded, userId]);
+  return null;
+}
+
 export default function Providers({ children }: { children: ReactNode }) {
   // useState garantit un QueryClient stable par montage (pas recréé au re-render).
   const [queryClient] = useState(makeQueryClient);
 
   return (
     <QueryClientProvider client={queryClient}>
+      <SentryUser />
       <Toaster>{children}</Toaster>
       {/* Devtools React Query — exclus du bundle de production. */}
       {process.env.NODE_ENV === "development" && (

@@ -17,6 +17,17 @@ ARG API_PROXY_TARGET
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} \
     API_PROXY_TARGET=${API_PROXY_TARGET:-https://lf-api.labsfood.fr}
 
+# Sentry (vide = éteint). SENTRY_AUTH_TOKEN ne sert qu'à envoyer les source maps
+# pendant ce build : il reste dans cette étape, l'image finale ne le contient pas.
+# Railway fournit RAILWAY_GIT_COMMIT_SHA, qui nomme la release.
+ARG NEXT_PUBLIC_SENTRY_DSN
+ARG NEXT_PUBLIC_ENVIRONMENT=production
+ARG SENTRY_ORG
+ARG SENTRY_AUTH_TOKEN
+ARG RAILWAY_GIT_COMMIT_SHA
+ENV NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN} \
+    NEXT_PUBLIC_ENVIRONMENT=${NEXT_PUBLIC_ENVIRONMENT}
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build

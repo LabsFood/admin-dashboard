@@ -29,7 +29,8 @@ export const config = {
   matcher: [
     // Ignore les fichiers statiques et les internals Next, sauf s'ils sont
     // présents dans les search params.
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    // Sans `monitoring` : le relais Sentry n'a pas de session, Clerk le renverrait vers /login.
+    '/((?!_next|monitoring|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
     '/(api|trpc)(.*)',
   ],
 }
