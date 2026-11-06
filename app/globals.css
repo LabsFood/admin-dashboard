@@ -272,7 +272,12 @@ button:disabled {
     cursor: pointer;
     white-space: nowrap;
     transition: background-color 0.15s ease, color 0.15s ease,
-      border-color 0.15s ease;
+      border-color 0.15s ease, transform 0.1s ease-out;
+  }
+
+  /* Pressed: the button gives under the finger. */
+  .btn:active:not(:disabled) {
+    transform: scale(0.97);
   }
 
   .btn:focus-visible {
