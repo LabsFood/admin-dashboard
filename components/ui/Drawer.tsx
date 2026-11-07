@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useSyncExternalStore, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 
@@ -32,7 +33,13 @@ export default function Drawer({
     };
   }, [open, onClose]);
 
-  return (
+  // Rendu dans <body> : monté sous un parent à `backdrop-filter` (la Topbar,
+  // sticky et floutée), `fixed inset-0` se mesurait sur ce parent et non sur
+  // l'écran — voile tronqué, contenu écrasé sous le pied du tiroir.
+  const isClient = useSyncExternalStore(subscribeNothing, () => true, () => false);
+  if (!isClient) return null;
+
+  return createPortal(
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-50 flex justify-end">
@@ -85,6 +92,9 @@ export default function Drawer({
           </motion.aside>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
+
+const subscribeNothing = () => () => {};

@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import posthog from "posthog-js";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -205,6 +206,12 @@ export default function MealForm({
         { id: meal.id, patch: input },
         {
           onSuccess: (saved) => {
+            posthog.capture("meal_updated", {
+              content_type: variant,
+              status: input.status,
+              is_featured: input.isFeatured,
+              ingredient_count: input.ingredients?.length ?? 0,
+            });
             toast.success(`« ${saved?.name ?? input.name} » enregistré`);
             router.push(backHref);
           },
@@ -215,6 +222,12 @@ export default function MealForm({
     } else {
       create.mutate(input, {
         onSuccess: (saved) => {
+          posthog.capture("meal_created", {
+            content_type: variant,
+            status: input.status,
+            is_featured: input.isFeatured,
+            ingredient_count: input.ingredients?.length ?? 0,
+          });
           toast.success(
             `« ${saved?.name ?? input.name} » créé`,
             status === "draft"
