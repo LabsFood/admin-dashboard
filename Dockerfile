@@ -28,6 +28,13 @@ ARG RAILWAY_GIT_COMMIT_SHA
 ENV NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN} \
     NEXT_PUBLIC_ENVIRONMENT=${NEXT_PUBLIC_ENVIRONMENT}
 
+# PostHog (vide = éteint). Next fige le jeton et l'hôte au build : sans ces ARG,
+# Railway ne les passe pas et PostHog reste éteint même avec les variables posées.
+ARG NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN
+ARG NEXT_PUBLIC_POSTHOG_HOST
+ENV NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN=${NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN} \
+    NEXT_PUBLIC_POSTHOG_HOST=${NEXT_PUBLIC_POSTHOG_HOST}
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
