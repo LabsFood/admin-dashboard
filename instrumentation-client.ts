@@ -7,19 +7,20 @@ import * as Sentry from "@sentry/nextjs";
 import posthog from "posthog-js";
 
 const posthogProjectToken = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
-const posthogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST;
 
-// Sans jeton ni hôte PostHog (dev, preview), PostHog reste éteint : un avertissement,
-// pas une erreur qui casserait la console.
-if (posthogProjectToken && posthogHost) {
+// Sans jeton PostHog (dev, preview), PostHog reste éteint : un avertissement, pas une
+// erreur qui casserait la console.
+if (posthogProjectToken) {
   posthog.init(posthogProjectToken, {
-    api_host: posthogHost,
+    // Relais same-origin (next.config.ts) : passe les bloqueurs, reste dans l'UE.
+    api_host: "/ingest",
+    ui_host: "https://eu.posthog.com",
     defaults: "2026-01-30",
     capture_exceptions: true,
     debug: process.env.NODE_ENV === "development",
   });
 } else if (process.env.NODE_ENV !== "production") {
-  console.warn("PostHog éteint : NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN ou NEXT_PUBLIC_POSTHOG_HOST manque.");
+  console.warn("PostHog éteint : NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN manque.");
 }
 
 Sentry.init({

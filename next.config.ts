@@ -9,6 +9,8 @@ const API_PROXY_TARGET =
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Les chemins de l'API PostHog finissent par « / » : pas de redirection.
+  skipTrailingSlashRedirect: true,
   /*
    * « Équipe & chefs » a été retirée : les batch cookers ont leur propre
    * section, les comptes et les rôles vivent dans Utilisateurs, et les zones
@@ -24,6 +26,11 @@ const nextConfig: NextConfig = {
 
   async rewrites() {
     return [
+      // PostHog (UE) relayé same-origin : les bloqueurs de pub laissent passer.
+      // Les règles statiques avant la règle générale, Next les lit dans l'ordre.
+      { source: "/ingest/static/:path*", destination: "https://eu-assets.i.posthog.com/static/:path*" },
+      { source: "/ingest/array/:path*", destination: "https://eu-assets.i.posthog.com/array/:path*" },
+      { source: "/ingest/:path*", destination: "https://eu.i.posthog.com/:path*" },
       {
         source: "/lf-api/:path*",
         destination: `${API_PROXY_TARGET}/:path*`,
