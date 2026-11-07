@@ -87,6 +87,7 @@ Voir `.env.example` (commente). En resume :
 | `NEXT_PUBLIC_BATCHCOOKING_URL` | Ou renvoyer un compte non admin |
 | `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_ENVIRONMENT` | Sentry (region UE) : erreurs JS, rendus casses, replay masque sur erreur. Vide = eteint |
 | `SENTRY_ORG`, `SENTRY_AUTH_TOKEN` | Build seulement : envoi des source maps (sans jeton, le build passe sans elles) |
+| `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN`, `NEXT_PUBLIC_POSTHOG_HOST` | PostHog (region UE) : actions de la console et erreurs, sans replay, textes masques. L'hote ne sert qu'aux journaux du serveur. Vide = eteint |
 
 `NEXT_PUBLIC_API_URL` et `API_PROXY_TARGET` sont figees **au build** (inlining Next /
 routes-manifest) : dans l'image Docker, elles passent en `ARG`.

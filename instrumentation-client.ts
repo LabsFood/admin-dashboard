@@ -17,6 +17,12 @@ if (posthogProjectToken) {
     ui_host: "https://eu.posthog.com",
     defaults: "2026-01-30",
     capture_exceptions: true,
+    // La console affiche fiches clients, allergies et pièces d'identité : aucun
+    // enregistrement de session, même si le projet PostHog l'active, et un clic garde
+    // sa page et son sélecteur, jamais son texte ni ses attributs.
+    disable_session_recording: true,
+    mask_all_text: true,
+    mask_all_element_attributes: true,
     debug: process.env.NODE_ENV === "development",
   });
 } else if (process.env.NODE_ENV !== "production") {
