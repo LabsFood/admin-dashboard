@@ -1,6 +1,7 @@
 "use client";
 
 import * as Sentry from "@sentry/nextjs";
+import Error from "next/error";
 import posthog from "posthog-js";
 import { useEffect } from "react";
 
