@@ -3,6 +3,7 @@
 import { use, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import posthog from "posthog-js";
 import {
   ArrowLeft,
   CalendarClock,
@@ -543,6 +544,10 @@ export default function ReservationDetailPage({
         onConfirm={() =>
           regenerate.mutate(b.id, {
             onSuccess: () => {
+              posthog.capture("booking_shopping_list_regenerated", {
+                meal_count: b.meals?.length ?? 0,
+                portions,
+              });
               setARecalculer(false);
               toast.success(
                 "Liste de courses recalculée",
@@ -568,6 +573,10 @@ export default function ReservationDetailPage({
             { id: b.id, patch: { status: aPoser } },
             {
               onSuccess: () => {
+                posthog.capture("booking_status_overridden", {
+                  previous_status: b.status,
+                  status: aPoser,
+                });
                 setAPoser(null);
                 toast.success(
                   `Statut posé : ${bookingStatusLabel[aPoser].toLowerCase()}`,

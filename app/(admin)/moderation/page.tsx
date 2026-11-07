@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import posthog from "posthog-js";
 import {
   AlertTriangle,
   ChevronLeft,
@@ -241,8 +242,12 @@ function QueueRow({
     review.mutate(
       { id: item.id, kind: item.kind },
       {
-        onSuccess: () =>
-          toast.success(`« ${item.name} » marqué comme relu`, "Il quitte la file."),
+        onSuccess: () => {
+          posthog.capture("moderation_item_reviewed", {
+            content_type: item.kind,
+          });
+          toast.success(`« ${item.name} » marqué comme relu`, "Il quitte la file.");
+        },
         onError: (e) => toast.error("Le marquage a échoué", adminErrorMessage(e)),
       },
     );
@@ -266,6 +271,13 @@ function QueueRow({
       },
       {
         onSuccess: () => {
+          posthog.capture(
+            status === "suspended" ? "moderation_item_suspended" : "moderation_item_reinstated",
+            {
+              content_type: item.kind,
+              notify_chef: status === "suspended" ? extra.notify : undefined,
+            },
+          );
           setDialog(null);
           toast.success(
             status === "suspended"
