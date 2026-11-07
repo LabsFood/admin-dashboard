@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "@clerk/nextjs";
+import posthog from "posthog-js";
 import * as Sentry from "@sentry/nextjs";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
@@ -16,9 +17,27 @@ import Toaster from "@/components/ui/Toaster";
 /** Rattache les erreurs Sentry au compte Clerk : l'id seulement, jamais l'email. */
 function SentryUser() {
   const { isLoaded, userId } = useAuth();
+  const previousUserId = useRef<string | null | undefined>(undefined);
+
   useEffect(() => {
-    if (isLoaded) Sentry.setUser(userId ? { id: userId } : null);
+    if (!isLoaded) return;
+
+    Sentry.setUser(userId ? { id: userId } : null);
+
+    if (userId) {
+      if (previousUserId.current && previousUserId.current !== userId) {
+        posthog.reset();
+      }
+      if (previousUserId.current !== userId) {
+        posthog.identify(userId);
+      }
+    } else if (previousUserId.current) {
+      posthog.reset();
+    }
+
+    previousUserId.current = userId ?? null;
   }, [isLoaded, userId]);
+
   return null;
 }
 
