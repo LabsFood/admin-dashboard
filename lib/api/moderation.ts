@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApiFetch } from "./client";
-import { unwrapList, unwrapMeta, type Difficulty } from "./catalog";
+import { unwrapList, unwrapMeta, type Difficulty, type Readiness } from "./catalog";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    La modération du contenu des batch cookers.
@@ -33,6 +33,7 @@ export const REASON_CODES = [
   "inappropriate-content",
   "copyright",
   "misleading-origin",
+  "not-a-real-photo",
   "duplicate",
   "quality",
   "other",
@@ -62,6 +63,11 @@ export interface ReviewItem {
   customAllergens: string[];
   publishedAt: string | null;
   reviewedAt: string | null;
+  /** Recettes §4.11 : sur la fiche complète seulement, pas dans la file. */
+  readiness?: Readiness;
+  /** Quand le batch cooker a confirmé ses allergènes ; null depuis un changement d'ingrédient. */
+  allergensVerifiedAt?: string | null;
+  recipeVersion?: number;
   /** Le batch cooker, tel que l'API le nomme. */
   chefProfileId: string | null;
   chefName: string | null;

@@ -680,3 +680,79 @@ export function useDeleteUserAvatar() {
     },
   });
 }
+
+/* ── Modes de réchauffage (module Recettes §4.6) ───────────────────────────── */
+
+export interface ReheatModeSetting {
+  modes: { code: string; label: string }[];
+  /** `null` : jamais modifiée, la liste par défaut s'applique. */
+  updatedAt: string | null;
+}
+
+const REHEAT_MODES_SETTING = ["admin", "settings", "reheat-modes"] as const;
+
+/** `GET /admin/settings/reheat-modes` */
+export function useReheatModeSetting() {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: REHEAT_MODES_SETTING,
+    queryFn: () => apiFetch<ReheatModeSetting>("/admin/settings/reheat-modes"),
+  });
+}
+
+/**
+ * `PUT /admin/settings/reheat-modes` — la liste entière, chaque code une fois.
+ * Un plat garde un code retiré ; il est refusé au prochain enregistrement.
+ */
+export function useSetReheatModes() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (modes: { code: string; label: string }[]) =>
+      apiFetch<ReheatModeSetting>("/admin/settings/reheat-modes", {
+        method: "PUT",
+        body: { modes },
+      }),
+    onSuccess: (data) => {
+      qc.setQueryData(REHEAT_MODES_SETTING, data);
+      // `useReheatModes` (referentials.ts) range la liste sous cette clé.
+      qc.invalidateQueries({ queryKey: ["referentials", "modes"] });
+    },
+  });
+}
+
+/* ── Profils de recette (module Recettes §4.8) ─────────────────────────────── */
+
+export interface RecipeProfileSetting {
+  profiles: { code: string; label: string }[];
+  updatedAt: string | null;
+}
+
+const RECIPE_PROFILES_SETTING = ["admin", "settings", "recipe-profiles"] as const;
+
+/** `GET /admin/settings/recipe-profiles` */
+export function useRecipeProfileSetting() {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: RECIPE_PROFILES_SETTING,
+    queryFn: () => apiFetch<RecipeProfileSetting>("/admin/settings/recipe-profiles"),
+  });
+}
+
+/** `PUT /admin/settings/recipe-profiles` — la liste entière, chaque code une fois. */
+export function useSetRecipeProfiles() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (profiles: { code: string; label: string }[]) =>
+      apiFetch<RecipeProfileSetting>("/admin/settings/recipe-profiles", {
+        method: "PUT",
+        body: { profiles },
+      }),
+    onSuccess: (data) => {
+      qc.setQueryData(RECIPE_PROFILES_SETTING, data);
+      // `useRecipeProfiles` (referentials.ts) range la liste sous cette clé.
+      qc.invalidateQueries({ queryKey: ["referentials", "profiles"] });
+    },
+  });
+}

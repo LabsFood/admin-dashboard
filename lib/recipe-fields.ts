@@ -13,7 +13,7 @@
    plat, pas seulement la ligne fautive : d'où les deux gardes ci-dessous.
    ───────────────────────────────────────────────────────────────────────────── */
 
-import type { Ingredient, Reheating, Storage } from "@/lib/api/catalog";
+import type { Ingredient, Reheating, Step, Storage } from "@/lib/api/catalog";
 
 /** Unités de mesure. L'API les prend en texte libre ; la liste évite les doublons. */
 export const UNITS = [
@@ -89,12 +89,21 @@ export const storageMethodLabel = (method?: string | null) =>
   labelOf(STORAGE_METHODS, method);
 
 /** « Four · 160 °C · 15 min ». `null` quand il n'y a rien à dire. */
-export function reheatingLine(r?: Reheating | null): string | null {
-  if (!r?.mode) return null;
+/** Les modes d'une fiche : la liste, ou le mode unique d'avant (§4.6). */
+export const reheatModesOf = (r?: Reheating | null): string[] =>
+  r?.modes?.length ? r.modes : r?.mode ? [r.mode] : [];
+
+export function reheatingLine(
+  r?: Reheating | null,
+  modes: { code: string; label: string }[] = REHEAT_MODES,
+): string | null {
+  const codes = reheatModesOf(r);
+  if (codes.length === 0) return null;
   return [
-    reheatModeLabel(r.mode),
-    r.temperature != null ? `${r.temperature} °C` : null,
-    r.minutes != null ? `${r.minutes} min` : null,
+    codes.map((c) => labelOf(modes, c)).join(" ou "),
+    r?.temperature != null ? `${r.temperature} °C` : null,
+    r?.minutes != null ? `${r.minutes} min` : null,
+    r?.container ? `dans ${r.container}` : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -139,24 +148,100 @@ export function cleanIngredients(list: Ingredient[]): Ingredient[] {
     qty: Number(i.qty),
     unit: (i.unit ?? "").trim(),
     aisle: (i.aisle ?? "").trim(),
+    link: i.link?.trim() && linkValid(i.link) ? i.link.trim() : null,
+    toVerify: i.toVerify ?? false,
+    fixedQuantity: i.fixedQuantity ?? false,
+    catalogIngredientId: i.catalogIngredientId ?? null,
   }));
 }
 
-/** `null` tant que le couple exigé n'est pas complet. */
+export const MONTHS = [
+  "janv.",
+  "févr.",
+  "mars",
+  "avr.",
+  "mai",
+  "juin",
+  "juil.",
+  "août",
+  "sept.",
+  "oct.",
+  "nov.",
+  "déc.",
+];
+
+/** « Toute l'année », « juin à sept. », ou les mois un à un. */
+export function seasonsLine(months: number[] | null | undefined): string | null {
+  if (!months) return null;
+  if (months.length === 0) return "Hors saison";
+  if (months.length === 12) return "Toute l'année";
+  const sorted = [...months].sort((a, b) => a - b);
+  const suivis = sorted.every((m, i) => i === 0 || m === sorted[i - 1] + 1);
+  return suivis && sorted.length > 2
+    ? `${MONTHS[sorted[0] - 1]} à ${MONTHS[sorted[sorted.length - 1] - 1]}`
+    : sorted.map((m) => MONTHS[m - 1]).join(", ");
+}
+
+/** Une adresse que l'API acceptera : `http` ou `https`, rien d'autre. */
+export const linkValid = (link?: string | null) =>
+  !link?.trim() || /^https?:\/\/\S+$/i.test(link.trim());
+
+/** Le réchauffage s'enregistre dès qu'un mode est coché : le reste est facultatif. */
 export function cleanReheating(r: {
-  mode: string;
+  modes: string[];
   temperature: string;
   minutes: string;
   note: string;
+  container: string;
 }): Reheating | null {
-  if (!r.mode || !r.minutes.trim()) return null;
+  if (r.modes.length === 0) return null;
   return {
-    mode: r.mode,
-    minutes: Number(r.minutes),
+    modes: r.modes,
+    minutes: r.minutes.trim() ? Number(r.minutes) : null,
     temperature: r.temperature.trim() ? Number(r.temperature) : null,
     note: r.note.trim() || null,
+    container: r.container.trim() || null,
   };
 }
+
+/** Une étape en cours de saisie : la durée reste une chaîne. */
+export interface StepRow {
+  text: string;
+  type: string;
+  minutes: string;
+}
+
+/**
+ * Les étapes telles que stockées : des `Step`, ou du texte seul pour une fiche
+ * écrite avant les types. Ce qui n'est ni l'un ni l'autre est ignoré.
+ */
+export function readSteps(raw: unknown): Step[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((s): Step[] => {
+    if (typeof s === "string") return s.trim() ? [{ text: s, type: null, durationMinutes: null }] : [];
+    if (s && typeof s === "object" && typeof (s as Step).text === "string") {
+      const step = s as Step;
+      return [{ text: step.text, type: step.type ?? null, durationMinutes: step.durationMinutes ?? null }];
+    }
+    return [];
+  });
+}
+
+export const toStepRow = (s: Step): StepRow => ({
+  text: s.text,
+  type: s.type ?? "",
+  minutes: s.durationMinutes?.toString() ?? "",
+});
+
+/** Les étapes écrites, dans l'ordre : l'API les numérote. */
+export const cleanSteps = (list: StepRow[]): Step[] =>
+  list
+    .filter((s) => s.text.trim())
+    .map((s) => ({
+      text: s.text.trim(),
+      type: s.type || null,
+      durationMinutes: s.minutes.trim() ? Number(s.minutes) : null,
+    }));
 
 export function cleanStorage(s: {
   method: string;
