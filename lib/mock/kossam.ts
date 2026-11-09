@@ -77,7 +77,7 @@ export const KOSSAM_ORDERS: KossamOrder[] = [
     deliveryAddress: "7 avenue Robert Soleau, 06600 Antibes",
     deliveryDate: "2026-05-20",
     deliverySlot: "9h00 – 12h00",
-    notes: "Commande pour un anniversaire — soigner l'emballage.",
+    notes: "Commande groupée — soigner l'emballage.",
     createdAt: "2026-05-17",
   },
   {
