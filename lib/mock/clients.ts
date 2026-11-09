@@ -159,7 +159,7 @@ export const CLIENTS: Client[] = [
     ordersCount: 0,
     createdAt: "2026-05-15",
     lastOrderAt: null,
-    notes: "Demande un devis pour un brunch d'anniversaire.",
+    notes: "Demande un devis pour une session sur-mesure.",
   },
 ];
 
