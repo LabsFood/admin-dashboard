@@ -156,3 +156,31 @@ export const DECLARED_DIETS: RefItem[] = [
 export function refLabel(items: RefItem[], code: string): string {
   return items.find((i) => i.code === code)?.label ?? code;
 }
+
+/** Une commune d'une région, telle que `interventionZones[].cities` l'attend. */
+export interface RegionCommune {
+  name: string;
+  insee: string;
+  department: string;
+}
+
+/**
+ * `GET /referentials/regions/{code}/communes` — toutes les communes d'une
+ * région, par ordre alphabétique (arrivée le 10/11). Plusieurs milliers pour
+ * les plus grandes : ne la demander qu'à l'ouverture d'une région.
+ */
+export function useRegionCommunes(regionCode: string, enabled = true) {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: ["referentials", "communes", regionCode],
+    queryFn: async () =>
+      (
+        await apiFetch<{ communes: RegionCommune[] }>(
+          `/referentials/regions/${regionCode}/communes`,
+        )
+      ).communes ?? [],
+    enabled,
+    staleTime: Infinity,
+    retry: 1,
+  });
+}

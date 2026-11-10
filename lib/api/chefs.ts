@@ -80,7 +80,12 @@ export interface AdminChefDetail extends AdminChef {
     regionCode: string;
     regionLabel: string;
     scope: "region" | "cities";
-    cities: string[];
+    /**
+     * Des objets depuis le 25/10, tels qu'enregistrés : ce qui est lu repart
+     * tel quel vers `PATCH …/zones`. `dept` et `insee` manquent sur une zone
+     * déclarée avant que la candidature ne les exige.
+     */
+    cities: { name: string; dept: string | null; insee: string | null }[];
   }[];
   payoutsConnected: boolean;
   calendarConnected: boolean;

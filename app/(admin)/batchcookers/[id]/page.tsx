@@ -386,7 +386,7 @@ function ProfilSansCandidature({ chef }: { chef: AdminChefDetail }) {
               <li key={zone.regionCode}>
                 <strong>{zone.regionLabel}</strong>
                 {zone.scope === "cities" && zone.cities.length > 0
-                  ? ` : ${zone.cities.join(", ")}`
+                  ? ` : ${zone.cities.map((c) => c.name).join(", ")}`
                   : " : toute la région"}
               </li>
             ))}
