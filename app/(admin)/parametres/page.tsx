@@ -17,6 +17,7 @@ import {
   UserCircle2,
 } from "lucide-react";
 import InfoPopover from "@/components/ui/InfoPopover";
+import TierRules from "@/components/admin/TierRules";
 import { useAuth } from "@/lib/auth";
 import {
   useChefTierNames,
@@ -211,12 +212,13 @@ function PaliersBatchCookers() {
   return (
     <Section title="Paliers des batch cookers" eyebrow="Recettes" Icon={Layers2}>
       <p className="flex items-center gap-1 text-xs text-ink-mid">
-        Le nom de chaque palier, tel que le voient le batch cooker et la console.
+        Le nom de chaque palier, ce qu&apos;il permet et la commission qu&apos;il paie.
         <InfoPopover label="À quoi servent les paliers ?">
           Chaque batch cooker reçoit un palier depuis sa fiche (le premier
-          d&apos;office). Renommer un palier ne change le palier de personne.
-          Aucune facturation et aucune règle de publication n&apos;en dépendent
-          encore.
+          d&apos;office). Renommer un palier ne change le palier de personne. Pour
+          l&apos;instant tous les batch cookers sont au palier 1, qui permet tout au
+          taux de commission de la plateforme ; les paliers 2 à 4 seront définis
+          plus tard.
         </InfoPopover>
       </p>
 
@@ -230,18 +232,21 @@ function PaliersBatchCookers() {
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {CHEF_TIERS.map((tier, i) => (
-            <label key={tier} className="block">
-              <span className="field-label">
-                Palier {i + 1} <span className="font-mono">({tier})</span>
-              </span>
-              <input
-                value={valeurs[tier]}
-                maxLength={40}
-                onChange={(e) => setBrouillon({ ...valeurs, [tier]: e.target.value })}
-                aria-invalid={!valeurs[tier].trim()}
-                className="input-base"
-              />
-            </label>
+            <div key={tier} className="hairline space-y-2 rounded-xl border p-3">
+              <label className="block">
+                <span className="field-label">
+                  Palier {i + 1} <span className="font-mono">({tier})</span>
+                </span>
+                <input
+                  value={valeurs[tier]}
+                  maxLength={40}
+                  onChange={(e) => setBrouillon({ ...valeurs, [tier]: e.target.value })}
+                  aria-invalid={!valeurs[tier].trim()}
+                  className="input-base"
+                />
+              </label>
+              {noms.data?.rules?.[tier] && <TierRules rule={noms.data.rules[tier]} />}
+            </div>
           ))}
         </div>
       )}

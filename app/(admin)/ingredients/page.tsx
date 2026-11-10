@@ -2,7 +2,18 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { AlertTriangle, Carrot, Loader2, Pencil, Plus, Save, Search, X } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarClock,
+  Carrot,
+  Check,
+  Loader2,
+  Pencil,
+  Plus,
+  Save,
+  Search,
+  X,
+} from "lucide-react";
 import InfoPopover from "@/components/ui/InfoPopover";
 import { useToast } from "@/components/ui/Toaster";
 import { cn } from "@/lib/utils";
@@ -12,8 +23,10 @@ import { MONTHS, seasonsLine } from "@/lib/recipe-fields";
 import {
   useCatalogIngredients,
   useCreateCatalogIngredient,
+  useMarkIngredientSeasonReviewed,
   useUpdateCatalogIngredient,
   type CatalogIngredient,
+  type IngredientSeasonReview,
 } from "@/lib/api/catalog";
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -65,6 +78,8 @@ export default function IngredientsPage() {
           <Plus className="h-4 w-4" aria-hidden /> Ajouter un ingrédient
         </button>
       </motion.section>
+
+      {liste.data?.seasonReview?.due && <RappelSaison review={liste.data.seasonReview} />}
 
       {editing && (
         <IngredientEditor
@@ -292,5 +307,72 @@ function IngredientEditor({
         Enregistrer
       </button>
     </form>
+  );
+}
+
+const SAISONS: Record<IngredientSeasonReview["season"], string> = {
+  winter: "l’hiver",
+  spring: "le printemps",
+  summer: "l’été",
+  autumn: "l’automne",
+};
+
+/**
+ * BLK-33 : la liste se construit en début de saison, puis se relit à chaque
+ * nouvelle saison (1er mars, juin, septembre, décembre). L'API dit quand ; le
+ * bouton efface le rappel jusqu'à la saison suivante. Modifier un ingrédient ne
+ * l'efface pas : seule la confirmation le fait.
+ */
+function RappelSaison({ review }: { review: IngredientSeasonReview }) {
+  const confirmer = useMarkIngredientSeasonReviewed();
+  const saison = SAISONS[review.season];
+  const message =
+    review.reason === "empty"
+      ? `La liste commune est vide. Construisez-la pour ${saison} : sans elle, aucun plat n’affiche ses régimes ni ses saisons.`
+      : review.reason === "new_season"
+        ? `C’est ${saison} depuis le ${new Date(review.seasonStartsAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}. Relisez les mois de saison et les régimes, puis confirmez.`
+        : `La liste n’a encore jamais été relue. Vérifiez qu’elle convient à ${saison}, puis confirmez.`;
+
+  return (
+    <section
+      role="status"
+      className="card flex flex-wrap items-start justify-between gap-4 border-l-4 border-l-warning p-5"
+    >
+      <div className="flex items-start gap-3">
+        <CalendarClock className="mt-0.5 h-5 w-5 shrink-0 text-warning" aria-hidden />
+        <div>
+          <p className="flex items-center gap-1 font-semibold text-navy">
+            Relecture de saison
+            <InfoPopover label="Quand ce rappel revient-il ?">
+              À chaque début de saison : le 1er mars, le 1er juin, le 1er septembre
+              et le 1er décembre. Il reste affiché jusqu&apos;à votre confirmation ;
+              modifier un ingrédient ne suffit pas à l&apos;effacer. La liste se
+              modifie à tout moment.
+            </InfoPopover>
+          </p>
+          <p className="mt-1 text-sm text-ink-mid">{message}</p>
+          {confirmer.isError && (
+            <p role="alert" className="mt-1 text-[12px] text-danger">
+              {adminErrorMessage(confirmer.error)}
+            </p>
+          )}
+        </div>
+      </div>
+      {review.reason !== "empty" && (
+        <button
+          type="button"
+          onClick={() => confirmer.mutate()}
+          disabled={confirmer.isPending}
+          className="btn btn-primary btn-sm"
+        >
+          {confirmer.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          ) : (
+            <Check className="h-3.5 w-3.5" aria-hidden />
+          )}
+          La liste convient à la saison
+        </button>
+      )}
+    </section>
   );
 }

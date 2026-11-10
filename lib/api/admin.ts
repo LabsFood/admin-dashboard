@@ -507,8 +507,22 @@ export function useSetSapExternalStatus(chefProfileId: string | undefined) {
 
 /* ── Les paliers des batch cookers (module Recettes, R34) ──────────────────── */
 
+/**
+ * Ce qu'un palier permet et la commission qu'il paie (BLK-26, 10/11) : le palier 1
+ * a tout, au taux de la plateforme ; les paliers 2 à 4 ne sont pas décidés
+ * (`decided: false`) et ne restreignent rien pour l'instant.
+ */
+export interface ChefTierRule {
+  decided: boolean;
+  /** En points de base : `1500` = 15 %. */
+  commissionBps: number;
+  capabilities: { code: string; label: string }[];
+}
+
 export interface ChefTierNames {
   labels: Record<ChefTier, string>;
+  /** Absent de la réponse du PUT, qui ne renvoie que les noms. */
+  rules?: Record<ChefTier, ChefTierRule>;
   /** `null` : jamais renommés, les noms neutres s'appliquent (« Palier 1 »…). */
   updatedAt: string | null;
 }
@@ -538,7 +552,8 @@ export function useSetChefTierNames() {
         body: { labels },
       }),
     onSuccess: (data) => {
-      qc.setQueryData(CHEF_TIER_NAMES, data);
+      // Le PUT ne renvoie que les noms : les règles déjà lues restent.
+      qc.setQueryData<ChefTierNames>(CHEF_TIER_NAMES, (old) => ({ ...old, ...data }));
       // Chaque fiche affiche le nom de son palier.
       qc.invalidateQueries({ queryKey: ["admin", "chefs"] });
     },

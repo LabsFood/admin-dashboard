@@ -57,6 +57,7 @@ import {
   type ChefTier,
 } from "@/lib/api/chefs";
 import InfoPopover from "@/components/ui/InfoPopover";
+import TierRules from "@/components/admin/TierRules";
 import { ApiError } from "@/lib/api/client";
 import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import ZonesEditor from "@/components/admin/ZonesEditor";
@@ -1089,11 +1090,19 @@ function Palier({ chefProfileId, actuel }: { chefProfileId: string; actuel: Chef
       <p className="flex items-center gap-1 text-[13px] font-semibold text-navy">
         Palier
         <InfoPopover label="À quoi sert le palier ?">
-          Le batch cooker voit ce nom dans son espace. Aucune facturation et aucune
-          règle de publication n&apos;en dépendent encore. Chaque changement est
-          tracé dans le journal d&apos;audit.
+          Le batch cooker voit ce nom dans son espace. Le palier dit ce qu&apos;il
+          peut faire et la commission qu&apos;il paie ; tous sont au palier 1 pour
+          l&apos;instant. Chaque changement est tracé dans le journal d&apos;audit.
         </InfoPopover>
       </p>
+      {noms.data?.rules?.[actuel] && (
+        <div className="mt-2">
+          <p className="mb-1 text-[12px] font-semibold text-ink-mid">
+            Ce que permet {nom(actuel)}
+          </p>
+          <TierRules rule={noms.data.rules[actuel]} />
+        </div>
+      )}
 
       <div className="mt-2 flex flex-wrap items-end gap-3">
         <label className="min-w-44 flex-1">
