@@ -553,16 +553,49 @@ export function currentIsoWeek(): { year: number; week: number } {
 
 const INGREDIENTS = ["admin", "ingredients"] as const;
 
-/** `GET /admin/ingredients` — par nom, cinquante par page. */
+/**
+ * BLK-33 : faut-il rappeler à l'admin de construire ou de relire la liste ?
+ * `empty` (première liste à faire), `never_reviewed`, `new_season` (une saison a
+ * commencé — 1er mars, juin, septembre, décembre — depuis la dernière relecture).
+ */
+export interface IngredientSeasonReview {
+  season: "winter" | "spring" | "summer" | "autumn";
+  seasonStartsAt: string;
+  reviewedAt: string | null;
+  due: boolean;
+  reason: "empty" | "never_reviewed" | "new_season" | null;
+}
+
+/** `GET /admin/ingredients` — par nom, cinquante par page, et le rappel de saison. */
 export function useCatalogIngredients(search: string, page: number) {
   const apiFetch = useApiFetch();
   const q = search.trim();
   return useQuery({
     queryKey: [...INGREDIENTS, q, page],
     queryFn: () =>
-      apiFetch<{ data: CatalogIngredient[]; meta: PageMeta }>(
+      apiFetch<{
+        data: CatalogIngredient[];
+        meta: PageMeta;
+        seasonReview?: IngredientSeasonReview;
+      }>(
         `/admin/ingredients?limit=50&page=${page}${q ? `&search=${encodeURIComponent(q)}` : ""}`,
       ),
+  });
+}
+
+/**
+ * `POST /admin/ingredients/season-review` — l'admin confirme que la liste
+ * convient à la saison : le rappel s'efface jusqu'à la suivante. Tracé.
+ */
+export function useMarkIngredientSeasonReviewed() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<IngredientSeasonReview>("/admin/ingredients/season-review", {
+        method: "POST",
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: INGREDIENTS }),
   });
 }
 
