@@ -77,6 +77,8 @@ export function CommandPaletteProvider({
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      // Le remplissage auto de Chrome envoie des keydown sans `key`.
+      if (typeof e.key !== "string") return;
       if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         setOpen((v) => !v);
