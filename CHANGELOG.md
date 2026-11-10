@@ -1,3 +1,35 @@
+## [1.2.0](https://github.com/LabsFood/admin-dashboard/compare/v1.1.0...v1.2.0) (2026-11-10)
+
+### Features
+
+* add readiness checks and reheat modes management ([160ef6f](https://github.com/LabsFood/admin-dashboard/commit/160ef6f12627b6f05f604445af0570c1ca73bc48))
+* **batchcookers:** set a batch cooker's tier from their page ([3e9937b](https://github.com/LabsFood/admin-dashboard/commit/3e9937bbd9ac36cde360634246e1289cd9388cae))
+* **batchcookers:** set a batch cooker's tier from their page ([45900d1](https://github.com/LabsFood/admin-dashboard/commit/45900d128a49404fdcc32a39c397964086e01c2b))
+* **clients:** read a client's allergies on their page only ([fcc39f2](https://github.com/LabsFood/admin-dashboard/commit/fcc39f27cbcf00d3d7dd0fde7a0889257819e0d2))
+* **clients:** read a client's allergies on their page only ([51f704a](https://github.com/LabsFood/admin-dashboard/commit/51f704a5c97f9a0ef9acfdd2612007ae1ac1ab1d))
+* **observability:** report console errors to Sentry ([#45](https://github.com/LabsFood/admin-dashboard/issues/45)) ([cbedb35](https://github.com/LabsFood/admin-dashboard/commit/cbedb35abe27568fb19b0de9ecbbf162385e6385))
+* paliers et rappel de saison des ingrédients (BLK-26, BLK-33) ([#48](https://github.com/LabsFood/admin-dashboard/issues/48)) ([709e419](https://github.com/LabsFood/admin-dashboard/commit/709e419284cae18875a702d14fe2a83eae7f39b7))
+* **parametres:** edit the names of the four chef tiers ([6deb778](https://github.com/LabsFood/admin-dashboard/commit/6deb778c41593f2c5bcd24a8f446030bd1195fd7))
+* **parametres:** edit the names of the four chef tiers ([617a8ae](https://github.com/LabsFood/admin-dashboard/commit/617a8ae6569a6a7712a39517ecdde57b00c31767))
+* **reservations:** flag a dish to replace after a client's new allergy ([0c0c760](https://github.com/LabsFood/admin-dashboard/commit/0c0c760908c32bd77d78ddf68cfb7aaa7d4deb74))
+* **reservations:** flag a dish to replace after a client's new allergy ([fda9200](https://github.com/LabsFood/admin-dashboard/commit/fda9200bfdaba66d04eb978658cab745c608ae64))
+* **reservations:** show the client's answer to the shopping list ([a18630c](https://github.com/LabsFood/admin-dashboard/commit/a18630c25dc04e8173d60c42f1a34ab14e282321))
+* **reservations:** show the client's answer to the shopping list ([76fa645](https://github.com/LabsFood/admin-dashboard/commit/76fa64559fbcde3ee70dd136aa98716ee1854856))
+* **transactions:** catch up the invoices of past card payments ([#42](https://github.com/LabsFood/admin-dashboard/issues/42)) ([9a4077f](https://github.com/LabsFood/admin-dashboard/commit/9a4077f28dc16b04abf9ccd741a2c2cb5e81008b))
+* **ui:** add hints that stay until they are clicked ([6dbac8b](https://github.com/LabsFood/admin-dashboard/commit/6dbac8b801abf07eede486080c756bb5a3f40d6b))
+* **ui:** add hints that stay until they are clicked ([10ef31b](https://github.com/LabsFood/admin-dashboard/commit/10ef31b51921b45b20b6267c82cfd69678e893d8))
+* **ui:** add the explanation popover ([75d7ffc](https://github.com/LabsFood/admin-dashboard/commit/75d7ffc6245ed30cc3a4f1af3c6a6a2b8ede73b8))
+* **ui:** add the explanation popover ([8ead8c7](https://github.com/LabsFood/admin-dashboard/commit/8ead8c71201d1393976073bbdaee78e739532a06))
+* **ui:** motion polish on buttons, the popover and page entrances ([#44](https://github.com/LabsFood/admin-dashboard/issues/44)) ([d4ad2c8](https://github.com/LabsFood/admin-dashboard/commit/d4ad2c826da64650b1b52cc21ae9a5ca74e8c476))
+* update cooperative references to include "SAP" for clarity ([cc8bbe3](https://github.com/LabsFood/admin-dashboard/commit/cc8bbe3e9c86ec19e5da8a0b0a57262cd7f05fa9))
+* **users:** implement user management with updated API integration and remove recent users memoization ([d7e8ccd](https://github.com/LabsFood/admin-dashboard/commit/d7e8ccd09d9f3062594bb80e9b4bd5ba180705f1))
+
+### Bug Fixes
+
+* **analytics:** pass the PostHog token to the build, no replay, masked text ([#46](https://github.com/LabsFood/admin-dashboard/issues/46)) ([1a84beb](https://github.com/LabsFood/admin-dashboard/commit/1a84bebcd638834a88f8456c447d3edfd5f132a8))
+* **auth:** une clé fixe pour les Server Actions (ADMIN-DASHBOARD-1) ([fcf551a](https://github.com/LabsFood/admin-dashboard/commit/fcf551a39d5408619258a5fe1748c33f2e799565))
+* **palette:** ignorer les keydown sans touche ([d1a48c5](https://github.com/LabsFood/admin-dashboard/commit/d1a48c5dc641902f3f52593b1faa96891f97f028))
+
 ## [1.1.0](https://github.com/LabsFood/admin-dashboard/compare/v1.0.0...v1.1.0) (2026-11-01)
 
 ### Features
