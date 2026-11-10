@@ -153,7 +153,7 @@ export default function ClientsPage() {
               key={c.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.32, delay: Math.min(i * 0.04, 0.3) }}
+              transition={{ duration: 0.32, delay: Math.min(i * 0.04, 0.3), ease: [0.16, 1, 0.3, 1] }}
             >
               <Link
                 href={`/clients/${c.id}`}
@@ -189,8 +189,7 @@ export default function ClientsPage() {
                   />
                 </div>
 
-                {(c.dietaryPreferences.length > 0 ||
-                  c.allergies.length > 0) && (
+                {c.dietaryPreferences.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {c.dietaryPreferences.map((d) => (
                       <span
@@ -198,14 +197,6 @@ export default function ClientsPage() {
                         className="rounded-full bg-teal-pale px-2 py-0.5 text-[10px] font-medium text-teal"
                       >
                         {d}
-                      </span>
-                    ))}
-                    {c.allergies.map((a) => (
-                      <span
-                        key={a}
-                        className="rounded-full bg-danger-soft px-2 py-0.5 text-[10px] font-medium text-danger"
-                      >
-                        ⚠ {a}
                       </span>
                     ))}
                   </div>

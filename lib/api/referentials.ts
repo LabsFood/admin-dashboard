@@ -108,6 +108,50 @@ export function useDishCategories() {
   );
 }
 
+import { REHEAT_MODES } from "@/lib/recipe-fields";
+
+const STEP_TYPES: RefItem[] = [
+  { code: "preparation", label: "Préparation" },
+  { code: "cuisson", label: "Cuisson" },
+  { code: "refroidissement", label: "Refroidissement" },
+  { code: "mise_en_boite", label: "Mise en boîte" },
+];
+
+/** `GET /referentials/step-types` (§4.5). */
+export function useStepTypes() {
+  return useReferential("/referentials/step-types", "stepTypes", STEP_TYPES);
+}
+
+/** `GET /referentials/reheat-modes` (§4.6) : la liste réglée dans Paramètres. */
+export function useReheatModes() {
+  return useReferential("/referentials/reheat-modes", "modes", REHEAT_MODES);
+}
+
+const COMPUTED_DIETS: RefItem[] = [
+  { code: "vegetarian", label: "Végétarien" },
+  { code: "vegan", label: "Végétalien" },
+  { code: "no-pork", label: "Sans porc" },
+  { code: "pescetarian", label: "Pescétarien" },
+  { code: "gluten-free", label: "Sans gluten" },
+  { code: "lactose-free", label: "Sans lactose" },
+];
+
+/** `GET /referentials/computed-diets` (§4.8) : ce que porte la liste commune. */
+export function useComputedDiets() {
+  return useReferential("/referentials/computed-diets", "diets", COMPUTED_DIETS);
+}
+
+/** `GET /referentials/recipe-profiles` (§4.8) : la liste réglée dans Paramètres. */
+export function useRecipeProfiles() {
+  return useReferential("/referentials/recipe-profiles", "profiles", []);
+}
+
+/** Les régimes qu'on déclare : aucun ingrédient ne les prouve (§4.8). */
+export const DECLARED_DIETS: RefItem[] = [
+  { code: "halal", label: "Halal" },
+  { code: "kosher", label: "Casher" },
+];
+
 /** Le libellé d'un code, ou le code lui-même quand il sort de la liste. */
 export function refLabel(items: RefItem[], code: string): string {
   return items.find((i) => i.code === code)?.label ?? code;

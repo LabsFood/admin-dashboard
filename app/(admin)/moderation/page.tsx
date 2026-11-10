@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import posthog from "posthog-js";
 import {
   AlertTriangle,
   ChevronLeft,
@@ -80,7 +81,7 @@ export default function ModerationPage() {
       <motion.section
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         className="card flex flex-wrap items-center justify-between gap-4 p-6"
       >
         <div className="flex items-center gap-4">
@@ -241,8 +242,12 @@ function QueueRow({
     review.mutate(
       { id: item.id, kind: item.kind },
       {
-        onSuccess: () =>
-          toast.success(`« ${item.name} » marqué comme relu`, "Il quitte la file."),
+        onSuccess: () => {
+          posthog.capture("moderation_item_reviewed", {
+            content_type: item.kind,
+          });
+          toast.success(`« ${item.name} » marqué comme relu`, "Il quitte la file.");
+        },
         onError: (e) => toast.error("Le marquage a échoué", adminErrorMessage(e)),
       },
     );
@@ -266,6 +271,13 @@ function QueueRow({
       },
       {
         onSuccess: () => {
+          posthog.capture(
+            status === "suspended" ? "moderation_item_suspended" : "moderation_item_reinstated",
+            {
+              content_type: item.kind,
+              notify_chef: status === "suspended" ? extra.notify : undefined,
+            },
+          );
           setDialog(null);
           toast.success(
             status === "suspended"
@@ -289,7 +301,7 @@ function QueueRow({
     <motion.li
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay }}
+      transition={{ duration: 0.3, delay, ease: [0.16, 1, 0.3, 1] }}
       className="card p-4"
     >
       <div className="flex flex-wrap items-center gap-4">

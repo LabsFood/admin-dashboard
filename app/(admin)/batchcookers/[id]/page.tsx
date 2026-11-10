@@ -31,7 +31,9 @@ import { moderatedLabel, moderatedTone } from "@/lib/catalog-labels";
 import {
   useChefApplication,
   useChefShowcase,
+  useChefTierNames,
   useResendInvitation,
+  useSetChefTier,
   useSetChefVerification,
   useSetSapExternalStatus,
   SAP_EXTERNAL_LABEL,
@@ -49,9 +51,13 @@ import {
   CHEF_STATE_HELP,
   CHEF_STATE_LABEL,
   CHEF_STATE_TONE,
+  CHEF_TIERS,
   useAdminChef,
   type AdminChefDetail,
+  type ChefTier,
 } from "@/lib/api/chefs";
+import InfoPopover from "@/components/ui/InfoPopover";
+import TierRules from "@/components/admin/TierRules";
 import { ApiError } from "@/lib/api/client";
 import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import ZonesEditor from "@/components/admin/ZonesEditor";
@@ -234,6 +240,8 @@ export default function BatchCookerPage({
         {c.isVerified && <MiseEnLigne chefProfileId={c.id} enLigne={c.isActive} />}
 
         {c.userId && <LienConnexion userId={c.userId} email={c.email} />}
+
+        {c.tier && <Palier chefProfileId={c.id} actuel={c.tier} />}
 
         {c.isVerified && (
           <StatutsSap
@@ -540,7 +548,7 @@ function Profil({ app }: { app: NonNullable<ReturnType<typeof useChefApplication
             app.company?.sap?.path === "type-a"
               ? "Déclaration à son nom"
               : app.company?.sap?.path === "type-b"
-                ? "Par Lab's Food"
+                ? "Par sa coopérative SAP"
                 : undefined
           }
         />
@@ -1065,6 +1073,79 @@ function StatutsSap({
         disent si le CRCESU et l&apos;URSSAF l&apos;ont habilité. Les deux
         doivent être réunis pour qu&apos;un client puisse le payer ainsi.
       </p>
+    </div>
+  );
+}
+
+/** Le palier du batch cooker (module Recettes, R34). Ses noms se règlent dans Paramètres. */
+function Palier({ chefProfileId, actuel }: { chefProfileId: string; actuel: ChefTier }) {
+  const save = useSetChefTier(chefProfileId);
+  const noms = useChefTierNames();
+  const [tier, setTier] = useState<ChefTier>(actuel);
+  const nom = (t: ChefTier) =>
+    noms.data?.labels[t] ?? `Palier ${CHEF_TIERS.indexOf(t) + 1}`;
+
+  return (
+    <div className="hairline mt-4 border-t pt-4">
+      <p className="flex items-center gap-1 text-[13px] font-semibold text-navy">
+        Palier
+        <InfoPopover label="À quoi sert le palier ?">
+          Le batch cooker voit ce nom dans son espace. Le palier dit ce qu&apos;il
+          peut faire et la commission qu&apos;il paie ; tous sont au palier 1 pour
+          l&apos;instant. Chaque changement est tracé dans le journal d&apos;audit.
+        </InfoPopover>
+      </p>
+      {noms.data?.rules?.[actuel] && (
+        <div className="mt-2">
+          <p className="mb-1 text-[12px] font-semibold text-ink-mid">
+            Ce que permet {nom(actuel)}
+          </p>
+          <TierRules rule={noms.data.rules[actuel]} />
+        </div>
+      )}
+
+      <div className="mt-2 flex flex-wrap items-end gap-3">
+        <label className="min-w-44 flex-1">
+          <span className="sr-only">Palier du batch cooker</span>
+          <select
+            value={tier}
+            onChange={(e) => setTier(e.target.value as ChefTier)}
+            className="input-base"
+          >
+            {CHEF_TIERS.map((t) => (
+              <option key={t} value={t}>
+                {nom(t)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          onClick={() => save.mutate(tier)}
+          disabled={tier === actuel || save.isPending}
+          className="btn btn-primary btn-sm"
+        >
+          {save.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          ) : (
+            <Check className="h-3.5 w-3.5" aria-hidden />
+          )}
+          Enregistrer
+        </button>
+      </div>
+
+      {save.isSuccess && tier === actuel && (
+        <p className="mt-2 flex items-start gap-1.5 text-[12px] text-success">
+          <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          Palier enregistré : {nom(actuel)}.
+        </p>
+      )}
+      {save.isError && (
+        <p role="alert" className="mt-2 flex items-start gap-1.5 text-[12px] text-danger">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          {adminErrorMessage(save.error)}
+        </p>
+      )}
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { ApiError, useApiFetch } from "./client";
 import { adminErrorMessage } from "./errors";
 import type {
   AdminClientRow,
+  AdminUserRow,
   ChefApplicationDetail,
   ChefApplicationRow,
   ChefApplicationsQuery,
@@ -19,6 +20,7 @@ import type {
   Paginated,
   Role,
 } from "./types";
+import type { ChefTier } from "./chefs";
 
 /* ── Clients (client_profiles) ─────────────────────────────────────────────── */
 
@@ -123,12 +125,29 @@ export interface ProvisionUserInput {
 }
 
 /**
+ * `GET /admin/users` — tous les comptes, admins compris, les plus récents
+ * d'abord. Seule liste où figurent les admins, qui n'ont ni profil client ni
+ * profil batch cooker.
+ *
+ * ponytail: une seule page de 100 (le maximum de l'API), triée et filtrée côté
+ * console ; passer à la pagination serveur quand `meta.hasNextPage` devient vrai.
+ */
+export function useUsers() {
+  const apiFetch = useApiFetch();
+
+  return useQuery({
+    queryKey: ["users"],
+    queryFn: () => apiFetch<Paginated<AdminUserRow>>("/admin/users?limit=100"),
+  });
+}
+
+/**
  * `POST /admin/users` — crée le compte Clerk (Backend API) **et** la ligne
  * Postgres `users` avec le rôle demandé.
  *
- * À noter : aucun `client_profiles` n'est créé au passage. Le compte
- * n'apparaîtra donc pas dans `GET /admin/clients` tant que la personne n'a pas
- * enregistré son profil de goûts depuis l'espace client.
+ * Aucun `client_profiles` n'est créé au passage : le compte apparaît dans
+ * `GET /admin/users`, pas dans `GET /admin/clients` tant que la personne n'a
+ * pas enregistré son profil de goûts depuis l'espace client.
  */
 export function useProvisionUser() {
   const apiFetch = useApiFetch();
@@ -137,7 +156,10 @@ export function useProvisionUser() {
   return useMutation({
     mutationFn: (input: ProvisionUserInput) =>
       apiFetch<Me>("/admin/users", { method: "POST", body: input }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["clients"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["users"] });
+      qc.invalidateQueries({ queryKey: ["clients"] });
+    },
   });
 }
 
@@ -157,6 +179,7 @@ export function useSetUserRole() {
         body: { role },
       }),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["users"] });
       qc.invalidateQueries({ queryKey: ["clients"] });
       // Le rôle de l'admin courant peut avoir changé (auto-rétrogradation).
       qc.invalidateQueries({ queryKey: ["me"] });
@@ -482,6 +505,78 @@ export function useSetSapExternalStatus(chefProfileId: string | undefined) {
   });
 }
 
+/* ── Les paliers des batch cookers (module Recettes, R34) ──────────────────── */
+
+/**
+ * Ce qu'un palier permet et la commission qu'il paie (BLK-26, 10/11) : le palier 1
+ * a tout, au taux de la plateforme ; les paliers 2 à 4 ne sont pas décidés
+ * (`decided: false`) et ne restreignent rien pour l'instant.
+ */
+export interface ChefTierRule {
+  decided: boolean;
+  /** En points de base : `1500` = 15 %. */
+  commissionBps: number;
+  capabilities: { code: string; label: string }[];
+}
+
+export interface ChefTierNames {
+  labels: Record<ChefTier, string>;
+  /** Absent de la réponse du PUT, qui ne renvoie que les noms. */
+  rules?: Record<ChefTier, ChefTierRule>;
+  /** `null` : jamais renommés, les noms neutres s'appliquent (« Palier 1 »…). */
+  updatedAt: string | null;
+}
+
+const CHEF_TIER_NAMES = ["admin", "settings", "chef-tiers"] as const;
+
+/** `GET /admin/settings/chef-tiers` — le nom de chacun des quatre codes. */
+export function useChefTierNames() {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: CHEF_TIER_NAMES,
+    queryFn: () => apiFetch<ChefTierNames>("/admin/settings/chef-tiers"),
+  });
+}
+
+/**
+ * `PUT /admin/settings/chef-tiers` — les quatre noms à chaque fois, 40
+ * caractères au plus. Seuls les noms changent : chacun garde son palier.
+ */
+export function useSetChefTierNames() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (labels: Record<ChefTier, string>) =>
+      apiFetch<ChefTierNames>("/admin/settings/chef-tiers", {
+        method: "PUT",
+        body: { labels },
+      }),
+    onSuccess: (data) => {
+      // Le PUT ne renvoie que les noms : les règles déjà lues restent.
+      qc.setQueryData<ChefTierNames>(CHEF_TIER_NAMES, (old) => ({ ...old, ...data }));
+      // Chaque fiche affiche le nom de son palier.
+      qc.invalidateQueries({ queryKey: ["admin", "chefs"] });
+    },
+  });
+}
+
+/**
+ * `PATCH /admin/chefs/{id}/tier` — le palier d'un batch cooker, tracé dans le
+ * journal d'audit. `{id}` est l'identifiant de la page batch cooker.
+ */
+export function useSetChefTier(chefProfileId: string) {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (tier: ChefTier) =>
+      apiFetch<unknown>(`/admin/chefs/${chefProfileId}/tier`, {
+        method: "PATCH",
+        body: { tier },
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "chefs"] }),
+  });
+}
+
 /* ── Supprimer un compte ───────────────────────────────────────────────────── */
 
 export interface DeletedUser {
@@ -597,6 +692,82 @@ export function useDeleteUserAvatar() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["chefs"] });
       qc.invalidateQueries({ queryKey: ["clients"] });
+    },
+  });
+}
+
+/* ── Modes de réchauffage (module Recettes §4.6) ───────────────────────────── */
+
+export interface ReheatModeSetting {
+  modes: { code: string; label: string }[];
+  /** `null` : jamais modifiée, la liste par défaut s'applique. */
+  updatedAt: string | null;
+}
+
+const REHEAT_MODES_SETTING = ["admin", "settings", "reheat-modes"] as const;
+
+/** `GET /admin/settings/reheat-modes` */
+export function useReheatModeSetting() {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: REHEAT_MODES_SETTING,
+    queryFn: () => apiFetch<ReheatModeSetting>("/admin/settings/reheat-modes"),
+  });
+}
+
+/**
+ * `PUT /admin/settings/reheat-modes` — la liste entière, chaque code une fois.
+ * Un plat garde un code retiré ; il est refusé au prochain enregistrement.
+ */
+export function useSetReheatModes() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (modes: { code: string; label: string }[]) =>
+      apiFetch<ReheatModeSetting>("/admin/settings/reheat-modes", {
+        method: "PUT",
+        body: { modes },
+      }),
+    onSuccess: (data) => {
+      qc.setQueryData(REHEAT_MODES_SETTING, data);
+      // `useReheatModes` (referentials.ts) range la liste sous cette clé.
+      qc.invalidateQueries({ queryKey: ["referentials", "modes"] });
+    },
+  });
+}
+
+/* ── Profils de recette (module Recettes §4.8) ─────────────────────────────── */
+
+export interface RecipeProfileSetting {
+  profiles: { code: string; label: string }[];
+  updatedAt: string | null;
+}
+
+const RECIPE_PROFILES_SETTING = ["admin", "settings", "recipe-profiles"] as const;
+
+/** `GET /admin/settings/recipe-profiles` */
+export function useRecipeProfileSetting() {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: RECIPE_PROFILES_SETTING,
+    queryFn: () => apiFetch<RecipeProfileSetting>("/admin/settings/recipe-profiles"),
+  });
+}
+
+/** `PUT /admin/settings/recipe-profiles` — la liste entière, chaque code une fois. */
+export function useSetRecipeProfiles() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (profiles: { code: string; label: string }[]) =>
+      apiFetch<RecipeProfileSetting>("/admin/settings/recipe-profiles", {
+        method: "PUT",
+        body: { profiles },
+      }),
+    onSuccess: (data) => {
+      qc.setQueryData(RECIPE_PROFILES_SETTING, data);
+      // `useRecipeProfiles` (referentials.ts) range la liste sous cette clé.
+      qc.invalidateQueries({ queryKey: ["referentials", "profiles"] });
     },
   });
 }

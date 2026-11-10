@@ -36,6 +36,8 @@ import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import PhotoDeProfil from "@/components/admin/PhotoDeProfil";
 import { toClientView, type ClientView } from "@/lib/api/adapt";
 import { ApiError } from "@/lib/api/client";
+import InfoPopover from "@/components/ui/InfoPopover";
+import { useAllergens } from "@/lib/api/referentials";
 import type { ClientStatus } from "@/lib/mock/types";
 
 const DASH = "—";
@@ -43,7 +45,6 @@ const DASH = "—";
 /** Le profil culinaire, dans l'ordre où le client le remplit. */
 const PREFS = [
   { key: "dietaryPreferences", title: "Régimes", tone: "teal" },
-  { key: "allergies", title: "Allergies", tone: "danger" },
   { key: "dislikes", title: "N'aime pas", tone: "danger" },
   { key: "favorites", title: "Favoris", tone: "teal" },
 ] as const;
@@ -57,7 +58,6 @@ type PrefKey = (typeof PREFS)[number]["key"];
  */
 const SUGGEST: Record<PrefKey, string[]> = {
   dietaryPreferences: ["Végétarien", "Vegan", "Sans-porc", "Sans-bœuf", "Halal", "Casher", "Sans-gluten", "Sans-lactose"],
-  allergies: ["Fruits à coque", "Arachides", "Œufs", "Poisson", "Crustacés", "Soja", "Sésame"],
   dislikes: [],
   favorites: ["Risotto", "Curry", "Lasagnes", "Tajine", "Wok", "Saumon", "Pad thaï"],
 };
@@ -135,7 +135,7 @@ function ClientDetail({ id, client }: { id: string; client: ClientView }) {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
             className="relative overflow-hidden rounded-3xl bg-navy p-6 text-white"
           >
             <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-terra/25 blur-3xl" />
@@ -202,6 +202,7 @@ function ClientDetail({ id, client }: { id: string; client: ClientView }) {
                 </button>
               )}
             </h4>
+            <AllergyBlock client={client} />
             {editingPrefs ? (
               <PrefsEditor id={id} client={client} onDone={() => setEditingPrefs(false)} />
             ) : (
@@ -395,6 +396,57 @@ function KpiBox({
   );
 }
 
+const jour = (iso: string) => new Date(iso).toLocaleDateString("fr-FR");
+
+/**
+ * Recettes lot 1 : les allergies, déclarées par le client seul, avec son
+ * consentement. Lues ici seulement, jamais modifiées depuis la console.
+ */
+function AllergyBlock({ client }: { client: ClientView }) {
+  const allergens = useAllergens().data ?? [];
+  const label = (code: string) => allergens.find((a) => a.code === code)?.label ?? code;
+  const items = [...client.allergies.map(label), ...client.customAllergies];
+  return (
+    <div className="mb-3">
+      <p className="mb-1 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+        Allergies
+        <InfoPopover label="Qui renseigne les allergies ?">
+          Ce sont des données de santé : seul le client les déclare, avec son consentement,
+          depuis son profil. Elles se lisent sur cette fiche seulement, jamais dans les
+          listes ni les exports, et ne se modifient pas depuis la console. Tant qu’il n’a
+          pas répondu, il ne peut valider aucun menu.
+        </InfoPopover>
+      </p>
+      {!client.allergiesDeclaredAt ? (
+        <p className="text-xs font-semibold text-danger">
+          Jamais déclarées : aucun menu ne peut être validé.
+        </p>
+      ) : (
+        <>
+          {client.allergiesNone ? (
+            <p className="text-xs text-ink-mid">Aucune allergie.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {items.map((it) => (
+                <span
+                  key={it}
+                  className="rounded-full bg-danger-soft px-2.5 py-0.5 text-[11px] font-medium text-danger"
+                >
+                  {it}
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="mt-1 text-[11px] text-ink-soft">
+            Déclarées le {jour(client.allergiesDeclaredAt)}
+            {client.healthConsentAt && ` · consentement du ${jour(client.healthConsentAt)}`}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 function PrefBlock({
   title,
   items,
@@ -446,7 +498,6 @@ function PrefsEditor({
   const toast = useToast();
   const [lists, setLists] = useState<Record<PrefKey, string[]>>(() => ({
     dietaryPreferences: client.dietaryPreferences,
-    allergies: client.allergies,
     dislikes: client.dislikes,
     favorites: client.favorites,
   }));

@@ -12,10 +12,10 @@ import {
   UserPlus,
 } from "lucide-react";
 import RoleSelect from "@/components/admin/RoleSelect";
+import Hint from "@/components/ui/Hint";
 import { cn } from "@/lib/utils";
 import { useProvisionUser } from "@/lib/api/admin";
 import { adminErrorMessage } from "@/lib/api/errors";
-import { rememberUser } from "@/lib/recent-users";
 import type { Me, Role } from "@/lib/api/types";
 
 /**
@@ -59,7 +59,6 @@ export default function UserForm({
       },
       {
         onSuccess: (user) => {
-          rememberUser(user);
           setCreated(user);
           setEmail("");
           setFirstName("");
@@ -89,6 +88,12 @@ export default function UserForm({
           </div>
         </div>
       )}
+
+      <Hint id="creation-compte-fichier-clients">
+        Un compte client créé ici n&apos;apparaît dans le fichier clients qu&apos;après
+        la première connexion de la personne à son espace. Sans mot de passe, elle se
+        connecte par le lien que Clerk lui envoie.
+      </Hint>
 
       <Field label="Adresse email" required>
         <div className="relative">

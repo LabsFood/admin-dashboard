@@ -32,13 +32,69 @@ export interface Ingredient {
   qty?: number | string | null;
   unit?: string | null;
   aisle?: string | null;
+  /** Où l'acheter, ou ce que c'est : une adresse `http(s)`. */
+  link?: string | null;
+  /** À vérifier (recette importée) : empêche « Prête ». */
+  toVerify?: boolean;
+  /** La même quantité quel que soit le nombre de portions (§4.12). */
+  fixedQuantity?: boolean;
+  /** L'entrée de la liste commune (§4.10) : régimes et saisons s'en calculent. */
+  catalogIngredientId?: string | null;
 }
 
+/** Une entrée de la liste commune d'ingrédients (§4.10). */
+export interface CatalogIngredient {
+  id: string;
+  name: string;
+  /** Autres noms, en minuscules. */
+  aliases: string[];
+  /** Codes de `GET /referentials/computed-diets`. */
+  diets: string[];
+  /** Mois 1 à 12 ; vide : pas de saison. */
+  seasonMonths: number[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CatalogIngredientInput {
+  name?: string;
+  aliases?: string[];
+  diets?: string[];
+  seasonMonths?: number[];
+}
+
+/** Une étape (§4.5) : sans type, la fiche n'est pas « Prête ». */
+export interface Step {
+  order?: number;
+  text: string;
+  type: string | null;
+  durationMinutes: number | null;
+}
+
+/** §4.6 : les modes viennent de la liste réglée dans Paramètres. */
 export interface Reheating {
+  modes?: string[];
+  /** Le premier des modes, pour les fiches écrites avant la liste. */
   mode?: string | null;
   temperature?: number | null;
   minutes?: number | null;
   note?: string | null;
+  container?: string | null;
+}
+
+/** Un point qui manque, tel que l'API le nomme (`field` désigne le champ). */
+export interface Problem {
+  code: string;
+  field: string;
+  message: string;
+}
+
+/** Recettes §4.11, calculé par l'API. */
+export interface Readiness {
+  ready: boolean;
+  problems: Problem[];
+  toPublish: Problem[];
+  warnings: Problem[];
 }
 
 export interface Storage {
@@ -83,7 +139,21 @@ export interface Meal {
    * par `ingredientLines()` plutôt que d'itérer à l'aveugle.
    */
   ingredients: unknown;
-  steps: string[];
+  /** `Step[]` ; texte seul pour une fiche écrite avant les types (lire par `readSteps`). */
+  steps: unknown;
+  /** Texte libre, jamais contrôlé (§4.7). */
+  equipment?: string[];
+  /** Pour la maison, l'enregistrement vaut confirmation, si des allergènes sont déclarés. */
+  allergensVerifiedAt?: string | null;
+  recipeVersion?: number;
+  readiness?: Readiness;
+  /** §4.8 : halal, casher, déclarés. */
+  declaredDiets?: string[];
+  profiles?: string[];
+  /** Mois choisis à la place du calcul ; vide : aucun. */
+  seasonsOverride?: number[];
+  /** Calculé d'après la liste commune ; null tant qu'une ligne n'y est pas reliée. */
+  classification?: { diets: string[]; seasonMonths: number[] } | null;
   isFeatured: boolean;
   status: MealStatus;
   createdAt: string;
@@ -111,7 +181,11 @@ export interface MealInput {
   portions?: number | null;
   calories?: number | null;
   difficulty?: Difficulty | null;
-  steps?: string[];
+  steps?: Step[];
+  equipment?: string[];
+  declaredDiets?: string[];
+  profiles?: string[];
+  seasonsOverride?: number[];
   isFeatured?: boolean;
   status?: MealStatus;
 }
@@ -473,4 +547,95 @@ export function currentIsoWeek(): { year: number; week: number } {
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   const week = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
   return { year: d.getUTCFullYear(), week };
+}
+
+/* ── La liste commune d'ingrédients (module Recettes §4.10) ────────────────── */
+
+const INGREDIENTS = ["admin", "ingredients"] as const;
+
+/**
+ * BLK-33 : faut-il rappeler à l'admin de construire ou de relire la liste ?
+ * `empty` (première liste à faire), `never_reviewed`, `new_season` (une saison a
+ * commencé — 1er mars, juin, septembre, décembre — depuis la dernière relecture).
+ */
+export interface IngredientSeasonReview {
+  season: "winter" | "spring" | "summer" | "autumn";
+  seasonStartsAt: string;
+  reviewedAt: string | null;
+  due: boolean;
+  reason: "empty" | "never_reviewed" | "new_season" | null;
+}
+
+/** `GET /admin/ingredients` — par nom, cinquante par page, et le rappel de saison. */
+export function useCatalogIngredients(search: string, page: number) {
+  const apiFetch = useApiFetch();
+  const q = search.trim();
+  return useQuery({
+    queryKey: [...INGREDIENTS, q, page],
+    queryFn: () =>
+      apiFetch<{
+        data: CatalogIngredient[];
+        meta: PageMeta;
+        seasonReview?: IngredientSeasonReview;
+      }>(
+        `/admin/ingredients?limit=50&page=${page}${q ? `&search=${encodeURIComponent(q)}` : ""}`,
+      ),
+  });
+}
+
+/**
+ * `POST /admin/ingredients/season-review` — l'admin confirme que la liste
+ * convient à la saison : le rappel s'efface jusqu'à la suivante. Tracé.
+ */
+export function useMarkIngredientSeasonReviewed() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<IngredientSeasonReview>("/admin/ingredients/season-review", {
+        method: "POST",
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: INGREDIENTS }),
+  });
+}
+
+/** `GET /ingredients?search=` — les suggestions d'un formulaire, dès deux lettres. */
+export function useIngredientSearch(term: string) {
+  const apiFetch = useApiFetch();
+  const q = term.trim();
+  return useQuery({
+    queryKey: ["ingredients", q.toLowerCase()],
+    queryFn: () =>
+      apiFetch<CatalogIngredient[]>(`/ingredients?search=${encodeURIComponent(q)}`),
+    enabled: q.length >= 2,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** `POST /admin/ingredients` — 409 si le nom existe déjà, quelle que soit la casse. */
+export function useCreateCatalogIngredient() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CatalogIngredientInput) =>
+      apiFetch<CatalogIngredient>("/admin/ingredients", { method: "POST", body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: INGREDIENTS }),
+  });
+}
+
+/**
+ * `PATCH /admin/ingredients/{id}` — les plats qui relient l'ingrédient sont
+ * reclassés par l'API.
+ */
+export function useUpdateCatalogIngredient() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: CatalogIngredientInput }) =>
+      apiFetch<CatalogIngredient>(`/admin/ingredients/${id}`, { method: "PATCH", body: patch }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: INGREDIENTS });
+      qc.invalidateQueries({ queryKey: ["ingredients"] });
+    },
+  });
 }

@@ -2,6 +2,7 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
+import posthog from "posthog-js";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -349,7 +350,7 @@ export default function CandidatureDetailPage({
                 company.sap?.path === "type-a"
                   ? `Déclaration propre${company.sap.declarationNumber ? ` · ${company.sap.declarationNumber}` : ""}`
                   : company.sap?.path === "type-b"
-                    ? "Portés par la coopérative"
+                    ? "Par sa coopérative SAP"
                     : undefined
               }
             />
@@ -704,7 +705,17 @@ function DecisionBar({
         type="button"
         disabled={!canApprove || approve.isPending}
         title={canApprove ? undefined : "Les pièces obligatoires ne sont pas toutes validées."}
-        onClick={() => approve.mutate({ isActive: publishNow })}
+        onClick={() =>
+          approve.mutate(
+            { isActive: publishNow },
+            {
+              onSuccess: () =>
+                posthog.capture("chef_application_approved", {
+                  published_immediately: publishNow,
+                }),
+            },
+          )
+        }
         className="btn btn-primary w-full justify-center"
       >
         {approve.isPending ? (
@@ -764,6 +775,9 @@ function DecisionBar({
             { message, documentTypes: wanted },
             {
               onSuccess: () => {
+                posthog.capture("chef_application_changes_requested", {
+                  document_count: wanted.length,
+                });
                 setAsking(false);
                 setWanted([]);
               },
@@ -808,7 +822,15 @@ function DecisionBar({
         pending={reject.isPending}
         error={reject.isError ? "Le refus n'a pas été enregistré." : null}
         onConfirm={(reason) =>
-          reject.mutate({ reason }, { onSuccess: () => setRejecting(false) })
+          reject.mutate(
+            { reason },
+            {
+              onSuccess: () => {
+                posthog.capture("chef_application_rejected");
+                setRejecting(false);
+              },
+            },
+          )
         }
       />
     </div>
@@ -845,7 +867,14 @@ function MiseEnLigne({
   const agir = (isActive: boolean) =>
     verif.mutate(
       { isActive },
-      { onSuccess: () => setDernier(isActive ? "online" : "offline") },
+      {
+        onSuccess: () => {
+          posthog.capture("chef_profile_visibility_changed", {
+            visibility: isActive ? "online" : "offline",
+          });
+          setDernier(isActive ? "online" : "offline");
+        },
+      },
     );
 
   return (

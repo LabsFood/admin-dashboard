@@ -1,0 +1,50 @@
+/**
+ * Chargé par Next dans le navigateur avant l'hydratation : Sentry remonte les
+ * erreurs JavaScript et les rendus cassés (voir app/global-error.tsx). Les 5xx de
+ * l'API sont remontés par l'API elle-même. Sans NEXT_PUBLIC_SENTRY_DSN, rien ne part.
+ */
+import * as Sentry from "@sentry/nextjs";
+import posthog from "posthog-js";
+
+const posthogProjectToken = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
+
+// Sans jeton PostHog (dev, preview), PostHog reste éteint : un avertissement, pas une
+// erreur qui casserait la console.
+if (posthogProjectToken) {
+  posthog.init(posthogProjectToken, {
+    // Relais same-origin (next.config.ts) : passe les bloqueurs, reste dans l'UE.
+    api_host: "/ingest",
+    ui_host: "https://eu.posthog.com",
+    defaults: "2026-01-30",
+    capture_exceptions: true,
+    // La console affiche fiches clients, allergies et pièces d'identité : aucun
+    // enregistrement de session, même si le projet PostHog l'active, et un clic garde
+    // sa page et son sélecteur, jamais son texte ni ses attributs.
+    disable_session_recording: true,
+    mask_all_text: true,
+    mask_all_element_attributes: true,
+    debug: process.env.NODE_ENV === "development",
+  });
+} else if (process.env.NODE_ENV !== "production") {
+  console.warn("PostHog éteint : NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN manque.");
+}
+
+Sentry.init({
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  environment: process.env.NEXT_PUBLIC_ENVIRONMENT,
+  tracesSampleRate: 0.1,
+  // Replay seulement quand une erreur survient, et tout masqué (textes, saisies,
+  // images) : la console affiche des fiches clients et des pièces d'identité.
+  integrations: [Sentry.replayIntegration({ maskAllText: true, maskAllInputs: true, blockAllMedia: true })],
+  replaysSessionSampleRate: 0,
+  replaysOnErrorSampleRate: 1,
+  // Ni utilisateur déduit, ni corps de requête.
+  dataCollection: { userInfo: false, httpBodies: [] },
+  beforeSend(event, hint) {
+    // Un 4xx est une réponse métier (validation, conflit), pas un bug.
+    const error = hint.originalException as { name?: string; status?: number } | undefined;
+    return error?.name === "ApiError" && (error.status ?? 0) < 500 ? null : event;
+  },
+});
+
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

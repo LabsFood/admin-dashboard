@@ -83,7 +83,7 @@ export default function RecettesPage() {
       <motion.section
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         className="card flex flex-wrap items-center justify-between gap-4 p-6"
       >
         <div className="flex items-center gap-4">
@@ -225,6 +225,11 @@ export default function RecettesPage() {
                           {m.difficulty && (
                             <Badge tone={difficultyTone[m.difficulty]}>
                               {difficultyLabel[m.difficulty]}
+                            </Badge>
+                          )}
+                          {m.readiness && (
+                            <Badge tone={m.readiness.ready ? "success" : "warning"}>
+                              {m.readiness.ready ? "Prête" : "Pas Prête"}
                             </Badge>
                           )}
                           <Badge tone={catalogTone[m.status]}>

@@ -235,7 +235,7 @@ function BookingRow({ booking: b, index }: { booking: Booking; index: number }) 
     <motion.li
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: Math.min(index * 0.03, 0.3) }}
+      transition={{ duration: 0.3, delay: Math.min(index * 0.03, 0.3), ease: [0.16, 1, 0.3, 1] }}
     >
       <Link
         href={`/reservations/${b.id}`}
@@ -264,6 +264,12 @@ function BookingRow({ booking: b, index }: { booking: Booking; index: number }) 
             <Badge tone={impaye ? "warning" : isBookingOpen(b) ? "info" : "neutral"} dot>
               {bookingStatusText(b.status)}
             </Badge>
+            {/* Un conflit d'allergie ouvert : signalé sans dire l'allergie. */}
+            {b.allergyCheckReasons?.includes("ALLERGEN_CONFLICT") && (
+              <Badge tone="danger" dot>
+                Plat à remplacer (allergie)
+              </Badge>
+            )}
           </p>
           <p className="mt-0.5 truncate font-mono text-[11px] text-ink-soft">
             {[

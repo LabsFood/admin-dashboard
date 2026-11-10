@@ -67,12 +67,13 @@ export const catalogTone: Record<MealStatus, BadgeTone> = {
 
 /* ── Motifs de suspension ──────────────────────────────────────────────────── */
 
-/** Les sept motifs que l'API accepte, dits comme un admin les penserait. */
+/** Les huit motifs que l'API accepte, dits comme un admin les penserait. */
 export const reasonCodeLabel: Record<ReasonCode, string> = {
   "allergens-incomplete": "Allergènes incomplets",
   "inappropriate-content": "Contenu inapproprié",
   copyright: "Recette ou photo empruntée",
   "misleading-origin": "Origine trompeuse",
+  "not-a-real-photo": "Photo générée, pas une vraie photo",
   duplicate: "Doublon",
   quality: "Qualité insuffisante",
   other: "Autre",
@@ -85,6 +86,8 @@ export const reasonCodeHint: Record<ReasonCode, string> = {
   "inappropriate-content": "Texte ou photo qui n'a rien à faire sur la vitrine.",
   copyright: "Recette recopiée, ou photo qui n'appartient pas au batch cooker.",
   "misleading-origin": "Le pays annoncé ne correspond pas au plat.",
+  "not-a-real-photo":
+    "La photo principale est une image générée : le plat doit être montré tel qu'il est. La photo est retirée avec le plat.",
   duplicate: "Le même plat existe déjà sur cette vitrine.",
   quality: "Description trop pauvre ou photo inutilisable.",
   other: "Rien de ce qui précède — le motif écrit fait tout le travail.",

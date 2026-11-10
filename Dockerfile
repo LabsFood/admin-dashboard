@@ -17,6 +17,31 @@ ARG API_PROXY_TARGET
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} \
     API_PROXY_TARGET=${API_PROXY_TARGET:-https://lf-api.labsfood.fr}
 
+# Sentry (vide = éteint). SENTRY_AUTH_TOKEN ne sert qu'à envoyer les source maps
+# pendant ce build : il reste dans cette étape, l'image finale ne le contient pas.
+# Railway fournit RAILWAY_GIT_COMMIT_SHA, qui nomme la release.
+ARG NEXT_PUBLIC_SENTRY_DSN
+ARG NEXT_PUBLIC_ENVIRONMENT=production
+ARG SENTRY_ORG
+ARG SENTRY_AUTH_TOKEN
+ARG RAILWAY_GIT_COMMIT_SHA
+ENV NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN} \
+    NEXT_PUBLIC_ENVIRONMENT=${NEXT_PUBLIC_ENVIRONMENT}
+
+# PostHog (vide = éteint). Next fige le jeton et l'hôte au build : sans ces ARG,
+# Railway ne les passe pas et PostHog reste éteint même avec les variables posées.
+ARG NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN
+ARG NEXT_PUBLIC_POSTHOG_HOST
+ENV NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN=${NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN} \
+    NEXT_PUBLIC_POSTHOG_HOST=${NEXT_PUBLIC_POSTHOG_HOST}
+
+# Clé fixe des Server Actions. Sans elle, Next en tire une au hasard à chaque build,
+# les identifiants d'actions changent à chaque déploiement, et un onglet ouvert avant
+# reste bloqué à la connexion : l'action de Clerk est refusée (ADMIN-DASHBOARD-1).
+# Vide = comportement d'avant (clé aléatoire).
+ARG NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
+ENV NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY}
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build

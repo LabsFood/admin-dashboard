@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import posthog from "posthog-js";
 import {
   AlertTriangle,
   ArrowDown,
@@ -174,6 +175,10 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
         { year, weekNumber, mealIds: picked },
         {
           onSuccess: () => {
+            posthog.capture("menu_week_created", {
+              week_number: weekNumber,
+              meal_count: picked.length,
+            });
             toast.success(
               `Semaine ${weekNumber} composée`,
               `${picked.length} plat${picked.length > 1 ? "s" : ""} à l'ardoise.`,
@@ -201,6 +206,12 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
         { id: menu.id, patch: body },
         {
           onSuccess: () => {
+            posthog.capture("menu_updated", {
+              status: body.status,
+              period: body.period,
+              meal_count: body.dishIds.length,
+              shopping_included: body.shoppingIncluded,
+            });
             toast.success(`« ${body.title} » enregistré`);
             router.push("/menus");
           },
@@ -211,6 +222,12 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
     } else {
       createMenu.mutate(body, {
         onSuccess: () => {
+          posthog.capture("menu_created", {
+            status: body.status,
+            period: body.period,
+            meal_count: body.dishIds.length,
+            shopping_included: body.shoppingIncluded,
+          });
           toast.success(
             `« ${body.title} » créé`,
             status === "published"
@@ -241,7 +258,7 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         className="relative overflow-hidden rounded-3xl bg-teal p-6 text-white lg:p-7"
       >
         <div

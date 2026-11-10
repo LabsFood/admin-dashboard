@@ -26,8 +26,18 @@ import {
   difficultyLabel,
   difficultyTone,
 } from "@/lib/catalog-labels";
-import { reheatingLine, storageLine } from "@/lib/recipe-fields";
-import { useAllergens, useDiets, useDishCategories, refLabel } from "@/lib/api/referentials";
+import { readSteps, reheatingLine, seasonsLine, storageLine } from "@/lib/recipe-fields";
+import { problemText } from "@/lib/readiness";
+import {
+  useAllergens,
+  useComputedDiets,
+  useDiets,
+  useDishCategories,
+  useRecipeProfiles,
+  useReheatModes,
+  useStepTypes,
+  refLabel,
+} from "@/lib/api/referentials";
 import {
   ingredientLines,
   useDeleteMeal,
@@ -65,8 +75,13 @@ export default function MealDrawer({
   const categories = useDishCategories();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  const stepTypes = useStepTypes();
+  const reheatModes = useReheatModes();
+  const computedDiets = useComputedDiets();
+  const profileList = useRecipeProfiles();
   const offered = Boolean(meal?.offeredToChefProfileId);
   const lines = ingredientLines(meal?.ingredients);
+  const steps = readSteps(meal?.steps);
 
   function setStatus(status: MealStatus) {
     if (!meal || status === meal.status) return;
@@ -279,28 +294,94 @@ export default function MealDrawer({
             </Block>
           )}
 
-          {meal.steps.length > 0 && (
-            <Block title={`Préparation (${meal.steps.length} étapes)`}>
+          {meal.readiness && (
+            <Block title={meal.readiness.ready ? "Fiche Prête" : "Pas encore Prête"}>
+              {meal.readiness.problems.length + meal.readiness.toPublish.length > 0 ? (
+                <ul className="space-y-1 text-[13px] text-ink-mid">
+                  {[...meal.readiness.problems, ...meal.readiness.toPublish].map((p) => (
+                    <li key={`${p.code}-${p.field}`}>· {problemText(p)}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-[13px] text-success">Rien ne manque pour publier.</p>
+              )}
+              <p className="mt-1.5 text-[12px] text-ink-soft">
+                {meal.allergensVerifiedAt
+                  ? `Allergènes vérifiés le ${new Date(meal.allergensVerifiedAt).toLocaleDateString("fr-FR")}`
+                  : "Allergènes non vérifiés : pas réservable"}
+                {meal.recipeVersion != null && ` · version ${meal.recipeVersion}`}
+              </p>
+            </Block>
+          )}
+
+          {steps.length > 0 && (
+            <Block title={`Préparation (${steps.length} étapes)`}>
               <ol className="space-y-2 text-[13px] leading-relaxed text-ink-mid">
-                {meal.steps.map((s, i) => (
-                  <li key={`${i}-${s.slice(0, 12)}`} className="flex gap-2.5">
+                {steps.map((s, i) => (
+                  <li key={`${i}-${s.text.slice(0, 12)}`} className="flex gap-2.5">
                     <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-xs bg-cream-deep font-mono text-[10px] font-semibold text-navy">
                       {i + 1}
                     </span>
-                    {s}
+                    <span>
+                      {(s.type || s.durationMinutes) && (
+                        <span className="mr-1.5 font-mono text-[10px] uppercase tracking-wide text-ink-soft">
+                          {[
+                            s.type ? refLabel(stepTypes.data, s.type) : null,
+                            s.durationMinutes ? `${s.durationMinutes} min` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
+                      )}
+                      {s.text}
+                    </span>
                   </li>
                 ))}
               </ol>
             </Block>
           )}
 
-          {(reheatingLine(meal.reheating) || storageLine(meal.storage)) && (
+          <Block title="Classement">
+            <ul className="space-y-1 text-[13px] text-ink-mid">
+              <li>
+                Régimes calculés :{" "}
+                {meal.classification
+                  ? meal.classification.diets.map((c) => refLabel(computedDiets.data, c)).join(", ") ||
+                    "aucun en commun"
+                  : "non calculé"}
+              </li>
+              {(meal.declaredDiets?.length ?? 0) > 0 && (
+                <li>Déclarés : {meal.declaredDiets!.join(", ")}</li>
+              )}
+              <li>
+                Saisons :{" "}
+                {seasonsLine(
+                  meal.seasonsOverride?.length
+                    ? meal.seasonsOverride
+                    : meal.classification?.seasonMonths,
+                ) ?? "non calculées"}
+              </li>
+              {(meal.profiles?.length ?? 0) > 0 && (
+                <li>
+                  Profils : {meal.profiles!.map((p) => refLabel(profileList.data, p)).join(", ")}
+                </li>
+              )}
+            </ul>
+          </Block>
+
+          {meal.equipment && meal.equipment.length > 0 && (
+            <Block title="Matériel">
+              <p className="text-[13px] text-ink-mid">{meal.equipment.join(", ")}</p>
+            </Block>
+          )}
+
+          {(reheatingLine(meal.reheating, reheatModes.data) || storageLine(meal.storage)) && (
             <Block title="Après la session">
               <ul className="space-y-1.5 text-[13px] text-ink-mid">
-                {reheatingLine(meal.reheating) && (
+                {reheatingLine(meal.reheating, reheatModes.data) && (
                   <li className="flex items-center gap-2">
                     <Flame className="h-3.5 w-3.5 shrink-0 text-terra" aria-hidden />
-                    {reheatingLine(meal.reheating)}
+                    {reheatingLine(meal.reheating, reheatModes.data)}
                   </li>
                 )}
                 {storageLine(meal.storage) && (

@@ -49,11 +49,31 @@ export interface AdminClientRow {
   clientProfile: ClientProfile | null;
 }
 
+/** Une ligne de `GET /admin/users` : un compte de n'importe quel rôle. */
+export interface AdminUserRow extends Me {
+  createdAt: string;
+  /** Clé de `/clients/{id}` ; `null` sans profil client enregistré. */
+  clientProfileId: string | null;
+  /** Clé de `/batchcookers/{id}` ; `null` pour qui n'est pas batch cooker. */
+  chefProfileId: string | null;
+}
+
 export interface ClientProfile {
   id: string;
   userId: string;
   dietaryPreferences: string[];
-  allergies: string[];
+  /**
+   * Les 14 allergènes réglementaires, par code : données de santé. Déclarées par
+   * le client seul, avec consentement. Absentes de `GET /admin/clients` (liste).
+   */
+  allergies?: string[];
+  /** Ce que les 14 ne couvrent pas, avec les mots du client. */
+  customAllergies?: string[];
+  /** « Aucune allergie », dit explicitement. */
+  allergiesNone?: boolean;
+  /** `null` : jamais répondu, aucun menu ne se valide. */
+  allergiesDeclaredAt?: string | null;
+  healthConsentAt?: string | null;
   dislikes: string[];
   favorites: string[];
   spiceLevel: number;
@@ -86,7 +106,6 @@ export interface MeProfile {
 /** Corps de `PATCH /me/profile` et `PATCH /admin/clients/{id}` (partiel). */
 export interface ClientProfilePatch {
   dietaryPreferences?: string[];
-  allergies?: string[];
   dislikes?: string[];
   favorites?: string[];
   spiceLevel?: number;
@@ -136,6 +155,8 @@ export type ChefDocumentType =
   | "renewal-receipt"
   | "status-proof"
   | "sap-declaration"
+  /** Voie Type B : attestation d'adhésion à la coopérative SAP qui porte la déclaration. */
+  | "sap-cooperative"
   | "rc-pro"
   | "haccp"
   | "ddpp"
