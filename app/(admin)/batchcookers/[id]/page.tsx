@@ -57,6 +57,7 @@ import {
   type ChefTier,
 } from "@/lib/api/chefs";
 import InfoPopover from "@/components/ui/InfoPopover";
+import { ChefLegalPanel } from "@/components/legal/ContractPanels";
 import TierRules from "@/components/admin/TierRules";
 import { ApiError } from "@/lib/api/client";
 import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
@@ -315,6 +316,8 @@ export default function BatchCookerPage({
       {onglet === "menus" && <Contenu chefProfileId={c.id} genre="menu" />}
       {onglet === "vitrine" && <Vitrine chefProfileId={c.id} />}
       {onglet === "prestations" && <Prestations chefProfileId={c.id} />}
+
+      <ChefLegalPanel identity={c.legalIdentity} />
 
       <ChefAgendaEtArgent
         chefProfileId={c.id}

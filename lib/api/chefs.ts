@@ -66,6 +66,8 @@ export interface AdminChef {
     completedBookings: number;
   };
   createdAt: string;
+  /** CGV art. 3.2 : toutes les informations légales sont renseignées. */
+  legalIdentityComplete?: boolean;
 }
 
 export interface AdminChefDetail extends AdminChef {
@@ -88,6 +90,8 @@ export interface AdminChefDetail extends AdminChef {
     cities: { name: string; dept: string | null; insee: string | null }[];
   }[];
   payoutsConnected: boolean;
+  /** CGV art. 3.2 : l'identité légale et ce qui manque. */
+  legalIdentity?: import("./contract").ChefLegalIdentity;
   calendarConnected: boolean;
   application:
     | (NonNullable<AdminChef["application"]> & {

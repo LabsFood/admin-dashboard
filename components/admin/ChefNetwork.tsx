@@ -261,6 +261,10 @@ function ChefCard({ chef }: { chef: AdminChef }) {
         </Badge>
       </div>
 
+      {chef.legalIdentityComplete === false && (
+        <p className="mt-2 text-[11px] font-semibold text-terra">Identité légale incomplète</p>
+      )}
+
       <p className="mt-3 truncate font-mono text-[11px] text-ink-soft">
         {chef.application?.reference ?? "Sans candidature"} · {chef.email}
       </p>

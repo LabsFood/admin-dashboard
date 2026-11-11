@@ -120,6 +120,10 @@ export interface Booking {
     status: string;
     expiresAt: string | null;
   } | null;
+  /** CGV V1 : les cases cochées et la conclusion du contrat. */
+  contract?: import("./contract").BookingContract;
+  /** CGV V1 : la rétractation, quand le client l'a exercée ou peut encore le faire. */
+  withdrawal?: import("./contract").BookingWithdrawal | null;
 }
 
 export interface PageMeta {

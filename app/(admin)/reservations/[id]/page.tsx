@@ -44,6 +44,7 @@ import {
 } from "@/lib/api/bookings";
 import { adminErrorMessage } from "@/lib/api/errors";
 import InfoPopover from "@/components/ui/InfoPopover";
+import { ContractPanel, WithdrawalPanel } from "@/components/legal/ContractPanels";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Une réservation — `GET /admin/bookings/{id}`.
@@ -396,6 +397,9 @@ export default function ReservationDetailPage({
 
         {/* ── Colonne de droite ─────────────────────────────────────────── */}
         <aside className="space-y-4">
+          <WithdrawalPanel withdrawal={b.withdrawal} />
+          <ContractPanel contract={b.contract} />
+
           <section className="card p-5">
             <h3 className="mb-3 flex items-center gap-2 font-display text-base font-bold text-navy">
               <UserRound className="h-4 w-4 text-terra" aria-hidden /> Le client
