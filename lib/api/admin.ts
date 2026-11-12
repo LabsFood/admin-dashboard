@@ -619,6 +619,7 @@ export function useDeleteUser() {
       qc.invalidateQueries({ queryKey: ["admin", "chefs"] });
       qc.invalidateQueries({ queryKey: ["chef-applications"] });
       qc.invalidateQueries({ queryKey: ["admin", "clients"] });
+      qc.invalidateQueries({ queryKey: ["clients"] });
       qc.invalidateQueries({ queryKey: ["admin", "users"] });
     },
   });
