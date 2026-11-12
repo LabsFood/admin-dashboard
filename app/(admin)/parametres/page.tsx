@@ -434,7 +434,11 @@ function ListeReglable({
     const base = codeDe(label);
     if (!label || !base) return;
     let code = base;
-    for (let n = 2; modes.some((m) => m.code === code); n++) code = `${base}-${n}`;
+    // L'API borne le code à 40 caractères : le suffixe se compte dedans.
+    for (let n = 2; modes.some((m) => m.code === code); n++) {
+      const suffixe = `-${n}`;
+      code = `${base.slice(0, 40 - suffixe.length).replace(/-$/, "")}${suffixe}`;
+    }
     setBrouillon([...modes, { code, label }]);
     setNouveau("");
   }
