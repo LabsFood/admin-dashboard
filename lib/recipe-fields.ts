@@ -15,20 +15,136 @@
 
 import type { Ingredient, Reheating, Step, Storage } from "@/lib/api/catalog";
 
-/** Unités de mesure. L'API les prend en texte libre ; la liste évite les doublons. */
-export const UNITS = [
-  "g",
-  "kg",
-  "ml",
-  "cl",
-  "l",
-  "pièce",
-  "c. à soupe",
-  "c. à café",
-  "pincée",
-  "botte",
-  "gousse",
-] as const;
+/** Une unité de ligne (§4.12), telle que `GET /referentials/units` la sert. */
+export interface UnitItem {
+  code: string;
+  label: string;
+  plural: string;
+}
+
+const unit = (code: string, label: string, plural = label): UnitItem => ({
+  code,
+  label,
+  plural,
+});
+
+/**
+ * Les 14 unités d'une ligne. L'API refuse tout autre code. Même table que
+ * `dishes/domain/units.rules.ts` et que l'espace des batch cookers.
+ */
+export const UNITS: UnitItem[] = [
+  unit("g", "g"),
+  unit("kg", "kg"),
+  unit("ml", "ml"),
+  unit("cl", "cl"),
+  unit("l", "l"),
+  unit("tsp", "c. à café"),
+  unit("tbsp", "c. à soupe"),
+  unit("piece", "pièce", "pièces"),
+  unit("clove", "gousse", "gousses"),
+  unit("bunch", "botte", "bottes"),
+  unit("slice", "tranche", "tranches"),
+  unit("leaf", "feuille", "feuilles"),
+  unit("pinch", "pincée", "pincées"),
+  unit("to_taste", "selon le goût"),
+];
+
+export const UNIT_CODES = UNITS.map((u) => u.code);
+export const TO_TASTE = "to_taste";
+
+/** Les unités qui se comptent entières : toujours l'unité au-dessus. */
+const WHOLE = new Set(["piece", "clove", "bunch", "slice", "leaf", "pinch"]);
+
+/** EPSILON pour que 1,005 donne 1,01 et non 1. */
+const roundTo = (qty: number, step: number) =>
+  Math.round((qty + Number.EPSILON) / step) * step;
+
+const decimals = (qty: number, places: number) => {
+  const factor = 10 ** places;
+  return Math.round((qty + Number.EPSILON) * factor) / factor;
+};
+
+/**
+ * L'arrondi d'affichage, seul endroit où l'on arrondit : la table de l'API
+ * (`roundForDisplay`, dans `dishes/domain/units.rules.ts`), à l'identique.
+ *
+ * Les valeurs de son test, à garder vraies (la console n'a pas de lanceur de tests) :
+ *   piece 2.1 -> 3        clove 0.4 -> 1
+ *   g 7.46 -> 7.5         g 46.4 -> 46        g 132.4 -> 130      g 133 -> 135
+ *   ml 99.5 -> 100        kg 1.255 -> 1.26
+ *   tsp 0.2 -> 0.5        tsp 1.3 -> 1.5      tbsp 1.2 -> 1
+ *   (1.5, 'kg') -> '1,5 kg'      (2, 'clove') -> '2 gousses'
+ *   (1, 'clove') -> '1 gousse'   (null, 'to_taste') -> 'selon le goût'
+ */
+export function roundForDisplay(qty: number, unitCode: string): number {
+  if (WHOLE.has(unitCode)) return Math.ceil(qty - 1e-9);
+  switch (unitCode) {
+    case "g":
+    case "ml":
+      if (qty < 10) return decimals(qty, 1);
+      if (qty <= 100) return Math.round(qty);
+      return roundTo(qty, 5);
+    case "kg":
+    case "l":
+    case "cl":
+      return decimals(qty, 2);
+    case "tsp":
+    case "tbsp":
+      return Math.max(0.5, roundTo(qty, 0.5));
+    case TO_TASTE:
+      return 0;
+    default:
+      return decimals(qty, 2);
+  }
+}
+
+/** « 1,5 kg », « 2 gousses », « selon le goût » : jamais de nombre pour ce dernier. */
+export function displayQuantity(qty: number | null, unitCode: string | null): string {
+  if (unitCode === TO_TASTE) return "selon le goût";
+  const known = UNITS.find((u) => u.code === unitCode);
+  if (qty == null) return known?.label ?? unitCode ?? "";
+  const rounded = roundForDisplay(qty, unitCode ?? "");
+  const number = String(rounded).replace(".", ",");
+  const label = known ? (rounded >= 2 ? known.plural : known.label) : (unitCode ?? "");
+  return label ? `${number} ${label}` : number;
+}
+
+/** Le libellé d'une unité, ou le code lui-même quand il est inconnu. */
+export const unitLabel = (code?: string | null) =>
+  code ? (UNITS.find((u) => u.code === code)?.label ?? code) : "";
+
+/**
+ * Une unité écrite avant les 14 codes (« pièce », « c. à soupe »…) lue comme
+ * un code ; `null` quand elle n'en est aucun.
+ */
+export function unitFromText(text?: string | null): string | null {
+  if (!text) return null;
+  if (UNIT_CODES.includes(text)) return text;
+  const fold = text
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/\./g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const aliases: Record<string, string[]> = {
+    g: ["gr", "gramme", "grammes"],
+    kg: ["kilo", "kilos", "kilogramme", "kilogrammes"],
+    ml: ["millilitre", "millilitres"],
+    cl: ["centilitre", "centilitres"],
+    l: ["litre", "litres"],
+    tsp: ["cac", "c a c", "c a cafe", "cuillere a cafe", "cuilleres a cafe"],
+    tbsp: ["cas", "c a s", "c a soupe", "cuillere a soupe", "cuilleres a soupe"],
+    piece: ["", "piece", "pieces", "pc", "pcs", "u", "unite", "unites"],
+    clove: ["gousse", "gousses"],
+    bunch: ["botte", "bottes"],
+    slice: ["tranche", "tranches"],
+    leaf: ["feuille", "feuilles"],
+    pinch: ["pincee", "pincees"],
+    to_taste: ["selon le gout", "au gout", "a volonte"],
+  };
+  return Object.entries(aliases).find(([, list]) => list.includes(fold))?.[0] ?? null;
+}
 
 /**
  * Les rayons, par identifiant.
@@ -42,22 +158,29 @@ export const UNITS = [
  */
 export const AISLE_LABEL: Record<string, string> = {
   "fruits-legumes": "Fruits et légumes",
+  boulangerie: "Boulangerie",
   boucherie: "Boucherie",
   poissonnerie: "Poissonnerie",
   cremerie: "Crèmerie",
+  fromages: "Fromages",
   "epicerie-salee": "Épicerie salée",
+  conserves: "Conserves",
+  epices: "Épices",
   "epicerie-sucree": "Épicerie sucrée",
-  boulangerie: "Boulangerie",
-  surgeles: "Surgelés",
   boissons: "Boissons",
+  "non-alimentaire": "Non alimentaire",
+  surgeles: "Surgelés",
 };
 
-/** Dans l'ordre d'un parcours en magasin. */
-export const AISLES = Object.keys(AISLE_LABEL);
-
-/** Le libellé d'un rayon, ou la valeur telle quelle si elle nous est inconnue. */
-export const aisleLabel = (code?: string | null) =>
-  code ? (AISLE_LABEL[code] ?? code) : null;
+/**
+ * Le libellé d'un rayon. La liste réglée dans Paramètres (`useAisles`) fait foi
+ * quand on la passe ; sinon les 13 rayons par défaut ; sinon le code tel quel.
+ */
+export const aisleLabel = (
+  code?: string | null,
+  list?: { code: string; label: string }[],
+) =>
+  code ? (list?.find((a) => a.code === code)?.label ?? AISLE_LABEL[code] ?? code) : null;
 
 export const REHEAT_MODES: { code: string; label: string }[] = [
   { code: "oven", label: "Four" },
@@ -116,6 +239,13 @@ export function storageLine(s?: Storage | null): string | null {
     storageMethodLabel(s.method),
     s.days != null ? `${s.days} jour${s.days > 1 ? "s" : ""}` : null,
     s.container || null,
+    s.freezable === true
+      ? s.freezerMonths != null
+        ? `congelable ${s.freezerMonths} mois`
+        : "congelable"
+      : s.freezable === false
+        ? "ne se congèle pas"
+        : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -124,35 +254,147 @@ export function storageLine(s?: Storage | null): string | null {
 /* ── Les gardes avant envoi ────────────────────────────────────────────────── */
 
 /**
- * Une ligne d'ingrédient complète, ou rien.
- *
- * L'API exige les quatre champs. Envoyer « 200 » sans unité ferait échouer
- * l'enregistrement du plat entier : on préfère laisser tomber la ligne
- * incomplète, et l'écran dit laquelle.
+ * Une ligne en cours de saisie. Les champs sont tenus en chaînes pour qu'un
+ * champ vidé reste vide au lieu de retomber sur 0 ; `cleanLines` les convertit
+ * en vrais nombres et booléens, comme l'API les exige.
  */
-export function ingredientReady(i: Ingredient): boolean {
-  return Boolean(
-    i.name.trim() &&
-      i.qty !== "" &&
-      i.qty != null &&
-      Number.isFinite(Number(i.qty)) &&
-      i.unit?.trim() &&
-      i.aisle?.trim(),
-  );
+export interface LineRow {
+  name: string;
+  qty: string;
+  unit: string;
+  /** Le rayon, seulement pour une ligne non reliée : sinon c'est celui de l'entrée. */
+  aisle: string;
+  link: string;
+  toVerify: boolean;
+  fixedQuantity: boolean;
+  catalogIngredientId: string | null;
+  optional: boolean;
+  precision: string;
+  preparation: string;
+  group: string;
+  /** `undefined` : l'API décide d'après l'entrée (ingrédient de base : masqué). */
+  hiddenFromClient: boolean | undefined;
+  rawText: string | null;
 }
 
-/** Les lignes envoyables, `qty` en nombre comme l'API l'attend. */
-export function cleanIngredients(list: Ingredient[]): Ingredient[] {
-  return list.filter(ingredientReady).map((i) => ({
-    name: i.name.trim(),
-    qty: Number(i.qty),
-    unit: (i.unit ?? "").trim(),
-    aisle: (i.aisle ?? "").trim(),
-    link: i.link?.trim() && linkValid(i.link) ? i.link.trim() : null,
-    toVerify: i.toVerify ?? false,
-    fixedQuantity: i.fixedQuantity ?? false,
-    catalogIngredientId: i.catalogIngredientId ?? null,
-  }));
+export const LINE_LIMITS = { name: 120, precision: 60, preparation: 120, group: 60 } as const;
+export const MAX_LINES = 60;
+
+export const emptyLine = (): LineRow => ({
+  name: "",
+  qty: "",
+  unit: "g",
+  aisle: "",
+  link: "",
+  toVerify: false,
+  fixedQuantity: false,
+  catalogIngredientId: null,
+  optional: false,
+  precision: "",
+  preparation: "",
+  group: "",
+  hiddenFromClient: undefined,
+  rawText: null,
+});
+
+/** Une ligne telle que l'API l'a stockée (ou un reste d'avant le format), prête à éditer. */
+export function toLineRow(raw: unknown): LineRow | null {
+  if (typeof raw === "string") return raw.trim() ? { ...emptyLine(), name: raw.trim(), unit: "" } : null;
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const name = typeof o.name === "string" ? o.name : "";
+  if (!name.trim()) return null;
+  const str = (v: unknown) => (typeof v === "string" ? v : "");
+  const code = typeof o.unit === "string" ? unitFromText(o.unit) : null;
+  return {
+    name,
+    qty: typeof o.qty === "number" || typeof o.qty === "string" ? String(o.qty) : "",
+    unit: code ?? "",
+    aisle: str(o.aisle),
+    link: str(o.link),
+    toVerify: o.toVerify === true,
+    fixedQuantity: o.fixedQuantity === true,
+    catalogIngredientId: typeof o.catalogIngredientId === "string" ? o.catalogIngredientId : null,
+    optional: o.optional === true,
+    precision: str(o.precision),
+    preparation: str(o.preparation),
+    group: str(o.group),
+    hiddenFromClient: typeof o.hiddenFromClient === "boolean" ? o.hiddenFromClient : undefined,
+    rawText: typeof o.rawText === "string" ? o.rawText : null,
+  };
+}
+
+/** Les plats écrits avant le format peuvent porter autre chose qu'une liste de lignes. */
+export function readLineRows(raw: unknown): LineRow[] {
+  if (Array.isArray(raw)) return raw.map(toLineRow).filter((l): l is LineRow => l !== null);
+  if (raw && typeof raw === "object") {
+    const items = (raw as Record<string, unknown>).items;
+    if (Array.isArray(items)) return readLineRows(items);
+  }
+  return [];
+}
+
+/** Une ligne dont aucun champ n'a été touché : elle ne compte pas. */
+export const lineBlank = (l: LineRow) =>
+  !l.name.trim() &&
+  !l.qty.trim() &&
+  !l.precision.trim() &&
+  !l.preparation.trim() &&
+  !l.group.trim() &&
+  !l.link.trim();
+
+/**
+ * Pourquoi l'API refuserait cette ligne, en français ; `null` si elle passe.
+ * Mêmes règles que `lineInputProblems` : unité obligatoire, quantité au-dessus
+ * de zéro (trois décimales) sauf « selon le goût », sans nombre.
+ */
+export function lineProblem(l: LineRow): string | null {
+  if (lineBlank(l)) return null;
+  if (!l.name.trim()) return "Donnez un nom à l'ingrédient.";
+  if (l.name.trim().length > LINE_LIMITS.name) return "Le nom est limité à 120 caractères.";
+  if (!l.unit) return l.toVerify ? null : "Choisissez une unité.";
+  if (!UNIT_CODES.includes(l.unit)) return "Unité inconnue.";
+  if (l.unit !== TO_TASTE) {
+    if (!l.qty.trim()) return l.toVerify ? null : "Indiquez une quantité.";
+    const n = Number(l.qty);
+    if (!Number.isFinite(n) || n <= 0) return "La quantité doit être supérieure à 0.";
+    if (n > 100000) return "La quantité est limitée à 100 000.";
+    if (Math.round(n * 1000) / 1000 !== n) return "Trois décimales au plus.";
+  }
+  if (l.precision.trim().length > LINE_LIMITS.precision) return "La précision est limitée à 60 caractères.";
+  if (l.preparation.trim().length > LINE_LIMITS.preparation)
+    return "La préparation est limitée à 120 caractères.";
+  if (l.group.trim().length > LINE_LIMITS.group) return "Le groupe est limité à 60 caractères.";
+  if (!linkValid(l.link)) return "Un lien commence par http:// ou https://.";
+  return null;
+}
+
+/** Les lignes envoyables : vrais nombres, vrais booléens, `qty: null` pour « selon le goût ». */
+export function cleanLines(list: LineRow[]): Ingredient[] {
+  return list
+    .filter((l) => !lineBlank(l))
+    .map((l) => {
+      const toTaste = l.unit === TO_TASTE;
+      const linked = Boolean(l.catalogIngredientId);
+      const line: Ingredient = {
+        name: l.name.trim(),
+        qty: toTaste || !l.qty.trim() ? null : Number(l.qty),
+        unit: l.unit || null,
+        link: l.link.trim() && linkValid(l.link) ? l.link.trim() : null,
+        toVerify: l.toVerify,
+        fixedQuantity: l.fixedQuantity,
+        catalogIngredientId: l.catalogIngredientId,
+        optional: l.optional,
+        precision: l.precision.trim() || null,
+        preparation: l.preparation.trim() || null,
+        group: l.group.trim() || null,
+      };
+      // Le rayon d'une ligne reliée est celui de son entrée : on ne l'envoie pas.
+      if (!linked && l.aisle.trim()) line.aisle = l.aisle.trim();
+      if (l.hiddenFromClient !== undefined) line.hiddenFromClient = l.hiddenFromClient;
+      if (l.rawText) line.rawText = l.rawText;
+      return line;
+    });
 }
 
 export const MONTHS = [
@@ -195,11 +437,13 @@ export function cleanReheating(r: {
   container: string;
 }): Reheating | null {
   if (r.modes.length === 0) return null;
+  const note = r.note.trim();
   return {
     modes: r.modes,
     minutes: r.minutes.trim() ? Number(r.minutes) : null,
     temperature: r.temperature.trim() ? Number(r.temperature) : null,
-    note: r.note.trim() || null,
+    // `note` est une chaîne côté API : absente plutôt que `null`.
+    ...(note ? { note } : {}),
     container: r.container.trim() || null,
   };
 }
@@ -243,15 +487,57 @@ export const cleanSteps = (list: StepRow[]): Step[] =>
       durationMinutes: s.minutes.trim() ? Number(s.minutes) : null,
     }));
 
-export function cleanStorage(s: {
+/** « Congelable » : `""` tant que la question n'a pas de réponse. */
+export type Freezable = "" | "yes" | "no";
+
+export const freezableOf = (s?: Storage | null): Freezable =>
+  s?.freezable === true ? "yes" : s?.freezable === false ? "no" : "";
+
+export interface StorageForm {
   method: string;
   days: string;
   container: string;
-}): Storage | null {
+  freezable: Freezable;
+  freezerMonths: string;
+  thawing: string;
+}
+
+export function cleanStorage(s: StorageForm): Storage | null {
   if (!s.method || !s.days.trim()) return null;
-  return {
+  const base: Storage = {
     method: s.method,
     days: Number(s.days),
     container: s.container.trim() || null,
   };
+  // Une question sans réponse reste sans réponse : on n'envoie pas `freezable`.
+  if (s.freezable === "yes") {
+    return {
+      ...base,
+      freezable: true,
+      freezerMonths: s.freezerMonths.trim() ? Number(s.freezerMonths) : null,
+      thawing: s.thawing.trim() || null,
+    };
+  }
+  if (s.freezable === "no") {
+    return { ...base, freezable: false, freezerMonths: null, thawing: null };
+  }
+  return base;
+}
+
+/** Pourquoi la conservation serait refusée, ou `null`. */
+export function storageProblem(s: StorageForm): string | null {
+  const touched = s.method || s.days.trim() || s.container.trim() || s.freezable;
+  if (!touched) return null;
+  if (!s.method || !s.days.trim())
+    return "La conservation demande un lieu et un nombre de jours : l'API exige les deux.";
+  const days = Number(s.days);
+  if (!Number.isInteger(days) || days < 0 || days > 365)
+    return "Les jours de conservation : un nombre entier de 0 à 365.";
+  if (s.freezable === "yes" && s.freezerMonths.trim()) {
+    const m = Number(s.freezerMonths);
+    if (!Number.isInteger(m) || m < 1 || m > 24)
+      return "Les mois de congélation : un nombre entier de 1 à 24.";
+  }
+  if (s.thawing.trim().length > 300) return "La décongélation est limitée à 300 caractères.";
+  return null;
 }

@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, useApiFetch } from "./client";
 import type { PageMeta } from "./types";
+import { displayQuantity } from "@/lib/recipe-fields";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Le catalogue Lab's Food, côté console.
@@ -24,7 +25,15 @@ import type { PageMeta } from "./types";
 export type MealStatus = "draft" | "published" | "archived";
 export type Continent = "africa" | "americas" | "asia" | "europe" | "middle_east";
 export type Difficulty = "easy" | "medium" | "hard";
-export type DishCategory = "starter" | "main" | "side" | "dessert";
+/** Les 7 types de `GET /referentials/dish-categories`. */
+export type DishCategory =
+  | "main"
+  | "starter"
+  | "soup"
+  | "side"
+  | "dessert"
+  | "breakfast"
+  | "sauce";
 export type MenuPeriod = "week" | "month";
 
 export interface Ingredient {
@@ -40,6 +49,13 @@ export interface Ingredient {
   fixedQuantity?: boolean;
   /** L'entrée de la liste commune (§4.10) : régimes et saisons s'en calculent. */
   catalogIngredientId?: string | null;
+  /** Facultatif : ses allergènes ne sont que conditionnels. */
+  optional?: boolean;
+  precision?: string | null;
+  preparation?: string | null;
+  group?: string | null;
+  hiddenFromClient?: boolean;
+  rawText?: string | null;
 }
 
 export type CatalogIngredientStatus = "active" | "pending" | "inactive" | "merged";
@@ -170,6 +186,10 @@ export interface Storage {
   method?: string | null;
   days?: number | null;
   container?: string | null;
+  /** Absent ou `null` : pas encore répondu (anciennes recettes). */
+  freezable?: boolean | null;
+  freezerMonths?: number | null;
+  thawing?: string | null;
 }
 
 /** `MealResponseDto` — un plat de la maison. */
@@ -192,7 +212,14 @@ export interface Meal {
   prepTime: number;
   cookTime: number | null;
   dietaryTags: string[];
+  /** Calculés d'après les lignes, plus `addedAllergens`. */
   allergens: string[];
+  /** Ceux que seules des lignes facultatives apportent (déjà dans `allergens`). */
+  conditionalAllergens?: string[];
+  /** Ajoutés à la main. */
+  addedAllergens?: string[];
+  /** Pour chaque allergène, les ingrédients qui l'apportent, si l'API les rend. */
+  allergenSources?: Record<string, string[]>;
   allergensNone: boolean;
   customDiets: string[];
   customAllergens: string[];
@@ -236,8 +263,8 @@ export interface MealInput {
   description?: string | null;
   dietaryTags?: string[];
   customDiets?: string[];
-  allergens?: string[];
-  allergensNone?: boolean;
+  /** Les 14 codes ajoutés à la main ; le reste se calcule des lignes. */
+  addedAllergens?: string[];
   customAllergens?: string[];
   ingredients?: Ingredient[];
   category?: DishCategory | null;
@@ -347,10 +374,24 @@ export function ingredientLines(raw: unknown): string[] {
     const o = v as Record<string, unknown>;
     const name = typeof o.name === "string" ? o.name.trim() : "";
     if (!name) return null;
-    const qty = o.qty == null || o.qty === "" ? "" : String(o.qty);
+    // Les 14 codes d'unité s'écrivent comme l'API : « 1,5 kg », « selon le goût ».
     const unit = typeof o.unit === "string" ? o.unit : "";
-    const amount = [qty, unit].filter(Boolean).join(" ");
-    return amount ? `${name} — ${amount}` : name;
+    const n = o.qty == null || o.qty === "" ? null : Number(o.qty);
+    const amount =
+      unit === "to_taste" || (n !== null && Number.isFinite(n))
+        ? displayQuantity(n !== null && Number.isFinite(n) ? n : null, unit)
+        : unit
+          ? displayQuantity(null, unit)
+          : "";
+    const detail = [
+      typeof o.precision === "string" && o.precision.trim() ? o.precision.trim() : null,
+      typeof o.preparation === "string" && o.preparation.trim() ? o.preparation.trim() : null,
+      o.optional === true ? "facultatif" : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
+    const label = detail ? `${name} (${detail})` : name;
+    return amount ? `${label} — ${amount}` : label;
   };
 
   if (Array.isArray(raw)) {

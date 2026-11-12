@@ -44,10 +44,13 @@ const DIETS: RefItem[] = [
 ];
 
 const CATEGORIES: RefItem[] = [
+  { code: "main", label: "Plat complet" },
   { code: "starter", label: "Entrée" },
-  { code: "main", label: "Plat" },
+  { code: "soup", label: "Soupe" },
   { code: "side", label: "Accompagnement" },
   { code: "dessert", label: "Dessert" },
+  { code: "breakfast", label: "Petit-déjeuner ou goûter" },
+  { code: "sauce", label: "Sauce ou base" },
 ];
 
 function useReferential(path: string, key: string, fallback: RefItem[]) {

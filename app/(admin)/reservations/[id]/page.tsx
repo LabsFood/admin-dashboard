@@ -27,7 +27,8 @@ import Badge from "@/components/ui/Badge";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toaster";
 import { cn, euros, formatDateLong } from "@/lib/utils";
-import { aisleLabel } from "@/lib/recipe-fields";
+import { aisleLabel, displayQuantity } from "@/lib/recipe-fields";
+import { useAisles } from "@/lib/api/referentials";
 import {
   BOOKING_STATUSES,
   bookingPortions,
@@ -73,6 +74,7 @@ export default function ReservationDetailPage({
   const toast = useToast();
   const query = useBooking(id);
   const courses = useBookingShoppingList(id);
+  const aisles = useAisles();
   const regenerate = useRegenerateShoppingList();
   const update = useUpdateBooking();
   const [aRecalculer, setARecalculer] = useState(false);
@@ -321,7 +323,7 @@ export default function ReservationDetailPage({
                 {groupes.map((g) => (
                   <div key={g.aisle || "sans-rayon"}>
                     <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.16em] text-ink-soft">
-                      {aisleLabel(g.aisle) ?? "Sans rayon"}
+                      {aisleLabel(g.aisle, aisles.data) ?? "Sans rayon"}
                     </p>
                     <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {g.lines.map((l, i) => (
@@ -350,7 +352,7 @@ export default function ReservationDetailPage({
                             )}
                           </span>
                           <span className="shrink-0 text-xs tabular-nums text-ink-soft">
-                            {l.qty.toLocaleString("fr-FR")} {l.unit}
+                            {displayQuantity(l.qty, l.unit)}
                           </span>
                         </li>
                       ))}
