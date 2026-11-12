@@ -297,6 +297,59 @@ export function useDecideDocument(id: string) {
   );
 }
 
+/**
+ * Corps de `POST /admin/chef-applications` : la fiche de candidature sans le bloc
+ * `consent` (un admin ne peut pas accepter les CGU à la place de quelqu'un).
+ */
+export interface OpenApplicationInput {
+  identity: { firstName: string; lastName: string; email: string; phone: string };
+  address: { street: string; postcode: string; city: string };
+  interventionZones: {
+    regionCode: string;
+    regionLabel: string;
+    scope: "region";
+    cities: [];
+  }[];
+  workAuthorization: {
+    status: "eu-citizen" | "residence-permit" | "renewal-pending" | "other";
+    details?: string;
+  };
+  company: {
+    legalForm: "micro" | "other-company" | "not-registered";
+    siret?: string;
+    sap: { path: "type-a" | "type-b"; declarationNumber?: string };
+  };
+}
+
+/** Réponse : la candidature ouverte et l'état du lien de connexion envoyé par email. */
+export interface OpenedApplication {
+  id: string;
+  reference: string;
+  invitation: { delivered: boolean; expiresAt: string };
+}
+
+/**
+ * `POST /admin/chef-applications` — ouvre la candidature d'un batch cooker : crée son
+ * compte (non vérifié, inactif) et lui envoie son lien de connexion. Le dossier suit
+ * ensuite le parcours habituel (pièces, revue, approbation).
+ */
+export function useOpenChefApplication() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: OpenApplicationInput) =>
+      apiFetch<OpenedApplication>("/admin/chef-applications", {
+        method: "POST",
+        body: input,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chef-applications"] });
+      qc.invalidateQueries({ queryKey: ["users"] });
+    },
+  });
+}
+
 /** `POST /admin/chef-applications/{id}/request-changes` */
 export function useRequestChanges(id: string) {
   return useApplicationMutation<{ message: string; documentTypes: string[] }>(
