@@ -8,8 +8,11 @@ import { adminErrorMessage, errorFor } from "@/lib/api/errors";
 import { ApiError } from "@/lib/api/client";
 import { useAisles, useAllergens, useComputedDiets } from "@/lib/api/referentials";
 import { MONTHS } from "@/lib/recipe-fields";
+import { useReplay } from "@/components/admin/PropagationNotice";
 import {
   alreadyListed,
+  isTimeout,
+  TIMEOUT_HINT,
   useCreateCatalogIngredient,
   useIngredientImpact,
   useUpdateCatalogIngredient,
@@ -77,6 +80,7 @@ export default function IngredientEditor({
   const aisles = useAisles();
   const allergenList = useAllergens();
   const diets = useComputedDiets();
+  const replay = useReplay();
 
   const [name, setName] = useState(initial?.name ?? "");
   const [aliases, setAliases] = useState(initial?.aliases.join(", ") ?? "");
@@ -367,8 +371,23 @@ export default function IngredientEditor({
 
       {apiError != null && apiField === null && (
         <p role="alert" className="text-[12px] text-danger">
-          {adminErrorMessage(apiError)}
+          {isTimeout(apiError) ? `${adminErrorMessage(apiError)} ${TIMEOUT_HINT}` : adminErrorMessage(apiError)}
         </p>
+      )}
+      {isTimeout(update.error) && initial && (
+        <div className="flex flex-wrap items-center gap-2 text-[12px] text-ink-mid">
+          <button
+            type="button"
+            disabled={replay.pending}
+            onClick={() => void replay.run([initial.id])}
+            className="btn btn-sm btn-outline"
+          >
+            {replay.pending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
+            Relancer le report
+          </button>
+          {replay.result && !replay.error && <span>Report relancé.</span>}
+          {replay.error != null && <span className="text-danger">{adminErrorMessage(replay.error)}</span>}
+        </div>
       )}
 
       {shownImpact && (

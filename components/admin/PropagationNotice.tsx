@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 import { adminErrorMessage } from "@/lib/api/errors";
-import { usePropagateIngredient, type Propagation } from "@/lib/api/catalog";
+import { isTimeout, TIMEOUT_HINT, usePropagateIngredient, type Propagation } from "@/lib/api/catalog";
 
 /** Les chiffres d'un report (§7.3) en une phrase. */
 export function propagationLine(p: Propagation): string {
@@ -27,16 +27,24 @@ export function useReplay() {
   const replay = usePropagateIngredient();
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState<Propagation | null>(null);
-  /** Après un échec en cours de route : combien d'entrées restent à rejouer. */
-  const [remaining, setRemaining] = useState(0);
+  /** Après un échec en cours de route : les entrées qui restent à rejouer. */
+  const [todo, setTodo] = useState<string[]>([]);
+  /** Les chiffres des appels réussis d'une série interrompue puis reprise. */
+  const acc = useRef<Propagation>({ ...ZERO });
   const [error, setError] = useState<unknown>(null);
 
-  /** Rend les chiffres cumulés des appels réussis (même si un appel a échoué) et l'erreur éventuelle. */
+  /**
+   * Rejoue `ids`. Rend les chiffres cumulés si tout a réussi ; sinon `sum` est
+   * `null`, `error` dit pourquoi, et les entrées non rejouées restent dans
+   * `todo` — l'écran garde ses chiffres d'origine et le bouton de relance.
+   */
   async function run(ids: string[]): Promise<{ sum: Propagation | null; error: unknown }> {
     setError(null);
-    setRemaining(0);
+    // Une reprise continue la série interrompue ; un nouveau départ repart de zéro.
+    if (todo.length === 0) acc.current = { ...ZERO };
+    setTodo([]);
     setProgress({ done: 0, total: ids.length });
-    const sum = { ...ZERO };
+    const sum = acc.current;
     let done = 0;
     try {
       for (const id of ids) {
@@ -49,19 +57,18 @@ export function useReplay() {
         done += 1;
         setProgress({ done, total: ids.length });
       }
-      setResult(sum);
-      return { sum, error: null };
+      const total = { ...sum };
+      setResult(total);
+      return { sum: total, error: null };
     } catch (e) {
       setError(e);
-      setRemaining(ids.length - done);
-      // Les appels réussis comptent : on garde leurs chiffres.
-      if (done > 0) setResult(sum);
-      return { sum: done > 0 ? sum : null, error: e };
+      setTodo(ids.slice(done));
+      return { sum: null, error: e };
     } finally {
       setProgress(null);
     }
   }
-  return { run, progress, result, remaining, error, pending: progress !== null };
+  return { run, progress, result, todo, remaining: todo.length, error, pending: progress !== null };
 }
 
 /**
@@ -82,9 +89,12 @@ export default function PropagationNotice({
   label?: string;
 }) {
   const replay = useReplay();
-  const ids = replayIds ?? (ingredientId ? [ingredientId] : []);
+  const allIds = replayIds ?? (ingredientId ? [ingredientId] : []);
+  // Après un échec en cours de route, on ne rejoue que ce qui reste.
+  const ids = replay.todo.length > 0 ? replay.todo : allIds;
   const current = replay.result ?? propagation;
   if (!current) return null;
+  const stillToReplay = replay.remaining > 0;
 
   return (
     <div role="status" className="space-y-2 text-sm">
@@ -94,12 +104,15 @@ export default function PropagationNotice({
           <strong className="text-navy">{label} :</strong> {propagationLine(current)}
         </span>
       </p>
-      {current.failed > 0 && (
+      {(current.failed > 0 || stillToReplay) && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-warning bg-cream-soft p-3">
           <p className="flex flex-1 items-start gap-1.5 text-navy">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
-            {current.failed} recette{current.failed > 1 ? "s n'ont" : " n'a"} pas pu être mise
-            {current.failed > 1 ? "s" : ""} à jour.
+            {current.failed > 0
+              ? `${current.failed} recette${current.failed > 1 ? "s n'ont" : " n'a"} pas pu être mise${
+                  current.failed > 1 ? "s" : ""
+                } à jour.`
+              : "Le report n'est pas terminé."}
             {ids.length === 0 &&
               " Aucune entrée mise à jour n'est connue : ouvrez les ingrédients concernés dans la liste pour relancer leur report."}
           </p>
@@ -126,10 +139,9 @@ export default function PropagationNotice({
       {replay.error != null && (
         <p role="alert" className="text-[12px] text-danger">
           {adminErrorMessage(replay.error)}
+          {isTimeout(replay.error) && ` ${TIMEOUT_HINT}`}
           {replay.remaining > 0 &&
-            ` Il reste ${replay.remaining} ingrédient${replay.remaining > 1 ? "s" : ""} à rejouer${
-              replay.result ? " ; les chiffres ci-dessus sont ceux des reports réussis" : ""
-            }.`}
+            ` Il reste ${replay.remaining} ingrédient${replay.remaining > 1 ? "s" : ""} à rejouer ; les chiffres ci-dessus sont ceux du report d'origine.`}
         </p>
       )}
     </div>

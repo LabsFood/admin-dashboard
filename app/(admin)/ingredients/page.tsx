@@ -55,6 +55,7 @@ const NO_FILTER: IngredientFilters = {
   aisle: "",
   incomplete: false,
   reviewed: "",
+  carryPending: false,
 };
 
 export default function IngredientsPage() {
@@ -69,6 +70,8 @@ export default function IngredientsPage() {
   const aisles = useAisles();
   const review = useReviewIngredient();
   const meta = liste.data?.meta;
+  // La dernière ligne d'une page est partie : on revient à la dernière page qui existe.
+  if (meta && page > 1 && page > meta.totalPages) setPage(Math.max(1, meta.totalPages));
 
   function setFilter(patch: Partial<IngredientFilters>) {
     setFilters((f) => ({ ...f, ...patch }));
@@ -131,6 +134,7 @@ export default function IngredientsPage() {
 
       {editing && (
         <IngredientEditor
+          key={editing === "new" ? "new" : editing.id}
           initial={editing === "new" ? null : editing}
           onDone={() => setEditing(null)}
           onSaved={(write) => {
@@ -207,6 +211,14 @@ export default function IngredientsPage() {
             />
             À compléter
           </label>
+          <label className="flex items-center gap-2 pb-2 text-sm text-ink-mid">
+            <input
+              type="checkbox"
+              checked={filters.carryPending ?? false}
+              onChange={(e) => setFilter({ carryPending: e.target.checked })}
+            />
+            Report à relancer
+          </label>
           {filtered && (
             <button type="button" onClick={() => setFilter(NO_FILTER)} className="btn btn-sm btn-ghost mb-1">
               Effacer les filtres
@@ -236,6 +248,7 @@ export default function IngredientsPage() {
                     {i.chefProfileId && <span className="chip-muted">Privé</span>}
                     {isIncomplete(i) && <span className="chip-danger">À compléter</span>}
                     {i.isBasic && <span className="chip-muted">De base</span>}
+                    {i.carryPending && <span className="chip-danger">Report à relancer</span>}
                   </p>
                   {i.aliases.length > 0 && <p className="text-[12px] text-ink-soft">{i.aliases.join(", ")}</p>}
                   <p className="mt-1 flex flex-wrap gap-1.5">

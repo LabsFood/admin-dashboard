@@ -5,12 +5,14 @@ import { motion } from "framer-motion";
 import { AlertTriangle, BookOpen, Check, GitMerge, Loader2, Pencil, Search, Users, UserRound } from "lucide-react";
 import IngredientEditor from "@/components/admin/IngredientEditor";
 import IngredientTabs from "@/components/admin/IngredientTabs";
-import PropagationNotice from "@/components/admin/PropagationNotice";
+import PropagationNotice, { useReplay } from "@/components/admin/PropagationNotice";
 import { adminErrorMessage } from "@/lib/api/errors";
 import { refLabel, useAisles, useAllergens, useComputedDiets } from "@/lib/api/referentials";
 import {
   alreadyListed,
   isIncomplete,
+  isTimeout,
+  TIMEOUT_HINT,
   useCatalogIngredients,
   useIngredientDishes,
   useMergeIngredient,
@@ -28,6 +30,36 @@ import {
    fusionne dans une entrée existante (ses recettes la relient alors), ou le
    corrige avant de le valider.
    ───────────────────────────────────────────────────────────────────────────── */
+
+type MergeTarget = { id: string; name: string } & Partial<CatalogIngredient>;
+
+/**
+ * La confirmation d'une fusion : les recettes passent sur les allergènes, le
+ * rayon et le statut de la cible. On nomme ce qu'elles y perdent.
+ */
+function mergeConfirmText(
+  item: CatalogIngredient,
+  target: MergeTarget,
+  allergenList: { code: string; label: string }[],
+  aisleList: { code: string; label: string }[],
+): string {
+  let text = `Fusionner « ${item.name} » avec « ${target.name} » ? Les recettes qui utilisent « ${item.name} » utiliseront « ${target.name} ».`;
+  if (target.allergens === undefined && target.allergensNone === undefined) {
+    text += " Les allergènes de la cible ne sont pas connus ici : vérifiez-les d'abord.";
+  } else {
+    const targetAllergens = target.allergens ?? [];
+    const theirs = target.allergensNone ? "aucun allergène" : targetAllergens.length ? targetAllergens.map((a) => refLabel(allergenList, a)).join(", ") : "à compléter";
+    text += ` Allergènes de la cible : ${theirs}.`;
+    if (!target.allergensNone && targetAllergens.length === 0) {
+      text += " Ses recettes perdront leur confirmation d'allergènes tant que la cible n'est pas complétée.";
+    } else {
+      const lost = (item.allergens ?? []).filter((a) => !targetAllergens.includes(a));
+      if (lost.length > 0) text += ` Les recettes perdront : ${lost.map((a) => refLabel(allergenList, a)).join(", ")}.`;
+    }
+  }
+  text += ` Rayon de la cible : ${target.aisle ? refLabel(aisleList, target.aisle) : "aucun"}${target.status && target.status !== "active" ? ` (statut : ${target.status})` : ""}.`;
+  return `${text} Cette action est définitive.`;
+}
 
 /** Le terme de recherche d'un nom : 60 caractères au plus (limite de l'API), à une coupure de mot si possible. */
 function searchTerm(name: string): string {
@@ -145,6 +177,9 @@ function PendingCard({
   const [term, setTerm] = useState(searchTerm(item.name));
   const [showNear, setShowNear] = useState(false);
   const [showDishes, setShowDishes] = useState(false);
+  /** La cible de la dernière fusion tentée : c'est sur elle que se rejoue le report. */
+  const [lastTarget, setLastTarget] = useState<string | null>(null);
+  const replay = useReplay();
 
   const conflict = alreadyListed(validate.error);
   const busy = validate.isPending || merge.isPending;
@@ -157,14 +192,10 @@ function PendingCard({
     });
   }
 
-  function doMerge(target: { id: string; name: string }) {
-    if (
-      !window.confirm(
-        `Fusionner « ${item.name} » avec « ${target.name} » ? Les recettes qui utilisent « ${item.name} » utiliseront « ${target.name} ». Cette action est définitive.`,
-      )
-    )
-      return;
+  function doMerge(target: MergeTarget) {
+    if (!window.confirm(mergeConfirmText(item, target, allergens.data, aisles.data))) return;
     validate.reset();
+    setLastTarget(target.id);
     merge.mutate(
       { id: item.id, intoId: target.id },
       {
@@ -268,9 +299,25 @@ function PendingCard({
         </div>
       )}
       {actionError != null && (
-        <p role="alert" className="text-[12px] text-danger">
-          {adminErrorMessage(actionError)}
-        </p>
+        <div role="alert" className="space-y-2 text-[12px] text-danger">
+          <p>
+            {adminErrorMessage(actionError)}
+            {isTimeout(actionError) && ` ${TIMEOUT_HINT}`}
+          </p>
+          {isTimeout(actionError) && (
+            <button
+              type="button"
+              disabled={replay.pending}
+              onClick={() => void replay.run([actionError === merge.error && lastTarget ? lastTarget : item.id])}
+              className="btn btn-sm btn-outline"
+            >
+              {replay.pending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
+              Relancer le report
+            </button>
+          )}
+          {replay.result && !replay.error && <p className="text-ink-mid">Report relancé.</p>}
+          {replay.error != null && <p>{adminErrorMessage(replay.error)}</p>}
+        </div>
       )}
 
       <div className="flex flex-wrap gap-2">
@@ -315,12 +362,17 @@ function NearEntries({
   setTerm: (t: string) => void;
   merging: boolean;
   busy: boolean;
-  onMerge: (target: { id: string; name: string }) => void;
+  onMerge: (target: MergeTarget) => void;
   merge: ReturnType<typeof useMergeIngredient>;
 }) {
+  const aisles = useAisles();
+  const allergenRef = useAllergens();
+  // Un terme vide listerait les 50 premières entrées, chacune avec « Fusionner ».
+  const searchable = term.trim().length >= 2;
   const near = useCatalogIngredients(
     { search: term, status: "active", aisle: "", incomplete: false, reviewed: "" },
     1,
+    searchable,
   );
   // Seules les entrées communes comptent : la recherche rend aussi des privées.
   const commons = (near.data?.data ?? []).filter((c) => c.chefProfileId == null && c.id !== item.id);
@@ -343,7 +395,9 @@ function NearEntries({
           className="input-base pl-9"
         />
       </label>
-      {near.isPending ? (
+      {!searchable ? (
+        <p className="text-[12px] text-ink-soft">Écrivez au moins deux lettres pour chercher.</p>
+      ) : near.isPending ? (
         <div className="h-8 animate-pulse rounded bg-white/60" />
       ) : near.isError ? (
         <p role="alert" className="text-[12px] text-danger">
@@ -355,9 +409,24 @@ function NearEntries({
         <ul className="divide-y divide-[rgba(31,42,55,0.06)]">
           {commons.map((c) => (
             <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-1.5 text-sm">
-              <span className="text-navy">
+              <span className="min-w-0 text-navy">
                 {c.name}
                 {c.aliases.length > 0 && <span className="text-[12px] text-ink-soft"> — {c.aliases.join(", ")}</span>}
+                <span className="mt-1 flex flex-wrap gap-1.5">
+                  <span className="chip-muted">{c.aisle ? refLabel(aisles.data, c.aisle) : "Sans rayon"}</span>
+                  {c.allergensNone ? (
+                    <span className="chip-muted">Aucun allergène</span>
+                  ) : (c.allergens ?? []).length > 0 ? (
+                    (c.allergens ?? []).map((a) => (
+                      <span key={a} className="chip-danger">
+                        {refLabel(allergenRef.data, a)}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="chip-danger">Allergènes à compléter</span>
+                  )}
+                  {c.status && c.status !== "active" && <span className="chip-muted">{c.status}</span>}
+                </span>
               </span>
               {merging && (
                 <button type="button" disabled={busy} onClick={() => onMerge(c)} className="btn btn-sm btn-outline">

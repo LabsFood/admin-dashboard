@@ -6,7 +6,7 @@ import { AlertTriangle, FileUp, Loader2, Play, Upload } from "lucide-react";
 import IngredientTabs from "@/components/admin/IngredientTabs";
 import PropagationNotice from "@/components/admin/PropagationNotice";
 import { adminErrorMessage } from "@/lib/api/errors";
-import { useImportIngredients, type ImportReport } from "@/lib/api/catalog";
+import { isTimeout, TIMEOUT_HINT, useImportIngredients, type ImportReport } from "@/lib/api/catalog";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    L'import CSV de la liste commune (Recettes §7.4) — `/admin/ingredients/import`.
@@ -15,7 +15,12 @@ import { useImportIngredients, type ImportReport } from "@/lib/api/catalog";
    ligne, puis on confirme : le même fichier est renvoyé avec `confirm: true`.
    ───────────────────────────────────────────────────────────────────────────── */
 
-const MAX_BYTES = 2_000_000;
+/** Borne de l'API : le corps JSON doit tenir dans 1 Mio. */
+const MAX_CHARS = 500_000;
+/** Garde-fou avant de lire un fichier : au-delà, il dépasse forcément la borne. */
+const MAX_FILE_BYTES = 4_000_000;
+const NOT_UTF8 =
+  "Le fichier n'est pas en UTF-8 : dans Excel, « Enregistrer sous… CSV UTF-8 ».";
 const HEADER = "nom;autres_noms;rayon;allergenes;aucun_allergene;regimes;mois;base;doute";
 
 export default function ImportPage() {
@@ -27,8 +32,10 @@ export default function ImportPage() {
   const [simulated, setSimulated] = useState<{ csv: string; report: ImportReport } | null>(null);
   const [final, setFinal] = useState<ImportReport | null>(null);
 
-  const tooBig = csv.length > MAX_BYTES;
-  const canSimulate = csv.trim().length > 0 && !tooBig && !importer.isPending;
+  const tooBig = csv.length > MAX_CHARS;
+  // U+FFFD : le fichier a été lu avec le mauvais encodage, les noms accentués sont abîmés.
+  const badEncoding = csv.includes("�");
+  const canSimulate = csv.trim().length > 0 && !tooBig && !badEncoding && !importer.isPending;
   const current = simulated && simulated.csv === csv ? simulated.report : null;
   const canConfirm = !!current && current.errors.length === 0 && !final && !importer.isPending;
 
@@ -37,15 +44,19 @@ export default function ImportPage() {
     e.target.value = "";
     if (!file) return;
     setProblem(null);
-    if (file.size > MAX_BYTES) {
-      setProblem(`Ce fichier fait plus de 2 Mo (${(file.size / 1_000_000).toFixed(1)} Mo).`);
+    if (file.size > MAX_FILE_BYTES) {
+      setProblem(`Ce fichier est trop gros (${(file.size / 1_000_000).toFixed(1)} Mo) : l'import accepte 500 000 caractères au plus.`);
       return;
     }
     try {
       // Lu comme du texte UTF-8, tel quel : l'API contrôle le contenu.
       const text = await file.text();
-      if (text.length > MAX_BYTES) {
-        setProblem("Ce fichier dépasse 2 000 000 de caractères.");
+      if (text.length > MAX_CHARS) {
+        setProblem("Ce fichier dépasse 500 000 caractères : découpez la liste en plusieurs fichiers.");
+        return;
+      }
+      if (text.includes("�")) {
+        setProblem(NOT_UTF8);
         return;
       }
       setCsv(text);
@@ -64,7 +75,16 @@ export default function ImportPage() {
   }
 
   function confirm() {
-    importer.mutate({ csv, confirm: true }, { onSuccess: (report) => setFinal(report) });
+    importer.mutate(
+      { csv, confirm: true },
+      {
+        onSuccess: (report) => setFinal(report),
+        // Le serveur écrit peut-être encore : il faut une nouvelle simulation avant de reconfirmer.
+        onError: (e) => {
+          if (isTimeout(e)) setSimulated(null);
+        },
+      },
+    );
   }
 
   return (
@@ -91,7 +111,7 @@ export default function ImportPage() {
       <section className="card space-y-4 p-6">
         <p className="text-[13px] text-ink-mid">
           Séparateur <code>;</code>, listes séparées par <code>|</code>, booléens <code>oui</code> /{" "}
-          <code>non</code>, 2 Mo et 2 000 lignes au plus. La première ligne est l&apos;en-tête :
+          <code>non</code>, 500 000 caractères et 2 000 lignes au plus. La première ligne est l&apos;en-tête :
         </p>
         <pre className="overflow-x-auto rounded-xl bg-cream-soft p-3 text-[12px] text-navy">{HEADER}</pre>
 
@@ -119,6 +139,7 @@ export default function ImportPage() {
               setFinal(null);
             }}
             rows={10}
+            readOnly={importer.isPending}
             spellCheck={false}
             placeholder={`${HEADER}
 Tomate;pomme d'amour;fruits-legumes;;oui;vegan|vegetarian;6|7|8|9;non;non`}
@@ -127,7 +148,12 @@ Tomate;pomme d'amour;fruits-legumes;;oui;vegan|vegetarian;6|7|8|9;non;non`}
           />
           {tooBig && (
             <span role="alert" className="mt-1 block text-[12px] text-danger">
-              Le CSV dépasse 2 000 000 de caractères.
+              Le CSV dépasse 500 000 caractères ({csv.length.toLocaleString("fr-FR")}) : découpez la liste en plusieurs fichiers.
+            </span>
+          )}
+          {badEncoding && !tooBig && (
+            <span role="alert" className="mt-1 block text-[12px] text-danger">
+              {NOT_UTF8}
             </span>
           )}
         </label>
@@ -145,6 +171,7 @@ Tomate;pomme d'amour;fruits-legumes;;oui;vegan|vegetarian;6|7|8|9;non;non`}
           <p role="alert" className="flex items-start gap-1.5 text-[13px] text-danger">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
             {adminErrorMessage(importer.error)}
+            {isTimeout(importer.error) && ` ${TIMEOUT_HINT} Refaites une simulation avant de confirmer à nouveau.`}
           </p>
         )}
       </section>
@@ -201,8 +228,14 @@ Tomate;pomme d'amour;fruits-legumes;;oui;vegan|vegetarian;6|7|8|9;non;non`}
 
       {final && (
         <section className="card space-y-4 p-6">
-          <h3 className="font-display text-base font-bold text-navy">Import terminé</h3>
-          <Counts report={final} />
+          <h3 className="font-display text-base font-bold text-navy">
+            {final.errors.length === 0
+              ? "Import terminé"
+              : final.created + final.updated === 0
+                ? "Rien n'a été écrit"
+                : "Import interrompu : renvoyez le même fichier"}
+          </h3>
+          <Counts report={final} done />
           {final.errors.length > 0 && (
             <ul className="space-y-1 text-[13px] text-danger" role="alert">
               {final.errors.map((er, k) => (
@@ -220,10 +253,10 @@ Tomate;pomme d'amour;fruits-legumes;;oui;vegan|vegetarian;6|7|8|9;non;non`}
   );
 }
 
-function Counts({ report }: { report: ImportReport }) {
+function Counts({ report, done = false }: { report: ImportReport; done?: boolean }) {
   const items = [
-    ["À créer", report.created],
-    ["À mettre à jour", report.updated],
+    [done ? "Créés" : "À créer", report.created],
+    [done ? "Mis à jour" : "À mettre à jour", report.updated],
     ["Inchangés", report.unchanged],
   ] as const;
   return (
