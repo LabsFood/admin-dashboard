@@ -95,6 +95,9 @@ export default function ImportPage() {
         </p>
         <pre className="overflow-x-auto rounded-xl bg-cream-soft p-3 text-[12px] text-navy">{HEADER}</pre>
 
+        <p className="text-[13px] text-ink-mid">
+          Le fichier doit être encodé en UTF-8 (dans Excel : « Enregistrer sous… », puis « CSV UTF-8 »).
+        </p>
         <label className="btn btn-outline cursor-pointer">
           <FileUp className="h-4 w-4" aria-hidden /> Choisir un fichier CSV
           <input type="file" accept=".csv,text/csv,text/plain" onChange={pickFile} className="sr-only" />
@@ -117,7 +120,8 @@ export default function ImportPage() {
             }}
             rows={10}
             spellCheck={false}
-            placeholder={`${HEADER}\\nTomate;pomme d'amour;fruits-legumes;;oui;vegan|vegetarian;6|7|8|9;non;non`}
+            placeholder={`${HEADER}
+Tomate;pomme d'amour;fruits-legumes;;oui;vegan|vegetarian;6|7|8|9;non;non`}
             className="input-base font-mono text-[12px]"
             aria-invalid={tooBig}
           />
@@ -129,7 +133,7 @@ export default function ImportPage() {
         </label>
 
         <button type="button" onClick={simulate} disabled={!canSimulate} className="btn btn-primary">
-          {importer.isPending && !final ? (
+          {importer.isPending && !importer.variables?.confirm ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           ) : (
             <Play className="h-4 w-4" aria-hidden />
@@ -149,6 +153,13 @@ export default function ImportPage() {
         <section className="card space-y-4 p-6">
           <h3 className="font-display text-base font-bold text-navy">Simulation</h3>
           <Counts report={current} />
+          {current.updated > 0 && (
+            <p className="text-[13px] text-ink-mid">
+              Les {current.updated} entrées mises à jour seront reportées dans les recettes qui les utilisent. Si des
+              allergènes changent, ces recettes perdent leur confirmation d&apos;allergènes et ne sont plus réservables
+              jusqu&apos;à reconfirmation.
+            </p>
+          )}
           {current.errors.length > 0 ? (
             <>
               <p className="text-[13px] text-danger">
@@ -178,7 +189,7 @@ export default function ImportPage() {
             <p className="text-[13px] text-ink-mid">Aucune erreur : le fichier peut être importé.</p>
           )}
           <button type="button" onClick={confirm} disabled={!canConfirm} className="btn btn-primary">
-            {importer.isPending ? (
+            {importer.isPending && importer.variables?.confirm ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
             ) : (
               <Upload className="h-4 w-4" aria-hidden />
@@ -202,7 +213,7 @@ export default function ImportPage() {
               ))}
             </ul>
           )}
-          <PropagationNotice propagation={final.propagation} />
+          <PropagationNotice propagation={final.propagation} replayIds={final.updatedIds ?? []} />
         </section>
       )}
     </div>
@@ -218,9 +229,9 @@ function Counts({ report }: { report: ImportReport }) {
   return (
     <dl className="grid grid-cols-3 gap-3">
       {items.map(([label, n]) => (
-        <div key={label} className="rounded-xl bg-cream-soft p-3 text-center">
-          <dd className="font-display text-2xl font-bold text-navy">{n}</dd>
+        <div key={label} className="flex flex-col-reverse rounded-xl bg-cream-soft p-3 text-center">
           <dt className="text-[12px] text-ink-soft">{label}</dt>
+          <dd className="font-display text-2xl font-bold text-navy">{n}</dd>
         </div>
       ))}
     </dl>

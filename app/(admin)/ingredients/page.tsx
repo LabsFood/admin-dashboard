@@ -17,7 +17,7 @@ import {
 import InfoPopover from "@/components/ui/InfoPopover";
 import IngredientEditor from "@/components/admin/IngredientEditor";
 import IngredientTabs from "@/components/admin/IngredientTabs";
-import PropagationNotice from "@/components/admin/PropagationNotice";
+import PropagationNotice, { useReplay } from "@/components/admin/PropagationNotice";
 import { useToast } from "@/components/ui/Toaster";
 import { adminErrorMessage } from "@/lib/api/errors";
 import { refLabel, useAisles, useAllergens, useComputedDiets } from "@/lib/api/referentials";
@@ -26,7 +26,6 @@ import {
   isIncomplete,
   useCatalogIngredients,
   useMarkIngredientSeasonReviewed,
-  usePropagateIngredient,
   useReviewIngredient,
   type CatalogIngredient,
   type IngredientFilters,
@@ -149,6 +148,7 @@ export default function IngredientsPage() {
           />
           <input
             value={filters.search}
+            aria-label="Chercher un ingrédient"
             onChange={(e) => setFilter({ search: e.target.value })}
             placeholder="Chercher un nom, ou un autre nom"
             maxLength={60}
@@ -330,25 +330,23 @@ export default function IngredientsPage() {
  */
 function RelanceReport({ ingredient }: { ingredient: CatalogIngredient }) {
   const toast = useToast();
-  const replay = usePropagateIngredient();
+  const replay = useReplay();
   if (ingredient.chefProfileId || ingredient.status === "merged") return null;
   return (
     <button
       type="button"
-      disabled={replay.isPending}
-      onClick={() =>
-        replay.mutate(ingredient.id, {
-          onSuccess: (p) =>
-            p.failed > 0
-              ? toast.error("Report incomplet", `${p.failed} recette(s) n'ont pas pu être mises à jour.`)
-              : toast.success(`Report relancé pour « ${ingredient.name} »`, `${p.dishes} recette(s) mise(s) à jour.`),
-          onError: (e) => toast.error("Report impossible", adminErrorMessage(e)),
-        })
-      }
+      disabled={replay.pending}
+      onClick={async () => {
+        const p = await replay.run([ingredient.id]);
+        if (!p) return toast.error("Report impossible", "Le report n'a pas pu être relancé.");
+        if (p.failed > 0)
+          toast.error("Report incomplet", `${p.failed} recette(s) n'ont pas pu être mises à jour.`);
+        else toast.success(`Report relancé pour « ${ingredient.name} »`, `${p.dishes} recette(s) mise(s) à jour.`);
+      }}
       className="btn btn-sm btn-ghost"
       title="Relancer le report dans les recettes"
     >
-      {replay.isPending ? (
+      {replay.pending ? (
         <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
       ) : (
         <RefreshCw className="h-3 w-3" aria-hidden />

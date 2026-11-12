@@ -64,6 +64,8 @@ export interface CatalogIngredient {
   status?: CatalogIngredientStatus;
   /** `null` : entrée commune ; sinon l'ingrédient privé de ce batch cooker. */
   chefProfileId?: string | null;
+  /** Le batch cooker d'une entrée privée (nom affichable) ; `null` : entrée commune. */
+  chef?: { id: string; displayName: string } | null;
   mergedIntoId?: string | null;
   reviewedAt?: string | null;
   reviewedByUserId?: string | null;
@@ -116,6 +118,8 @@ export interface ImportReport {
   updated: number;
   unchanged: number;
   errors: { line: number; message: string }[];
+  /** Les entrées mises à jour par un import confirmé (vide en simulation). */
+  updatedIds?: string[];
   propagation: Propagation | null;
 }
 
@@ -632,7 +636,7 @@ export interface IngredientSeasonReview {
 }
 
 /** `GET /admin/ingredients` — par nom, cinquante par page, filtres compris, rappel de saison en plus. */
-export function useCatalogIngredients(filters: IngredientFilters, page: number) {
+export function useCatalogIngredients(filters: IngredientFilters, page: number, enabled = true) {
   const apiFetch = useApiFetch();
   const qs = new URLSearchParams({ limit: "50", page: String(page) });
   const q = filters.search.trim();
@@ -642,6 +646,7 @@ export function useCatalogIngredients(filters: IngredientFilters, page: number) 
   if (filters.incomplete) qs.set("incomplete", "true");
   if (filters.reviewed) qs.set("reviewed", filters.reviewed === "yes" ? "true" : "false");
   return useQuery({
+    enabled,
     queryKey: [...INGREDIENTS, qs.toString()],
     queryFn: () =>
       apiFetch<{
@@ -726,6 +731,26 @@ export function useIngredientImpact() {
   const apiFetch = useApiFetch();
   return useMutation({
     mutationFn: (id: string) => apiFetch<IngredientImpact>(`/admin/ingredients/${id}/impact`),
+  });
+}
+
+/** Une recette qui relie l'ingrédient (`GET /admin/ingredients/{id}/dishes`). */
+export interface IngredientDish {
+  id: string;
+  name: string;
+  /** `null` : une recette Lab's Food. */
+  chef: { id: string; displayName: string } | null;
+  status: string;
+  allergensVerifiedAt: string | null;
+}
+
+/** `GET /admin/ingredients/{id}/dishes` — les 200 premières, `total` donne le compte entier. */
+export function useIngredientDishes(id: string, enabled: boolean) {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: [...INGREDIENTS, "dishes", id],
+    enabled,
+    queryFn: () => apiFetch<{ data: IngredientDish[]; total: number }>(`/admin/ingredients/${id}/dishes`),
   });
 }
 

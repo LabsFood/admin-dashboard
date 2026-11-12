@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { AlertTriangle, Check, GitMerge, Loader2, Pencil, Search, UserRound } from "lucide-react";
+import { AlertTriangle, BookOpen, Check, GitMerge, Loader2, Pencil, Search, Users, UserRound } from "lucide-react";
 import IngredientEditor from "@/components/admin/IngredientEditor";
 import IngredientTabs from "@/components/admin/IngredientTabs";
 import PropagationNotice from "@/components/admin/PropagationNotice";
@@ -12,6 +12,7 @@ import {
   alreadyListed,
   isIncomplete,
   useCatalogIngredients,
+  useIngredientDishes,
   useMergeIngredient,
   useValidateIngredient,
   type CatalogIngredient,
@@ -28,6 +29,15 @@ import {
    corrige avant de le valider.
    ───────────────────────────────────────────────────────────────────────────── */
 
+/** Le terme de recherche d'un nom : 60 caractères au plus (limite de l'API), à une coupure de mot si possible. */
+function searchTerm(name: string): string {
+  const n = name.trim();
+  if (n.length <= 60) return n;
+  const cut = n.slice(0, 60);
+  const space = cut.lastIndexOf(" ");
+  return (space > 20 ? cut.slice(0, space) : cut).trim();
+}
+
 const PENDING: IngredientFilters = { search: "", status: "pending", aisle: "", incomplete: false, reviewed: "" };
 
 /** Le résultat d'une action, gardé à l'écran : l'entrée a quitté la file. */
@@ -40,7 +50,8 @@ interface Outcome {
 }
 
 export default function ToValidatePage() {
-  const liste = useCatalogIngredients(PENDING, 1);
+  const [page, setPage] = useState(1);
+  const liste = useCatalogIngredients(PENDING, page);
   const [outcomes, setOutcomes] = useState<Outcome[]>([]);
   const meta = liste.data?.meta;
 
@@ -88,6 +99,27 @@ export default function ToValidatePage() {
           {liste.data.data.map((i) => (
             <PendingCard key={i.id} item={i} onDone={done} />
           ))}
+          {meta && meta.totalPages > 1 && (
+            <div className="flex items-center justify-between text-[13px] text-ink-mid">
+              <button
+                type="button"
+                onClick={() => setPage((p) => p - 1)}
+                disabled={!meta.hasPreviousPage}
+                className="btn btn-sm btn-outline"
+              >
+                Précédents
+              </button>
+              Page {meta.page} sur {meta.totalPages}
+              <button
+                type="button"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={!meta.hasNextPage}
+                className="btn btn-sm btn-outline"
+              >
+                Suivants
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -108,13 +140,9 @@ function PendingCard({
   const merge = useMergeIngredient();
   const [merging, setMerging] = useState(false);
   const [correcting, setCorrecting] = useState(false);
-  const [term, setTerm] = useState(item.name);
-  const near = useCatalogIngredients(
-    { search: term, status: "active", aisle: "", incomplete: false, reviewed: "" },
-    1,
-  );
-  // Seules les entrées communes comptent : la recherche rend aussi des privées.
-  const commons = (near.data?.data ?? []).filter((c) => c.chefProfileId == null && c.id !== item.id);
+  const [term, setTerm] = useState(searchTerm(item.name));
+  const [showNear, setShowNear] = useState(false);
+  const [showDishes, setShowDishes] = useState(false);
 
   const conflict = alreadyListed(validate.error);
   const busy = validate.isPending || merge.isPending;
@@ -128,6 +156,12 @@ function PendingCard({
   }
 
   function doMerge(target: { id: string; name: string }) {
+    if (
+      !window.confirm(
+        `Fusionner « ${item.name} » avec « ${target.name} » ? Les recettes qui utilisent « ${item.name} » utiliseront « ${target.name} ». Cette action est définitive.`,
+      )
+    )
+      return;
     validate.reset();
     merge.mutate(
       { id: item.id, intoId: target.id },
@@ -142,6 +176,7 @@ function PendingCard({
     return (
       <IngredientEditor
         initial={item}
+        disabled={validate.isPending}
         title={`Corriger « ${item.name} » puis valider`}
         submitLabel="Corriger puis valider"
         onDone={() => setCorrecting(false)}
@@ -170,8 +205,8 @@ function PendingCard({
           {item.aliases.length > 0 && <p className="text-[12px] text-ink-soft">{item.aliases.join(", ")}</p>}
           <p className="mt-1 flex items-center gap-1.5 text-[12px] text-ink-mid">
             <UserRound className="h-3.5 w-3.5" aria-hidden />
-            Créé par le batch cooker{" "}
-            <code className="rounded bg-cream-soft px-1">{item.chefProfileId?.slice(0, 8) ?? "inconnu"}</code>
+            Créé par{" "}
+            <strong className="text-navy">{item.chef?.displayName ?? "un batch cooker inconnu"}</strong>
             {item.createdAt && <>, le {new Date(item.createdAt).toLocaleDateString("fr-FR")}</>}
           </p>
           <p className="mt-2 flex flex-wrap gap-1.5">
@@ -205,7 +240,10 @@ function PendingCard({
           <button
             type="button"
             disabled={busy}
-            onClick={() => setMerging((m) => !m)}
+            onClick={() => {
+              setMerging((m) => !m);
+              setShowNear(true);
+            }}
             aria-expanded={merging}
             className="btn btn-sm btn-outline"
           >
@@ -233,56 +271,148 @@ function PendingCard({
         </p>
       )}
 
-      <div className="rounded-xl bg-cream-soft p-3">
-        <p className="mb-2 text-[12px] font-semibold text-ink-mid">
-          {merging ? "Choisissez l'entrée commune qui le remplace" : "Entrées communes aux noms proches"}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setShowNear((v) => !v)}
+          aria-expanded={showNear || merging}
+          className="btn btn-sm btn-ghost"
+        >
+          <Users className="h-3.5 w-3.5" aria-hidden /> Noms proches
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowDishes((v) => !v)}
+          aria-expanded={showDishes}
+          className="btn btn-sm btn-ghost"
+        >
+          <BookOpen className="h-3.5 w-3.5" aria-hidden /> Ses recettes
+        </button>
+      </div>
+
+      {(showNear || merging) && (
+        <NearEntries item={item} term={term} setTerm={setTerm} merging={merging} busy={busy} onMerge={doMerge} merge={merge} />
+      )}
+      {showDishes && <Dishes id={item.id} />}
+    </article>
+  );
+}
+
+/** Les entrées communes aux noms proches : chargées à l'ouverture, jamais au montage de la carte. */
+function NearEntries({
+  item,
+  term,
+  setTerm,
+  merging,
+  busy,
+  onMerge,
+  merge,
+}: {
+  item: CatalogIngredient;
+  term: string;
+  setTerm: (t: string) => void;
+  merging: boolean;
+  busy: boolean;
+  onMerge: (target: { id: string; name: string }) => void;
+  merge: ReturnType<typeof useMergeIngredient>;
+}) {
+  const near = useCatalogIngredients(
+    { search: term, status: "active", aisle: "", incomplete: false, reviewed: "" },
+    1,
+  );
+  // Seules les entrées communes comptent : la recherche rend aussi des privées.
+  const commons = (near.data?.data ?? []).filter((c) => c.chefProfileId == null && c.id !== item.id);
+  return (
+    <div className="rounded-xl bg-cream-soft p-3">
+      <p className="mb-2 text-[12px] font-semibold text-ink-mid">
+        {merging ? "Choisissez l'entrée commune qui le remplace" : "Entrées communes aux noms proches"}
+      </p>
+      <label className="relative mb-2 block">
+        <Search
+          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft"
+          aria-hidden
+        />
+        <input
+          value={term}
+          onChange={(e) => setTerm(e.target.value)}
+          maxLength={60}
+          aria-label="Chercher dans la liste commune"
+          placeholder="Chercher dans la liste commune"
+          className="input-base pl-9"
+        />
+      </label>
+      {near.isPending ? (
+        <div className="h-8 animate-pulse rounded bg-white/60" />
+      ) : near.isError ? (
+        <p role="alert" className="text-[12px] text-danger">
+          {adminErrorMessage(near.error)}
         </p>
-        {merging && (
-          <label className="relative mb-2 block">
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft"
-              aria-hidden
-            />
-            <input
-              value={term}
-              onChange={(e) => setTerm(e.target.value)}
-              maxLength={60}
-              placeholder="Chercher dans la liste commune"
-              className="input-base pl-9"
-            />
-          </label>
-        )}
-        {near.isPending ? (
-          <div className="h-8 animate-pulse rounded bg-white/60" />
-        ) : near.isError ? (
-          <p role="alert" className="text-[12px] text-danger">
-            {adminErrorMessage(near.error)}
-          </p>
-        ) : commons.length === 0 ? (
-          <p className="text-[12px] text-ink-soft">Aucune entrée commune ne ressemble à « {term} ».</p>
-        ) : (
+      ) : commons.length === 0 ? (
+        <p className="text-[12px] text-ink-soft">Aucune entrée commune ne ressemble à « {term} ».</p>
+      ) : (
+        <ul className="divide-y divide-[rgba(31,42,55,0.06)]">
+          {commons.map((c) => (
+            <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-1.5 text-sm">
+              <span className="text-navy">
+                {c.name}
+                {c.aliases.length > 0 && <span className="text-[12px] text-ink-soft"> — {c.aliases.join(", ")}</span>}
+              </span>
+              {merging && (
+                <button type="button" disabled={busy} onClick={() => onMerge(c)} className="btn btn-sm btn-outline">
+                  {merge.isPending && merge.variables?.intoId === c.id ? (
+                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                  ) : (
+                    <GitMerge className="h-3 w-3" aria-hidden />
+                  )}
+                  Fusionner
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Les recettes qui relient l'ingrédient (`GET …/dishes`), chargées à l'ouverture. */
+function Dishes({ id }: { id: string }) {
+  const dishes = useIngredientDishes(id, true);
+  return (
+    <div className="rounded-xl bg-cream-soft p-3">
+      <p className="mb-2 text-[12px] font-semibold text-ink-mid">
+        Recettes qui l&apos;utilisent{dishes.data ? ` (${dishes.data.total})` : ""}
+      </p>
+      {dishes.isPending ? (
+        <div className="h-8 animate-pulse rounded bg-white/60" />
+      ) : dishes.isError ? (
+        <p role="alert" className="text-[12px] text-danger">
+          {adminErrorMessage(dishes.error)}
+        </p>
+      ) : dishes.data.data.length === 0 ? (
+        <p className="text-[12px] text-ink-soft">Aucune recette ne l&apos;utilise.</p>
+      ) : (
+        <>
           <ul className="divide-y divide-[rgba(31,42,55,0.06)]">
-            {commons.map((c) => (
-              <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-1.5 text-sm">
+            {dishes.data.data.map((d) => (
+              <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 py-1.5 text-sm">
                 <span className="text-navy">
-                  {c.name}
-                  {c.aliases.length > 0 && <span className="text-[12px] text-ink-soft"> — {c.aliases.join(", ")}</span>}
+                  {d.name}
+                  <span className="text-[12px] text-ink-soft"> — {d.chef?.displayName ?? "Lab's Food"}</span>
                 </span>
-                {merging && (
-                  <button type="button" disabled={busy} onClick={() => doMerge(c)} className="btn btn-sm btn-outline">
-                    {merge.isPending && merge.variables?.intoId === c.id ? (
-                      <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-                    ) : (
-                      <GitMerge className="h-3 w-3" aria-hidden />
-                    )}
-                    Fusionner
-                  </button>
-                )}
+                <span className={d.allergensVerifiedAt ? "chip-teal" : "chip-muted"}>
+                  {d.allergensVerifiedAt ? "Allergènes confirmés" : "Non confirmée"}
+                </span>
               </li>
             ))}
           </ul>
-        )}
-      </div>
-    </article>
+          {dishes.data.total > dishes.data.data.length && (
+            <p className="mt-2 text-[12px] text-ink-soft">
+              {dishes.data.data.length} premières sur {dishes.data.total}.
+            </p>
+          )}
+        </>
+      )}
+    </div>
   );
 }

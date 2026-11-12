@@ -60,6 +60,7 @@ export default function IngredientEditor({
   onSaved,
   submitLabel = "Enregistrer",
   title,
+  disabled = false,
 }: {
   initial: CatalogIngredient | null;
   onDone: () => void;
@@ -67,6 +68,8 @@ export default function IngredientEditor({
   onSaved?: (result: IngredientWrite) => void;
   submitLabel?: string;
   title?: string;
+  /** Une action liée est en cours : le formulaire ne peut pas être renvoyé. */
+  disabled?: boolean;
 }) {
   const create = useCreateCatalogIngredient();
   const update = useUpdateCatalogIngredient();
@@ -238,7 +241,9 @@ export default function IngredientEditor({
             className="input-base"
             aria-invalid={!!err("aisle")}
           >
-            <option value="">À compléter</option>
+            <option value="" disabled={!!initial?.aisle}>
+              À compléter
+            </option>
             {initial?.aisle && !aisles.data.some((a) => a.code === initial.aisle) && (
               <option value={initial.aisle}>{initial.aisle} (hors liste)</option>
             )}
@@ -379,7 +384,7 @@ export default function IngredientEditor({
       <div className="flex flex-wrap gap-2">
         <button
           type="submit"
-          disabled={!name.trim() || saving || impactCall.isPending}
+          disabled={!name.trim() || saving || impactCall.isPending || disabled}
           className="btn btn-primary"
         >
           {saving || impactCall.isPending ? (

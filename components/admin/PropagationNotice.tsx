@@ -17,23 +17,64 @@ export function propagationLine(p: Propagation): string {
   return `${parts.join(", ")}.`;
 }
 
+const ZERO: Propagation = { dishes: 0, reverified: 0, chefs: 0, skipped: 0, failed: 0 };
+
+/**
+ * Rejoue le report d'un ou plusieurs ingrédients, un par un, et en additionne
+ * les chiffres. `progress` compte les entrées déjà rejouées.
+ */
+export function useReplay() {
+  const replay = usePropagateIngredient();
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [result, setResult] = useState<Propagation | null>(null);
+  const [error, setError] = useState<unknown>(null);
+
+  async function run(ids: string[]) {
+    setError(null);
+    setProgress({ done: 0, total: ids.length });
+    const sum = { ...ZERO };
+    try {
+      for (const [k, id] of ids.entries()) {
+        const p = await replay.mutateAsync(id);
+        sum.dishes += p.dishes;
+        sum.reverified += p.reverified;
+        sum.chefs += p.chefs;
+        sum.skipped += p.skipped;
+        sum.failed += p.failed;
+        setProgress({ done: k + 1, total: ids.length });
+      }
+      setResult(sum);
+      return sum;
+    } catch (e) {
+      setError(e);
+      return null;
+    } finally {
+      setProgress(null);
+    }
+  }
+  return { run, progress, result, error, pending: progress !== null };
+}
+
 /**
  * Le bilan d'un report. Quand des recettes ont échoué (`failed > 0`), propose de
- * rejouer le report de l'ingrédient (`ingredientId`), et montre les nouveaux chiffres.
- * Sans `ingredientId` (un import touche beaucoup d'entrées), renvoie à la liste.
+ * rejouer le report : celui de `ingredientId`, ou celui de chaque entrée de
+ * `replayIds` (un import en met beaucoup à jour). Les nouveaux chiffres
+ * remplacent les anciens.
  */
 export default function PropagationNotice({
   propagation,
   ingredientId,
+  replayIds,
   label = "Report dans les recettes",
 }: {
   propagation: Propagation | null;
   ingredientId?: string;
+  replayIds?: string[];
   label?: string;
 }) {
-  const replay = usePropagateIngredient();
-  const [replayed, setReplayed] = useState<Propagation | null>(null);
-  const current = replayed ?? propagation;
+  const replay = useReplay();
+  const ids = replayIds ?? (ingredientId ? [ingredientId] : []);
+  const current = replay.result ?? propagation;
   if (!current) return null;
 
   return (
@@ -50,26 +91,30 @@ export default function PropagationNotice({
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
             {current.failed} recette{current.failed > 1 ? "s n'ont" : " n'a"} pas pu être mise
             {current.failed > 1 ? "s" : ""} à jour.
-            {!ingredientId && " Rouvrez les ingrédients modifiés dans la liste pour relancer leur report."}
+            {ids.length === 0 &&
+              " Aucune entrée mise à jour n'est connue : ouvrez les ingrédients concernés dans la liste pour relancer leur report."}
           </p>
-          {ingredientId && (
+          {ids.length > 0 && (
             <button
               type="button"
-              disabled={replay.isPending}
-              onClick={() => replay.mutate(ingredientId, { onSuccess: setReplayed })}
+              disabled={replay.pending}
+              onClick={() => void replay.run(ids)}
               className="btn btn-sm btn-outline"
             >
-              {replay.isPending ? (
+              {replay.pending ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
               ) : (
                 <RefreshCw className="h-3.5 w-3.5" aria-hidden />
               )}
-              Relancer le report
+              {ids.length > 1
+                ? `Relancer le report des ${ids.length} ingrédients mis à jour`
+                : "Relancer le report"}
+              {replay.progress && ids.length > 1 && ` (${replay.progress.done}/${replay.progress.total})`}
             </button>
           )}
         </div>
       )}
-      {replay.isError && (
+      {replay.error != null && (
         <p role="alert" className="text-[12px] text-danger">
           {adminErrorMessage(replay.error)}
         </p>
