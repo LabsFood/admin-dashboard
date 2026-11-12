@@ -8,7 +8,10 @@ import {
   Building2,
   Check,
   CreditCard,
+  ArrowDown,
+  ArrowUp,
   Flame,
+  ShoppingBasket,
   Tags,
   Layers2,
   Loader2,
@@ -20,9 +23,11 @@ import InfoPopover from "@/components/ui/InfoPopover";
 import TierRules from "@/components/admin/TierRules";
 import { useAuth } from "@/lib/auth";
 import {
+  useAisleSetting,
   useChefTierNames,
   useRecipeProfileSetting,
   useReheatModeSetting,
+  useSetAisles,
   useSetChefTierNames,
   useSetRecipeProfiles,
   useSetReheatModes,
@@ -191,6 +196,10 @@ export default function ParametresPage() {
       </div>
 
       <div className="lg:col-span-2">
+        <RayonsCourses />
+      </div>
+
+      <div className="lg:col-span-2">
         <ProfilsRecette />
       </div>
     </div>
@@ -315,6 +324,33 @@ function ModesRechauffage() {
   );
 }
 
+/**
+ * Les rayons des listes de courses (§5.4) : `/admin/settings/aisles`.
+ * L'ordre de la liste est l'ordre de la liste de courses, celui du parcours en
+ * magasin : on le règle avec les flèches.
+ */
+function RayonsCourses() {
+  const liste = useAisleSetting();
+  const save = useSetAisles();
+  return (
+    <ListeReglable
+      title="Rayons des courses"
+      Icon={ShoppingBasket}
+      intro="L'ordre de cette liste est l'ordre des listes de courses : celui du parcours en magasin. 30 rayons au plus."
+      popoverLabel="Que change cette liste ?"
+      popover="Renommer un rayon change son libellé partout. Changer l'ordre change l'ordre des listes de courses. En retirer un ne touche pas les ingrédients qui le portent : ils le gardent, et leur rayon s'affiche tel quel dans les listes jusqu'à ce que vous le remplaciez dans la liste commune."
+      placeholder="Nouveau rayon (ex. Produits bio)"
+      itemLabel="rayon"
+      max={30}
+      reorderable
+      items={liste.data?.aisles}
+      isPending={liste.isPending}
+      error={liste.isError ? liste.error : null}
+      save={save}
+    />
+  );
+}
+
 /** Les profils d'une recette (§4.8) : `/admin/settings/recipe-profiles`. */
 function ProfilsRecette() {
   const liste = useRecipeProfileSetting();
@@ -343,6 +379,9 @@ function ListeReglable({
   popoverLabel,
   popover,
   placeholder,
+  itemLabel = "mode",
+  max,
+  reorderable = false,
   items,
   isPending,
   error,
@@ -354,6 +393,12 @@ function ListeReglable({
   popoverLabel: string;
   popover: string;
   placeholder: string;
+  /** Le nom d'un élément, pour les libellés d'accessibilité. */
+  itemLabel?: string;
+  /** Nombre maximal d'éléments que l'API accepte. */
+  max?: number;
+  /** Flèches pour changer l'ordre : l'ordre de la liste compte. */
+  reorderable?: boolean;
   items: { code: string; label: string }[] | undefined;
   isPending: boolean;
   error: unknown;
@@ -374,8 +419,17 @@ function ListeReglable({
   const incomplet = !modes || modes.length === 0 || modes.some((m) => !m.label.trim());
   const liste = { isPending, isError: error != null, error };
 
-  function ajouter() {
+  const plein = max != null && (modes?.length ?? 0) >= max;
+
+  function deplacer(i: number, by: -1 | 1) {
     if (!modes) return;
+    const suivant = [...modes];
+    [suivant[i], suivant[i + by]] = [suivant[i + by], suivant[i]];
+    setBrouillon(suivant);
+  }
+
+  function ajouter() {
+    if (!modes || plein) return;
     const label = nouveau.trim();
     const base = codeDe(label);
     if (!label || !base) return;
@@ -409,13 +463,35 @@ function ListeReglable({
                 onChange={(e) =>
                   setBrouillon(modes.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))
                 }
-                aria-label={`Libellé du mode ${m.code}`}
+                aria-label={`Libellé du ${itemLabel} ${m.code}`}
                 aria-invalid={!m.label.trim()}
                 className="input-base flex-1"
               />
               <span className="w-32 shrink-0 truncate font-mono text-[11px] text-ink-soft">
                 {m.code}
               </span>
+              {reorderable && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => deplacer(i, -1)}
+                    disabled={i === 0}
+                    aria-label={`Monter le ${itemLabel} ${m.code}`}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-ink-soft hover:bg-cream-soft disabled:opacity-30"
+                  >
+                    <ArrowUp className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deplacer(i, 1)}
+                    disabled={i === modes.length - 1}
+                    aria-label={`Descendre le ${itemLabel} ${m.code}`}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-ink-soft hover:bg-cream-soft disabled:opacity-30"
+                  >
+                    <ArrowDown className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 onClick={() => setBrouillon(modes.filter((_, j) => j !== i))}
@@ -438,13 +514,24 @@ function ListeReglable({
                 }
               }}
               placeholder={placeholder}
+              disabled={plein}
               className="input-base flex-1"
             />
-            <button type="button" onClick={ajouter} className="btn btn-sm btn-outline">
+            <button
+              type="button"
+              onClick={ajouter}
+              disabled={plein}
+              className="btn btn-sm btn-outline"
+            >
               Ajouter
             </button>
           </li>
         </ul>
+      )}
+      {plein && (
+        <p className="text-[12px] text-ink-soft">
+          La liste est pleine ({max} {itemLabel}s au plus).
+        </p>
       )}
 
       <div className="flex flex-wrap items-center gap-3">

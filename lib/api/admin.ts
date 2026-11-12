@@ -736,6 +736,45 @@ export function useSetReheatModes() {
   });
 }
 
+/* ── Rayons (module Recettes §5.4) ─────────────────────────────────────────── */
+
+export interface AisleSetting {
+  aisles: { code: string; label: string }[];
+  updatedAt: string | null;
+}
+
+const AISLES_SETTING = ["admin", "settings", "aisles"] as const;
+
+/** `GET /admin/settings/aisles` */
+export function useAisleSetting() {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: AISLES_SETTING,
+    queryFn: () => apiFetch<AisleSetting>("/admin/settings/aisles"),
+  });
+}
+
+/**
+ * `PUT /admin/settings/aisles` — la liste entière (1 à 30 rayons), chaque code
+ * une fois. L'ordre de la liste est l'ordre du parcours en magasin.
+ */
+export function useSetAisles() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (aisles: { code: string; label: string }[]) =>
+      apiFetch<AisleSetting>("/admin/settings/aisles", {
+        method: "PUT",
+        body: { aisles },
+      }),
+    onSuccess: (data) => {
+      qc.setQueryData(AISLES_SETTING, data);
+      // `useAisles` (referentials.ts) range la liste sous cette clé.
+      qc.invalidateQueries({ queryKey: ["referentials", "aisles"] });
+    },
+  });
+}
+
 /* ── Profils de recette (module Recettes §4.8) ─────────────────────────────── */
 
 export interface RecipeProfileSetting {
