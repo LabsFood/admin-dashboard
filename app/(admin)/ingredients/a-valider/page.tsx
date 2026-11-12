@@ -54,6 +54,8 @@ export default function ToValidatePage() {
   const liste = useCatalogIngredients(PENDING, page);
   const [outcomes, setOutcomes] = useState<Outcome[]>([]);
   const meta = liste.data?.meta;
+  // La dernière carte d'une page est partie : on revient à la dernière page qui existe.
+  if (meta && page > 1 && page > meta.totalPages) setPage(Math.max(1, meta.totalPages));
 
   function done(text: string, write: IngredientWrite, replayId: string) {
     setOutcomes((o) => [{ key: Date.now() + o.length, text, write, replayId }, ...o]);

@@ -27,32 +27,41 @@ export function useReplay() {
   const replay = usePropagateIngredient();
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState<Propagation | null>(null);
+  /** Après un échec en cours de route : combien d'entrées restent à rejouer. */
+  const [remaining, setRemaining] = useState(0);
   const [error, setError] = useState<unknown>(null);
 
-  async function run(ids: string[]) {
+  /** Rend les chiffres cumulés des appels réussis (même si un appel a échoué) et l'erreur éventuelle. */
+  async function run(ids: string[]): Promise<{ sum: Propagation | null; error: unknown }> {
     setError(null);
+    setRemaining(0);
     setProgress({ done: 0, total: ids.length });
     const sum = { ...ZERO };
+    let done = 0;
     try {
-      for (const [k, id] of ids.entries()) {
+      for (const id of ids) {
         const p = await replay.mutateAsync(id);
         sum.dishes += p.dishes;
         sum.reverified += p.reverified;
         sum.chefs += p.chefs;
         sum.skipped += p.skipped;
         sum.failed += p.failed;
-        setProgress({ done: k + 1, total: ids.length });
+        done += 1;
+        setProgress({ done, total: ids.length });
       }
       setResult(sum);
-      return sum;
+      return { sum, error: null };
     } catch (e) {
       setError(e);
-      return null;
+      setRemaining(ids.length - done);
+      // Les appels réussis comptent : on garde leurs chiffres.
+      if (done > 0) setResult(sum);
+      return { sum: done > 0 ? sum : null, error: e };
     } finally {
       setProgress(null);
     }
   }
-  return { run, progress, result, error, pending: progress !== null };
+  return { run, progress, result, remaining, error, pending: progress !== null };
 }
 
 /**
@@ -117,6 +126,10 @@ export default function PropagationNotice({
       {replay.error != null && (
         <p role="alert" className="text-[12px] text-danger">
           {adminErrorMessage(replay.error)}
+          {replay.remaining > 0 &&
+            ` Il reste ${replay.remaining} ingrédient${replay.remaining > 1 ? "s" : ""} à rejouer${
+              replay.result ? " ; les chiffres ci-dessus sont ceux des reports réussis" : ""
+            }.`}
         </p>
       )}
     </div>

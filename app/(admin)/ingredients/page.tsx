@@ -337,8 +337,8 @@ function RelanceReport({ ingredient }: { ingredient: CatalogIngredient }) {
       type="button"
       disabled={replay.pending}
       onClick={async () => {
-        const p = await replay.run([ingredient.id]);
-        if (!p) return toast.error("Report impossible", "Le report n'a pas pu être relancé.");
+        const { sum: p, error } = await replay.run([ingredient.id]);
+        if (!p) return toast.error("Report impossible", adminErrorMessage(error));
         if (p.failed > 0)
           toast.error("Report incomplet", `${p.failed} recette(s) n'ont pas pu être mises à jour.`);
         else toast.success(`Report relancé pour « ${ingredient.name} »`, `${p.dishes} recette(s) mise(s) à jour.`);
