@@ -157,7 +157,7 @@ export default function ClientsPage() {
               transition={{ duration: 0.32, delay: Math.min(i * 0.04, 0.3), ease: [0.16, 1, 0.3, 1] }}
             >
               {c.id === null ? (
-                <AccountOnly c={c} className="card h-full p-5" />
+                <AccountOnly card c={c} className="card h-full p-5" />
               ) : (
               <Link
                 href={`/clients/${c.id}`}
@@ -300,7 +300,53 @@ export default function ClientsPage() {
  * fiche `/clients/{id}` se charge par id de **profil**, il n'y en a donc pas à
  * ouvrir. La ligne reste visible, et le compte peut être supprimé d'ici.
  */
-function AccountOnly({ c, className }: { c: ClientView; className: string }) {
+function AccountOnly({
+  c,
+  className,
+  card = false,
+}: {
+  c: ClientView;
+  className: string;
+  /** Vue cartes : même squelette qu'une fiche client, sans lien. */
+  card?: boolean;
+}) {
+  if (card) {
+    return (
+      <div className={cn("flex flex-col", className)}>
+        <div className="flex items-start gap-3">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-navy text-sm font-bold text-white">
+            {initials(c.name)}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-display text-base font-bold text-navy">
+              {c.name}
+            </p>
+            <p className="flex items-center gap-1 truncate text-xs text-ink-soft">
+              <MapPin className="h-3 w-3 shrink-0" />
+              {c.city ?? c.email}
+            </p>
+          </div>
+          <Badge tone={clientTone[c.status]}>{clientLabel[c.status]}</Badge>
+        </div>
+
+        <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl bg-cream-soft p-3 text-center">
+          <Cell label="Sessions" value={DASH} />
+          <Cell label="Dépensé" value={DASH} />
+          <Cell label="Foyer" value={DASH} />
+        </div>
+
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-[rgba(0,35,75,0.06)] pt-3">
+          <span className="text-[11px] text-ink-soft">Profil non renseigné</span>
+          <DeleteAccountButton
+            userId={c.userId}
+            nom={c.name || c.email}
+            role="client"
+            retourVers="/clients"
+          />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className={cn("flex flex-wrap items-center gap-3", className)}>
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-navy text-xs font-bold text-white">
