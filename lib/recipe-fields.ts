@@ -275,6 +275,13 @@ export interface LineRow {
   /** `undefined` : l'API décide d'après l'entrée (ingrédient de base : masqué). */
   hiddenFromClient: boolean | undefined;
   rawText: string | null;
+  /**
+   * Ce que l'on sait des allergènes de l'entrée reliée : le cachet de l'API sur
+   * la ligne enregistrée, ou la fiche de l'entrée choisie. Jamais renvoyé à l'API :
+   * il ne sert qu'à l'aperçu du brouillon. `undefined` : inconnu.
+   */
+  entryAllergens?: string[];
+  entryIncomplete?: boolean;
 }
 
 export const LINE_LIMITS = { name: 120, precision: 60, preparation: 120, group: 60 } as const;
@@ -321,6 +328,56 @@ export function toLineRow(raw: unknown): LineRow | null {
     group: str(o.group),
     hiddenFromClient: typeof o.hiddenFromClient === "boolean" ? o.hiddenFromClient : undefined,
     rawText: typeof o.rawText === "string" ? o.rawText : null,
+    entryAllergens: Array.isArray(o.allergens)
+      ? o.allergens.filter((a): a is string => typeof a === "string")
+      : undefined,
+    entryIncomplete: typeof o.incomplete === "boolean" ? o.incomplete : undefined,
+  };
+}
+
+/** L'aperçu des allergènes d'un brouillon (R31) : ce que l'enregistrement va juger. */
+export interface DraftAllergens {
+  /** Apportés par une ligne obligatoire, ou ajoutés à la main. */
+  firm: string[];
+  /** Apportés seulement par des lignes facultatives. */
+  conditional: string[];
+  /** Lignes non reliées à la liste commune. */
+  unlinked: number;
+  /** Lignes reliées dont la fiche est à compléter, ou dont les allergènes ne sont pas connus. */
+  incompleteEntries: number;
+  /** Vrai si l'enregistrement ne vaudra pas vérification. */
+  incomplete: boolean;
+}
+
+/**
+ * Même union que le calcul de l'API (lignes reliées + `addedAllergens`),
+ * refaite côté client pour le brouillon. L'API reste l'autorité : elle
+ * recalcule à l'enregistrement.
+ */
+export function draftAllergens(lines: LineRow[], added: string[]): DraftAllergens {
+  const firm = new Set(added);
+  const optionalOnly = new Set<string>();
+  let unlinked = 0;
+  let incompleteEntries = 0;
+  for (const l of lines) {
+    if (lineBlank(l)) continue;
+    if (!l.catalogIngredientId) {
+      unlinked += 1;
+      continue;
+    }
+    if (l.entryIncomplete === true || l.entryAllergens === undefined) incompleteEntries += 1;
+    for (const a of l.entryAllergens ?? []) {
+      if (l.optional) optionalOnly.add(a);
+      else firm.add(a);
+    }
+  }
+  const conditional = [...optionalOnly].filter((a) => !firm.has(a));
+  return {
+    firm: [...firm],
+    conditional,
+    unlinked,
+    incompleteEntries,
+    incomplete: unlinked > 0 || incompleteEntries > 0,
   };
 }
 

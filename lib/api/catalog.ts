@@ -299,6 +299,8 @@ export interface MealInput {
   seasonsOverride?: number[];
   isFeatured?: boolean;
   status?: MealStatus;
+  /** La version lue : l'API refuse (409 RECIPE_CONFLICT) si la fiche a changé depuis. */
+  lockVersion?: number;
 }
 
 /** Un menu Lab's Food : un assemblage ordonné de plats de la maison. */
@@ -439,10 +441,14 @@ const WEEKS = ["admin", "menu-weeks"] as const;
  * palette de recherche s'en sert pour ne charger ses sources qu'à l'ouverture,
  * tout en partageant le cache des écrans.
  */
-export function useMeals({ enabled }: { enabled?: boolean } = {}) {
+export function useMeals({
+  enabled,
+  refetchOnMount,
+}: { enabled?: boolean; refetchOnMount?: "always" } = {}) {
   const apiFetch = useApiFetch();
   return useQuery({
     queryKey: MEALS,
+    refetchOnMount,
     queryFn: async () => unwrapList<Meal>(await apiFetch<unknown>("/admin/meals"), "meals"),
     enabled: enabled ?? true,
   });

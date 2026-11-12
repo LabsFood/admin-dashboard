@@ -41,6 +41,7 @@ import {
   useStepTypes,
 } from "@/lib/api/referentials";
 import {
+  isIncomplete,
   useCreateMeal,
   useIngredientSearch,
   useUpdateMeal,
@@ -61,6 +62,7 @@ import {
   cleanReheating,
   cleanSteps,
   cleanStorage,
+  draftAllergens,
   emptyLine,
   freezableOf,
   lineBlank,
@@ -72,6 +74,7 @@ import {
   reheatModesOf,
   storageProblem,
   toStepRow,
+  type DraftAllergens,
   type Freezable,
   type LineRow,
   type StepRow,
@@ -299,6 +302,8 @@ export default function MealForm({
       return;
     }
     const input = buildInput();
+    // La version lue : si la fiche a changé depuis (autre onglet), l'API répond 409.
+    if (meal?.lockVersion !== undefined) input.lockVersion = meal.lockVersion;
     // Les lignes vides ne partent pas : l'index de l'API n'est plus celui de l'écran.
     const sent = lines.flatMap((l, i) => (lineBlank(l) ? [] : [i]));
     const refused = (err: unknown, title: string) => {
@@ -566,6 +571,7 @@ export default function MealForm({
               added={addedAllergens}
               onToggle={(code) => toggle(addedAllergens, setAddedAllergens, code)}
               unlinked={lignesNonReliees}
+              draft={draftAllergens(lines, addedAllergens)}
               custom={customAllergens}
               onCustom={setCustomAllergens}
             />
@@ -584,7 +590,11 @@ export default function MealForm({
 
             <IngredientRows
               value={lines}
-              onChange={setLines}
+              onChange={(v) => {
+                // Les repères de l'API sont des index : ils ne valent plus une fois les lignes changées.
+                setLines(v);
+                setIssues(NO_ISSUES);
+              }}
               messages={lineMessages}
               showMessages={tried}
               issues={issues}
@@ -1110,10 +1120,12 @@ function AllergenPanel({
   added,
   onToggle,
   unlinked,
+  draft,
   custom,
   onCustom,
 }: {
   meal?: Meal;
+  draft: DraftAllergens;
   catalog: { code: string; label: string }[];
   added: string[];
   onToggle: (code: string) => void;
@@ -1146,6 +1158,42 @@ function AllergenPanel({
           peuvent pas être vérifiés : le plat n&apos;est pas réservable.
         </p>
       )}
+
+      <div className="rounded-md border border-[rgba(0,35,75,0.1)] bg-cream-soft/60 p-3">
+        <p className="field-label">Aperçu, recalculé à l&apos;enregistrement</p>
+        {draft.firm.length === 0 && draft.conditional.length === 0 ? (
+          <p className="text-[13px] text-ink-mid">Aucun allergène d&apos;après le brouillon.</p>
+        ) : (
+          <ul className="flex flex-wrap gap-1.5">
+            {draft.firm.map((code) => (
+              <li key={code} className="chip-danger">
+                {catalog.find((a) => a.code === code)?.label ?? code}
+              </li>
+            ))}
+            {draft.conditional.map((code) => (
+              <li key={code} className="chip-muted">
+                {catalog.find((a) => a.code === code)?.label ?? code} · si l&apos;ingrédient facultatif est utilisé
+              </li>
+            ))}
+          </ul>
+        )}
+        {draft.incomplete && (
+          <p className="mt-2 flex items-start gap-2 text-[12px] leading-relaxed text-[#8A6212]">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+            Incomplet : l&apos;enregistrement ne vaudra pas vérification
+            {draft.unlinked > 0 &&
+              ` (${draft.unlinked} ligne${draft.unlinked > 1 ? "s" : ""} non reliée${draft.unlinked > 1 ? "s" : ""})`}
+            {draft.incompleteEntries > 0 &&
+              ` (${draft.incompleteEntries} fiche${draft.incompleteEntries > 1 ? "s" : ""} d'ingrédient à compléter)`}
+            .
+          </p>
+        )}
+        {meal && (
+          <p className="mt-2 text-[11px] text-ink-soft">
+            Ci-dessous : la fiche enregistrée, qui reste la référence jusqu&apos;à l&apos;enregistrement.
+          </p>
+        )}
+      </div>
 
       {!meal ? (
         <p className="text-[13px] text-ink-soft">
@@ -1584,7 +1632,7 @@ function IngredientName({
   onChange: (patch: Partial<LineRow>) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const search = useIngredientSearch(open && !row.catalogIngredientId ? row.name : "");
+  const search = useIngredientSearch(open && !row.catalogIngredientId ? row.name.trim().slice(0, 60) : "");
   const matches = (search.data ?? []).filter(
     // Explicite : une entrée sans ces champs n'est pas sélectionnable.
     (m) => m.private === false && m.chefProfileId === null && m.status === "active",
@@ -1601,6 +1649,8 @@ function IngredientName({
             name: e.target.value,
             catalogIngredientId: null,
             hiddenFromClient: row.catalogIngredientId ? undefined : row.hiddenFromClient,
+            entryAllergens: undefined,
+            entryIncomplete: undefined,
           });
           setOpen(true);
         }}
@@ -1634,6 +1684,8 @@ function IngredientName({
                     catalogIngredientId: m.id,
                     aisle: "",
                     hiddenFromClient: m.isBasic ?? false,
+                    entryAllergens: m.allergensNone ? [] : (m.allergens ?? []),
+                    entryIncomplete: isIncomplete(m),
                   });
                   setOpen(false);
                 }}
@@ -1643,6 +1695,7 @@ function IngredientName({
                 {m.aliases.length > 0 && (
                   <span className="ml-1.5 text-[11px] text-ink-soft">{m.aliases.join(", ")}</span>
                 )}
+                {isIncomplete(m) && <span className="chip-danger ml-1.5 text-[10px]">à compléter</span>}
               </button>
             </li>
           ))}
