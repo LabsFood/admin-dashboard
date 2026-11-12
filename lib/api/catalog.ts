@@ -80,6 +80,8 @@ export interface CatalogIngredient {
   status?: CatalogIngredientStatus;
   /** `null` : entrée commune ; sinon l'ingrédient privé de ce batch cooker. */
   chefProfileId?: string | null;
+  /** `GET /ingredients?search=` : vrai pour l'entrée privée d'un batch cooker. */
+  private?: boolean;
   /** Le batch cooker d'une entrée privée (nom affichable) ; `null` : entrée commune. */
   chef?: { id: string; displayName: string } | null;
   mergedIntoId?: string | null;

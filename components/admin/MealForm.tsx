@@ -274,7 +274,8 @@ export default function MealForm({
       category: category || null,
       dietaryTags,
       customDiets: csv(customDiets),
-      addedAllergens,
+      // Jamais un code hors des 14 : l'API les refuse, et garde les anciens d'elle-même.
+      addedAllergens: addedAllergens.filter((c) => allergens.data.some((a) => a.code === c)),
       customAllergens: csv(customAllergens),
       ingredients: cleanLines(lines),
       steps: cleanSteps(steps),
@@ -1126,6 +1127,10 @@ function AllergenPanel({
   const savedAdded = new Set(meal?.addedAllergens ?? []);
   // Calculé : une ligne l'apporte (si l'API dit lesquelles), sinon tout ce
   // qui n'a pas été ajouté à la main.
+  // Un code ancien, hors des 14 : lecture seule, jamais renvoyé à l'API.
+  const legacy = [...new Set([...computed, ...(meal?.addedAllergens ?? [])])].filter(
+    (c) => !catalog.some((a) => a.code === c),
+  );
   const isComputed = (code: string) =>
     computed.includes(code) && ((sources[code]?.length ?? 0) > 0 || !savedAdded.has(code));
 
@@ -1205,6 +1210,17 @@ function AllergenPanel({
           l&apos;apporte.
         </p>
       </div>
+
+      {legacy.length > 0 && (
+        <ul className="flex flex-wrap gap-1.5">
+          {legacy.map((code) => (
+            <li key={code} className="chip-danger italic">
+              Code ancien ({code}) : hors des 14 allergènes réglementaires, à corriger
+              {(sources[code]?.length ?? 0) > 0 && ` · ${sources[code].join(", ")}`}
+            </li>
+          ))}
+        </ul>
+      )}
 
       <Field label="Autres allergènes" hint="Hors des 14, séparés par des virgules.">
         <input
@@ -1288,7 +1304,7 @@ function lineIssuesOf(error: unknown, sent: number[]): LineIssues {
       const row = at(Number(m[1]));
       if (row === undefined) continue;
       const message = typeof e.message === "string" ? e.message : "";
-      rows[row] = LINE_REFUSALS[message] ?? message ?? "Ligne refusée par l'API.";
+      rows[row] = LINE_REFUSALS[message] || message || "Ligne refusée par l'API.";
     }
   }
   return { rows, duplicates };
@@ -1570,7 +1586,8 @@ function IngredientName({
   const [open, setOpen] = useState(false);
   const search = useIngredientSearch(open && !row.catalogIngredientId ? row.name : "");
   const matches = (search.data ?? []).filter(
-    (m) => (m.chefProfileId ?? null) === null && (m.status ?? "active") === "active",
+    // Explicite : une entrée sans ces champs n'est pas sélectionnable.
+    (m) => m.private === false && m.chefProfileId === null && m.status === "active",
   );
   const searched = open && !row.catalogIngredientId && row.name.trim().length >= 2;
 
@@ -1632,7 +1649,7 @@ function IngredientName({
         </ul>
       )}
       {searched && !search.isFetching && search.data && matches.length === 0 && (
-        <p className="absolute z-30 mt-1 w-full rounded-md border border-[rgba(31,42,55,0.1)] bg-white px-3 py-2 text-[12px] text-ink-soft shadow-lg">
+        <p role="status" className="absolute z-30 mt-1 w-full rounded-md border border-[rgba(31,42,55,0.1)] bg-white px-3 py-2 text-[12px] text-ink-soft shadow-lg">
           Aucune entrée commune. La ligne reste non reliée : ses allergènes ne seront pas comptés.
         </p>
       )}

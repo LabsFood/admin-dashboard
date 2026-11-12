@@ -39,7 +39,7 @@ export function problemText(p: { code: string; field: string }): string {
     case "INGREDIENT_INCOMPLETE":
       return `l'ingrédient n° ${(i ?? 0) + 1}, dont la fiche commune est à compléter`;
     case "ALLERGENS_REQUIRED":
-      return "les allergènes, ou la mention « aucun »";
+      return "tous les ingrédients reliés à la liste commune, pour que les allergènes soient calculés";
     case "ALLERGENS_UNVERIFIED":
       return "la confirmation des allergènes";
     case "PHOTO_MISSING":
