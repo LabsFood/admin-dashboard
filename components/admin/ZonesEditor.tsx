@@ -15,8 +15,9 @@ import {
 /* ─────────────────────────────────────────────────────────────────────────────
    Changer les zones d'un batch cooker approuvé.
 
-   Le batch cooker ne le peut pas lui-même : ses zones ont été vérifiées sur
-   pièces pendant sa candidature. La console le peut, et c'est audité.
+   Le batch cooker approuvé règle aussi ses zones lui-même (`PATCH
+   /me/chef-profile/zones`) ; la console le fait à sa place quand il le demande.
+   Les deux sont audités.
 
    Jusqu'au 10/11 l'éditeur ne posait que des régions entières : la lecture
    ne rendait pas les codes INSEE que l'écriture exige, et il n'y avait pas de
