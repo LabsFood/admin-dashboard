@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useApiFetch } from "./client";
+import { ApiError, useApiFetch } from "./client";
 import type { PageMeta } from "./types";
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -42,7 +42,9 @@ export interface Ingredient {
   catalogIngredientId?: string | null;
 }
 
-/** Une entrée de la liste commune d'ingrédients (§4.10). */
+export type CatalogIngredientStatus = "active" | "pending" | "inactive" | "merged";
+
+/** Une entrée de la liste commune d'ingrédients (§4.10), ou l'ingrédient privé d'un batch cooker. */
 export interface CatalogIngredient {
   id: string;
   name: string;
@@ -52,6 +54,20 @@ export interface CatalogIngredient {
   diets: string[];
   /** Mois 1 à 12 ; vide : pas de saison. */
   seasonMonths: number[];
+  /** Code de `GET /referentials/aisles` ; `null` : à compléter. */
+  aisle?: string | null;
+  /** Les 14 codes, dans l'ordre de l'annexe. */
+  allergens?: string[];
+  /** Déclaré sans aucun des 14 allergènes. */
+  allergensNone?: boolean;
+  isBasic?: boolean;
+  status?: CatalogIngredientStatus;
+  /** `null` : entrée commune ; sinon l'ingrédient privé de ce batch cooker. */
+  chefProfileId?: string | null;
+  mergedIntoId?: string | null;
+  reviewedAt?: string | null;
+  reviewedByUserId?: string | null;
+  createdByUserId?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -61,6 +77,55 @@ export interface CatalogIngredientInput {
   aliases?: string[];
   diets?: string[];
   seasonMonths?: number[];
+  aisle?: string;
+  allergens?: string[];
+  allergensNone?: boolean;
+  isBasic?: boolean;
+  /** Seulement sur une entrée commune active ou inactive (sinon 422). */
+  status?: "active" | "inactive";
+}
+
+/** « À compléter » : sans rayon, ou ni allergènes ni « aucun ». */
+export const isIncomplete = (i: CatalogIngredient) =>
+  !i.aisle || ((i.allergens?.length ?? 0) === 0 && !i.allergensNone);
+
+/** Le bilan d'un report dans les recettes (§7.3). */
+export interface Propagation {
+  dishes: number;
+  reverified: number;
+  chefs: number;
+  skipped: number;
+  failed: number;
+}
+
+/** `GET /admin/ingredients/{id}/impact` */
+export interface IngredientImpact {
+  dishes: number;
+  chefs: number;
+  verifiedDishes: number;
+}
+
+/** Réponse de `PATCH`, `validate` et `merge`. */
+export interface IngredientWrite {
+  ingredient: CatalogIngredient;
+  propagation: Propagation | null;
+}
+
+export interface ImportReport {
+  created: number;
+  updated: number;
+  unchanged: number;
+  errors: { line: number; message: string }[];
+  propagation: Propagation | null;
+}
+
+export interface IngredientFilters {
+  search: string;
+  status: string;
+  aisle: string;
+  incomplete: boolean;
+  /** `""` : tous ; `"yes"` : relus ; `"no"` : pas encore. */
+  reviewed: "" | "yes" | "no";
 }
 
 /** Une étape (§4.5) : sans type, la fiche n'est pas « Prête ». */
@@ -566,20 +631,24 @@ export interface IngredientSeasonReview {
   reason: "empty" | "never_reviewed" | "new_season" | null;
 }
 
-/** `GET /admin/ingredients` — par nom, cinquante par page, et le rappel de saison. */
-export function useCatalogIngredients(search: string, page: number) {
+/** `GET /admin/ingredients` — par nom, cinquante par page, filtres compris, rappel de saison en plus. */
+export function useCatalogIngredients(filters: IngredientFilters, page: number) {
   const apiFetch = useApiFetch();
-  const q = search.trim();
+  const qs = new URLSearchParams({ limit: "50", page: String(page) });
+  const q = filters.search.trim();
+  if (q) qs.set("search", q);
+  if (filters.status) qs.set("status", filters.status);
+  if (filters.aisle) qs.set("aisle", filters.aisle);
+  if (filters.incomplete) qs.set("incomplete", "true");
+  if (filters.reviewed) qs.set("reviewed", filters.reviewed === "yes" ? "true" : "false");
   return useQuery({
-    queryKey: [...INGREDIENTS, q, page],
+    queryKey: [...INGREDIENTS, qs.toString()],
     queryFn: () =>
       apiFetch<{
         data: CatalogIngredient[];
         meta: PageMeta;
         seasonReview?: IngredientSeasonReview;
-      }>(
-        `/admin/ingredients?limit=50&page=${page}${q ? `&search=${encodeURIComponent(q)}` : ""}`,
-      ),
+      }>(`/admin/ingredients?${qs.toString()}`),
   });
 }
 
@@ -612,30 +681,90 @@ export function useIngredientSearch(term: string) {
   });
 }
 
-/** `POST /admin/ingredients` — 409 si le nom existe déjà, quelle que soit la casse. */
-export function useCreateCatalogIngredient() {
-  const apiFetch = useApiFetch();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: CatalogIngredientInput) =>
-      apiFetch<CatalogIngredient>("/admin/ingredients", { method: "POST", body }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: INGREDIENTS }),
-  });
+/** Une entrée de la liste dont le nom est déjà pris : `409 INGREDIENT_ALREADY_LISTED`. */
+export function alreadyListed(error: unknown): { id: string; name: string } | null {
+  if (!(error instanceof ApiError) || error.status !== 409) return null;
+  const b = error.body as { code?: string; ingredient?: { id?: string; name?: string } } | null;
+  if (b?.code !== "INGREDIENT_ALREADY_LISTED" || !b.ingredient?.id) return null;
+  return { id: b.ingredient.id, name: b.ingredient.name ?? "" };
 }
 
-/**
- * `PATCH /admin/ingredients/{id}` — les plats qui relient l'ingrédient sont
- * reclassés par l'API.
- */
-export function useUpdateCatalogIngredient() {
+function useIngredientMutation<TInput, TOut>(
+  run: (apiFetch: ReturnType<typeof useApiFetch>, input: TInput) => Promise<TOut>,
+) {
   const apiFetch = useApiFetch();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: CatalogIngredientInput }) =>
-      apiFetch<CatalogIngredient>(`/admin/ingredients/${id}`, { method: "PATCH", body: patch }),
+    mutationFn: (input: TInput) => run(apiFetch, input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: INGREDIENTS });
       qc.invalidateQueries({ queryKey: ["ingredients"] });
     },
   });
+}
+
+/** `POST /admin/ingredients` — 409 si le nom existe déjà, quelle que soit la casse. Rend l'entrée, sans report. */
+export function useCreateCatalogIngredient() {
+  return useIngredientMutation<CatalogIngredientInput, CatalogIngredient>((apiFetch, body) =>
+    apiFetch<CatalogIngredient>("/admin/ingredients", { method: "POST", body }),
+  );
+}
+
+/**
+ * `PATCH /admin/ingredients/{id}` — les recettes qui relient l'ingrédient sont
+ * reclassées par l'API ; `propagation` en donne le bilan (`null` : rien à reporter).
+ */
+export function useUpdateCatalogIngredient() {
+  return useIngredientMutation<{ id: string; patch: CatalogIngredientInput }, IngredientWrite>(
+    (apiFetch, { id, patch }) =>
+      apiFetch<IngredientWrite>(`/admin/ingredients/${id}`, { method: "PATCH", body: patch }),
+  );
+}
+
+/** `GET /admin/ingredients/{id}/impact` — à lire avant d'enregistrer allergènes, régimes ou mois. */
+export function useIngredientImpact() {
+  const apiFetch = useApiFetch();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<IngredientImpact>(`/admin/ingredients/${id}/impact`),
+  });
+}
+
+/** `POST /admin/ingredients/{id}/review` */
+export function useReviewIngredient() {
+  return useIngredientMutation<string, CatalogIngredient>((apiFetch, id) =>
+    apiFetch<CatalogIngredient>(`/admin/ingredients/${id}/review`, { method: "POST" }),
+  );
+}
+
+/** `POST /admin/ingredients/{id}/validate` — 409 `INGREDIENT_ALREADY_LISTED` : fusionner à la place. */
+export function useValidateIngredient() {
+  return useIngredientMutation<string, IngredientWrite>((apiFetch, id) =>
+    apiFetch<IngredientWrite>(`/admin/ingredients/${id}/validate`, { method: "POST" }),
+  );
+}
+
+/** `POST /admin/ingredients/{id}/merge` — la cible : une entrée commune active. */
+export function useMergeIngredient() {
+  return useIngredientMutation<{ id: string; intoId: string }, IngredientWrite>(
+    (apiFetch, { id, intoId }) =>
+      apiFetch<IngredientWrite>(`/admin/ingredients/${id}/merge`, {
+        method: "POST",
+        body: { intoId },
+      }),
+  );
+}
+
+/** `POST /admin/ingredients/{id}/propagate` — rejoue le report ; idempotent. */
+export function usePropagateIngredient() {
+  return useIngredientMutation<string, Propagation>((apiFetch, id) =>
+    apiFetch<Propagation>(`/admin/ingredients/${id}/propagate`, { method: "POST" }),
+  );
+}
+
+/** `POST /admin/ingredients/import` — sans `confirm`, simule seulement. */
+export function useImportIngredients() {
+  return useIngredientMutation<{ csv: string; confirm?: boolean }, ImportReport>(
+    (apiFetch, body) =>
+      apiFetch<ImportReport>("/admin/ingredients/import", { method: "POST", body }),
+  );
 }

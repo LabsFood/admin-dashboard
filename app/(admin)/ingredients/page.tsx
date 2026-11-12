@@ -7,44 +7,75 @@ import {
   CalendarClock,
   Carrot,
   Check,
+  CheckCheck,
   Loader2,
   Pencil,
   Plus,
-  Save,
+  RefreshCw,
   Search,
-  X,
 } from "lucide-react";
 import InfoPopover from "@/components/ui/InfoPopover";
+import IngredientEditor from "@/components/admin/IngredientEditor";
+import IngredientTabs from "@/components/admin/IngredientTabs";
+import PropagationNotice from "@/components/admin/PropagationNotice";
 import { useToast } from "@/components/ui/Toaster";
-import { cn } from "@/lib/utils";
 import { adminErrorMessage } from "@/lib/api/errors";
-import { refLabel, useComputedDiets } from "@/lib/api/referentials";
-import { MONTHS, seasonsLine } from "@/lib/recipe-fields";
+import { refLabel, useAisles, useAllergens, useComputedDiets } from "@/lib/api/referentials";
+import { seasonsLine } from "@/lib/recipe-fields";
 import {
+  isIncomplete,
   useCatalogIngredients,
-  useCreateCatalogIngredient,
   useMarkIngredientSeasonReviewed,
-  useUpdateCatalogIngredient,
+  usePropagateIngredient,
+  useReviewIngredient,
   type CatalogIngredient,
+  type IngredientFilters,
   type IngredientSeasonReview,
+  type IngredientWrite,
 } from "@/lib/api/catalog";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    La liste commune d'ingrédients (module Recettes §4.10) — `/admin/ingredients`.
 
    La maison la remplit (BLK-33) ; le batch cooker y cherche ses ingrédients en
-   écrivant une recette. C'est d'elle que se calculent les régimes et les saisons
-   d'un plat : tant qu'une ligne n'y est pas reliée, rien ne se calcule. Pas
-   d'allergènes ni d'unités d'achat dans cette version.
+   écrivant une recette. C'est d'elle que se calculent les allergènes, les
+   régimes et les saisons d'un plat. Modifier une entrée reclasse les recettes
+   qui la relient : l'impact se lit avant d'enregistrer, le bilan après.
    ───────────────────────────────────────────────────────────────────────────── */
 
+const STATUTS: Record<string, string> = {
+  active: "Actif",
+  inactive: "Inactif",
+  pending: "À valider",
+  merged: "Fusionné",
+};
+
+const NO_FILTER: IngredientFilters = {
+  search: "",
+  status: "",
+  aisle: "",
+  incomplete: false,
+  reviewed: "",
+};
+
 export default function IngredientsPage() {
-  const [search, setSearch] = useState("");
+  const toast = useToast();
+  const [filters, setFilters] = useState<IngredientFilters>(NO_FILTER);
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<CatalogIngredient | "new" | null>(null);
-  const liste = useCatalogIngredients(search, page);
+  const [saved, setSaved] = useState<{ name: string; write: IngredientWrite } | null>(null);
+  const liste = useCatalogIngredients(filters, page);
   const diets = useComputedDiets();
+  const allergens = useAllergens();
+  const aisles = useAisles();
+  const review = useReviewIngredient();
   const meta = liste.data?.meta;
+
+  function setFilter(patch: Partial<IngredientFilters>) {
+    setFilters((f) => ({ ...f, ...patch }));
+    setPage(1);
+  }
+  const filtered = JSON.stringify(filters) !== JSON.stringify(NO_FILTER);
 
   return (
     <div className="space-y-6">
@@ -62,29 +93,51 @@ export default function IngredientsPage() {
             <h2 className="flex items-center gap-1 font-display text-xl font-bold text-navy">
               {meta ? `${meta.total} ingrédient${meta.total > 1 ? "s" : ""}` : "Liste commune"}
               <InfoPopover label="À quoi sert la liste commune ?">
-                Le batch cooker y choisit ses ingrédients. Un plat dont toutes les
-                lignes y sont reliées affiche ses régimes (ceux que tous ses
-                ingrédients permettent) et ses saisons (les mois communs aux
-                ingrédients de saison). Modifier un ingrédient reclasse les plats qui
-                l&apos;utilisent.
+                Le batch cooker y choisit ses ingrédients. Une recette dont toutes les lignes y sont
+                reliées affiche ses allergènes, ses régimes (ceux que tous ses ingrédients permettent)
+                et ses saisons. Modifier un ingrédient reclasse les recettes qui l&apos;utilisent.
               </InfoPopover>
             </h2>
             <p className="text-sm text-ink-soft">
-              Nom, autres noms, régimes compatibles et mois de saison.
+              Nom, rayon, allergènes, régimes compatibles et mois de saison.
             </p>
           </div>
         </div>
-        <button type="button" onClick={() => setEditing("new")} className="btn btn-primary">
+        <button
+          type="button"
+          onClick={() => {
+            setSaved(null);
+            setEditing("new");
+          }}
+          className="btn btn-primary"
+        >
           <Plus className="h-4 w-4" aria-hidden /> Ajouter un ingrédient
         </button>
       </motion.section>
 
+      <IngredientTabs current="/ingredients" />
+
       {liste.data?.seasonReview?.due && <RappelSaison review={liste.data.seasonReview} />}
+
+      {saved && (
+        <section className="card space-y-2 p-5">
+          <p className="font-semibold text-navy">« {saved.name} » enregistré</p>
+          <PropagationNotice
+            key={saved.write.ingredient.id + (saved.write.propagation?.failed ?? "")}
+            propagation={saved.write.propagation}
+            ingredientId={saved.write.ingredient.id}
+          />
+        </section>
+      )}
 
       {editing && (
         <IngredientEditor
           initial={editing === "new" ? null : editing}
           onDone={() => setEditing(null)}
+          onSaved={(write) => {
+            setEditing(null);
+            setSaved({ name: write.ingredient.name, write });
+          }}
         />
       )}
 
@@ -95,15 +148,71 @@ export default function IngredientsPage() {
             aria-hidden
           />
           <input
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
+            value={filters.search}
+            onChange={(e) => setFilter({ search: e.target.value })}
             placeholder="Chercher un nom, ou un autre nom"
+            maxLength={60}
             className="input-base pl-9"
           />
         </label>
+
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="block">
+            <span className="field-label">Statut</span>
+            <select
+              value={filters.status}
+              onChange={(e) => setFilter({ status: e.target.value })}
+              className="input-base"
+            >
+              <option value="">Tous</option>
+              {Object.entries(STATUTS).map(([code, label]) => (
+                <option key={code} value={code}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="field-label">Rayon</span>
+            <select
+              value={filters.aisle}
+              onChange={(e) => setFilter({ aisle: e.target.value })}
+              className="input-base"
+            >
+              <option value="">Tous</option>
+              {aisles.data.map((a) => (
+                <option key={a.code} value={a.code}>
+                  {a.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="field-label">Relecture</span>
+            <select
+              value={filters.reviewed}
+              onChange={(e) => setFilter({ reviewed: e.target.value as IngredientFilters["reviewed"] })}
+              className="input-base"
+            >
+              <option value="">Toutes</option>
+              <option value="yes">Relus</option>
+              <option value="no">Pas encore relus</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-2 pb-2 text-sm text-ink-mid">
+            <input
+              type="checkbox"
+              checked={filters.incomplete}
+              onChange={(e) => setFilter({ incomplete: e.target.checked })}
+            />
+            À compléter
+          </label>
+          {filtered && (
+            <button type="button" onClick={() => setFilter(NO_FILTER)} className="btn btn-sm btn-ghost mb-1">
+              Effacer les filtres
+            </button>
+          )}
+        </div>
 
         {liste.isPending ? (
           <div className="h-40 animate-pulse rounded-xl bg-cream-soft" />
@@ -114,33 +223,76 @@ export default function IngredientsPage() {
           </p>
         ) : (liste.data?.data.length ?? 0) === 0 ? (
           <p className="text-[13px] text-ink-soft">
-            {search ? `Rien ne correspond à « ${search} ».` : "La liste est vide : ajoutez le premier ingrédient."}
+            {filtered ? "Rien ne correspond à ces filtres." : "La liste est vide : ajoutez le premier ingrédient."}
           </p>
         ) : (
           <ul className="divide-y divide-[rgba(31,42,55,0.06)]">
             {liste.data!.data.map((i) => (
               <li key={i.id} className="flex flex-wrap items-center gap-3 py-3">
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-navy">{i.name}</p>
-                  {i.aliases.length > 0 && (
-                    <p className="text-[12px] text-ink-soft">{i.aliases.join(", ")}</p>
-                  )}
+                  <p className="flex flex-wrap items-center gap-2 font-semibold text-navy">
+                    {i.name}
+                    {i.status && i.status !== "active" && <span className="chip-muted">{STATUTS[i.status]}</span>}
+                    {i.chefProfileId && <span className="chip-muted">Privé</span>}
+                    {isIncomplete(i) && <span className="chip-danger">À compléter</span>}
+                    {i.isBasic && <span className="chip-muted">De base</span>}
+                  </p>
+                  {i.aliases.length > 0 && <p className="text-[12px] text-ink-soft">{i.aliases.join(", ")}</p>}
                   <p className="mt-1 flex flex-wrap gap-1.5">
+                    <span className="chip-muted">
+                      {i.aisle ? refLabel(aisles.data, i.aisle) : "Sans rayon"}
+                    </span>
+                    {i.allergensNone ? (
+                      <span className="chip-muted">Aucun allergène</span>
+                    ) : (
+                      (i.allergens ?? []).map((a) => (
+                        <span key={a} className="chip-danger">
+                          {refLabel(allergens.data, a)}
+                        </span>
+                      ))
+                    )}
                     {i.diets.map((d) => (
                       <span key={d} className="chip-teal">
                         {refLabel(diets.data, d)}
                       </span>
                     ))}
-                    <span className="chip-muted">{seasonsLine(i.seasonMonths.length ? i.seasonMonths : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])}</span>
+                    <span className="chip-muted">
+                      {seasonsLine(i.seasonMonths.length ? i.seasonMonths : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])}
+                    </span>
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setEditing(i)}
-                  className="btn btn-sm btn-outline"
-                >
-                  <Pencil className="h-3 w-3" aria-hidden /> Modifier
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {i.reviewedAt ? (
+                    <span className="chip-teal">
+                      <Check className="h-3 w-3" aria-hidden /> Relu
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={review.isPending && review.variables === i.id}
+                      onClick={() =>
+                        review.mutate(i.id, {
+                          onSuccess: () => toast.success(`« ${i.name} » marqué comme relu`),
+                          onError: (e) => toast.error("Relecture impossible", adminErrorMessage(e)),
+                        })
+                      }
+                      className="btn btn-sm btn-outline"
+                    >
+                      <CheckCheck className="h-3 w-3" aria-hidden /> Marquer comme relu
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSaved(null);
+                      setEditing(i);
+                    }}
+                    className="btn btn-sm btn-outline"
+                  >
+                    <Pencil className="h-3 w-3" aria-hidden /> Modifier
+                  </button>
+                  <RelanceReport ingredient={i} />
+                </div>
               </li>
             ))}
           </ul>
@@ -172,141 +324,37 @@ export default function IngredientsPage() {
   );
 }
 
-function IngredientEditor({
-  initial,
-  onDone,
-}: {
-  initial: CatalogIngredient | null;
-  onDone: () => void;
-}) {
+/**
+ * Rejoue le report d'une entrée dans les recettes (idempotent) : utile après un
+ * import dont des recettes ont échoué, qui ne désigne pas une entrée seule.
+ */
+function RelanceReport({ ingredient }: { ingredient: CatalogIngredient }) {
   const toast = useToast();
-  const create = useCreateCatalogIngredient();
-  const update = useUpdateCatalogIngredient();
-  const diets = useComputedDiets();
-  const [name, setName] = useState(initial?.name ?? "");
-  const [aliases, setAliases] = useState(initial?.aliases.join(", ") ?? "");
-  const [chosen, setChosen] = useState<string[]>(initial?.diets ?? []);
-  const [months, setMonths] = useState<number[]>(initial?.seasonMonths ?? []);
-  const saving = create.isPending || update.isPending;
-  const error = create.error ?? update.error;
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    const body = {
-      name: name.trim(),
-      aliases: aliases
-        .split(",")
-        .map((a) => a.trim())
-        .filter(Boolean),
-      diets: chosen,
-      seasonMonths: months,
-    };
-    const done = () => {
-      toast.success(`« ${body.name} » enregistré`);
-      onDone();
-    };
-    if (initial) update.mutate({ id: initial.id, patch: body }, { onSuccess: done });
-    else create.mutate(body, { onSuccess: done });
-  }
-
+  const replay = usePropagateIngredient();
+  if (ingredient.chefProfileId || ingredient.status === "merged") return null;
   return (
-    <form onSubmit={submit} className="card space-y-4 p-6">
-      <div className="flex items-center justify-between">
-        <h3 className="font-display text-base font-bold text-navy">
-          {initial ? `Modifier « ${initial.name} »` : "Nouvel ingrédient"}
-        </h3>
-        <button type="button" onClick={onDone} aria-label="Fermer" className="text-ink-soft">
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <label className="block">
-          <span className="field-label">Nom</span>
-          <input
-            value={name}
-            maxLength={120}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Tomate"
-            className="input-base"
-            required
-          />
-        </label>
-        <label className="block">
-          <span className="field-label">Autres noms (séparés par des virgules)</span>
-          <input
-            value={aliases}
-            onChange={(e) => setAliases(e.target.value)}
-            placeholder="pomme d'amour"
-            className="input-base"
-          />
-        </label>
-      </div>
-      <div>
-        <p className="field-label flex items-center gap-1">
-          Régimes compatibles
-          <InfoPopover label="Que cocher ?">
-            Les régimes que cet ingrédient permet. Un plat n&apos;affiche un régime que si
-            tous ses ingrédients le permettent.
-          </InfoPopover>
-        </p>
-        <div className="flex flex-wrap gap-1.5">
-          {diets.data.map((d) => {
-            const on = chosen.includes(d.code);
-            return (
-              <button
-                key={d.code}
-                type="button"
-                aria-pressed={on}
-                onClick={() =>
-                  setChosen(on ? chosen.filter((x) => x !== d.code) : [...chosen, d.code])
-                }
-                className={cn(on ? "chip-teal" : "chip-muted", "cursor-pointer")}
-              >
-                {d.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      <div>
-        <p className="field-label">Mois de saison (aucun : pas de saison)</p>
-        <div className="flex flex-wrap gap-1.5">
-          {MONTHS.map((m, i) => {
-            const on = months.includes(i + 1);
-            return (
-              <button
-                key={m}
-                type="button"
-                aria-pressed={on}
-                onClick={() =>
-                  setMonths(
-                    on
-                      ? months.filter((x) => x !== i + 1)
-                      : [...months, i + 1].sort((a, b) => a - b),
-                  )
-                }
-                className={cn(on ? "chip-teal" : "chip-muted", "cursor-pointer")}
-              >
-                {m}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      {error != null && (
-        <p role="alert" className="text-[12px] text-danger">
-          {adminErrorMessage(error)}
-        </p>
+    <button
+      type="button"
+      disabled={replay.isPending}
+      onClick={() =>
+        replay.mutate(ingredient.id, {
+          onSuccess: (p) =>
+            p.failed > 0
+              ? toast.error("Report incomplet", `${p.failed} recette(s) n'ont pas pu être mises à jour.`)
+              : toast.success(`Report relancé pour « ${ingredient.name} »`, `${p.dishes} recette(s) mise(s) à jour.`),
+          onError: (e) => toast.error("Report impossible", adminErrorMessage(e)),
+        })
+      }
+      className="btn btn-sm btn-ghost"
+      title="Relancer le report dans les recettes"
+    >
+      {replay.isPending ? (
+        <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+      ) : (
+        <RefreshCw className="h-3 w-3" aria-hidden />
       )}
-      <button type="submit" disabled={!name.trim() || saving} className="btn btn-primary">
-        {saving ? (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-        ) : (
-          <Save className="h-4 w-4" aria-hidden />
-        )}
-        Enregistrer
-      </button>
-    </form>
+      <span className="sr-only">Relancer le report de {ingredient.name}</span>
+    </button>
   );
 }
 

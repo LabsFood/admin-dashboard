@@ -184,3 +184,25 @@ export function useRegionCommunes(regionCode: string, enabled = true) {
     retry: 1,
   });
 }
+
+/** Les rayons par défaut, dans l'ordre du magasin (repli si l'API ne répond pas). */
+const AISLES: RefItem[] = [
+  ["fruits-legumes", "Fruits et légumes"],
+  ["boulangerie", "Boulangerie"],
+  ["boucherie", "Boucherie"],
+  ["poissonnerie", "Poissonnerie"],
+  ["cremerie", "Crèmerie"],
+  ["fromages", "Fromages"],
+  ["epicerie-salee", "Épicerie salée"],
+  ["conserves", "Conserves"],
+  ["epices", "Épices"],
+  ["epicerie-sucree", "Épicerie sucrée"],
+  ["boissons", "Boissons"],
+  ["non-alimentaire", "Non alimentaire"],
+  ["surgeles", "Surgelés"],
+].map(([code, label]) => ({ code, label }));
+
+/** `GET /referentials/aisles` (§5.4) : la liste réglée dans Paramètres, dans l'ordre du magasin. */
+export function useAisles() {
+  return useReferential("/referentials/aisles", "aisles", AISLES);
+}
