@@ -59,7 +59,7 @@ export function adminErrorMessage(error: unknown): string {
     case 403:
       return "Ton compte n'a pas le rôle admin requis pour cette action.";
     case 404:
-      return "Utilisateur introuvable côté API.";
+      return "Introuvable côté API : l'élément n'existe plus (supprimé ou fusionné). Rechargez la page.";
     case 400: {
       /* Un refus de validation nomme ses champs depuis le 17/10 : on les cite
          plutôt que de répéter une phrase générique. */

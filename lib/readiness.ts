@@ -42,6 +42,8 @@ export function problemText(p: { code: string; field: string }): string {
       return "tous les ingrédients reliés à la liste commune, pour que les allergènes soient calculés";
     case "ALLERGENS_UNVERIFIED":
       return "la confirmation des allergènes";
+    case "DECLARED_DIET_NOT_ALLOWED":
+      return "un régime déclaré que les ingrédients ne permettent pas";
     case "PHOTO_MISSING":
       return "une vraie photo du plat";
     default:

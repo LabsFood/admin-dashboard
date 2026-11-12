@@ -90,6 +90,8 @@ export interface CatalogIngredient {
   createdByUserId?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  /** Un report de cette entrée n'a pas abouti : à relancer. */
+  carryPending?: boolean;
 }
 
 export interface CatalogIngredientInput {
@@ -126,6 +128,13 @@ export interface IngredientImpact {
 }
 
 /** Réponse de `PATCH`, `validate` et `merge`. */
+/** Le client a cessé d'attendre : le serveur, lui, continue peut-être. */
+export const isTimeout = (e: unknown) =>
+  e instanceof ApiError && e.status === 0 && /à temps/.test(e.message);
+
+export const TIMEOUT_HINT =
+  "L'opération continue peut-être côté serveur : vérifiez la liste, puis relancez le report si besoin.";
+
 export interface IngredientWrite {
   ingredient: CatalogIngredient;
   propagation: Propagation | null;
@@ -148,6 +157,8 @@ export interface IngredientFilters {
   incomplete: boolean;
   /** `""` : tous ; `"yes"` : relus ; `"no"` : pas encore. */
   reviewed: "" | "yes" | "no";
+  /** Seulement les entrées dont le report est à relancer. */
+  carryPending?: boolean;
 }
 
 /** Une étape (§4.5) : sans type, la fiche n'est pas « Prête ». */
@@ -222,6 +233,8 @@ export interface Meal {
   addedAllergens?: string[];
   /** Pour chaque allergène, les ingrédients qui l'apportent, si l'API les rend. */
   allergenSources?: Record<string, string[]>;
+  /** Version de la fiche, renvoyée à l'enregistrement pour détecter un conflit entre onglets. */
+  lockVersion?: number;
   allergensNone: boolean;
   customDiets: string[];
   customAllergens: string[];
@@ -666,6 +679,13 @@ export function currentIsoWeek(): { year: number; week: number } {
 const INGREDIENTS = ["admin", "ingredients"] as const;
 
 /**
+ * Les écritures qui reportent dans les recettes (une transaction par plat,
+ * des e-mails en ligne) peuvent durer des minutes : on n'abandonne pas à
+ * 15 s, sinon l'admin ne verrait jamais le bilan ni le moyen de relancer.
+ */
+const LONG_WRITE_MS = 10 * 60 * 1000;
+
+/**
  * BLK-33 : faut-il rappeler à l'admin de construire ou de relire la liste ?
  * `empty` (première liste à faire), `never_reviewed`, `new_season` (une saison a
  * commencé — 1er mars, juin, septembre, décembre — depuis la dernière relecture).
@@ -688,6 +708,7 @@ export function useCatalogIngredients(filters: IngredientFilters, page: number, 
   if (filters.aisle) qs.set("aisle", filters.aisle);
   if (filters.incomplete) qs.set("incomplete", "true");
   if (filters.reviewed) qs.set("reviewed", filters.reviewed === "yes" ? "true" : "false");
+  if (filters.carryPending) qs.set("carryPending", "true");
   return useQuery({
     enabled,
     queryKey: [...INGREDIENTS, qs.toString()],
@@ -747,6 +768,8 @@ function useIngredientMutation<TInput, TOut>(
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: INGREDIENTS });
       qc.invalidateQueries({ queryKey: ["ingredients"] });
+      // Le report réécrit des recettes Lab's Food : leurs allergènes ont pu changer.
+      qc.invalidateQueries({ queryKey: MEALS });
     },
   });
 }
@@ -765,7 +788,7 @@ export function useCreateCatalogIngredient() {
 export function useUpdateCatalogIngredient() {
   return useIngredientMutation<{ id: string; patch: CatalogIngredientInput }, IngredientWrite>(
     (apiFetch, { id, patch }) =>
-      apiFetch<IngredientWrite>(`/admin/ingredients/${id}`, { method: "PATCH", body: patch }),
+      apiFetch<IngredientWrite>(`/admin/ingredients/${id}`, { method: "PATCH", body: patch, timeoutMs: LONG_WRITE_MS }),
   );
 }
 
@@ -807,7 +830,7 @@ export function useReviewIngredient() {
 /** `POST /admin/ingredients/{id}/validate` — 409 `INGREDIENT_ALREADY_LISTED` : fusionner à la place. */
 export function useValidateIngredient() {
   return useIngredientMutation<string, IngredientWrite>((apiFetch, id) =>
-    apiFetch<IngredientWrite>(`/admin/ingredients/${id}/validate`, { method: "POST" }),
+    apiFetch<IngredientWrite>(`/admin/ingredients/${id}/validate`, { method: "POST", timeoutMs: LONG_WRITE_MS }),
   );
 }
 
@@ -818,6 +841,7 @@ export function useMergeIngredient() {
       apiFetch<IngredientWrite>(`/admin/ingredients/${id}/merge`, {
         method: "POST",
         body: { intoId },
+        timeoutMs: LONG_WRITE_MS,
       }),
   );
 }
@@ -825,7 +849,7 @@ export function useMergeIngredient() {
 /** `POST /admin/ingredients/{id}/propagate` — rejoue le report ; idempotent. */
 export function usePropagateIngredient() {
   return useIngredientMutation<string, Propagation>((apiFetch, id) =>
-    apiFetch<Propagation>(`/admin/ingredients/${id}/propagate`, { method: "POST" }),
+    apiFetch<Propagation>(`/admin/ingredients/${id}/propagate`, { method: "POST", timeoutMs: LONG_WRITE_MS }),
   );
 }
 
@@ -833,6 +857,11 @@ export function usePropagateIngredient() {
 export function useImportIngredients() {
   return useIngredientMutation<{ csv: string; confirm?: boolean }, ImportReport>(
     (apiFetch, body) =>
-      apiFetch<ImportReport>("/admin/ingredients/import", { method: "POST", body }),
+      apiFetch<ImportReport>("/admin/ingredients/import", {
+        method: "POST",
+        body,
+        // Seule la confirmation écrit longtemps ; la simulation reste courte.
+        timeoutMs: body.confirm ? LONG_WRITE_MS : undefined,
+      }),
   );
 }

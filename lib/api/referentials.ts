@@ -68,6 +68,9 @@ function useReferential(path: string, key: string, fallback: RefItem[]) {
     },
     staleTime: 3_600_000,
     initialData: fallback,
+    // Sans cela, TanStack tient `initialData` pour déjà chargé et ne demande
+    // jamais la liste réglée dans Paramètres pendant l'heure.
+    initialDataUpdatedAt: 0,
   });
 }
 
