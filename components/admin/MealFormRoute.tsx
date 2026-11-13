@@ -33,7 +33,9 @@ export default function MealFormRoute({
     return <div className="h-96 animate-pulse rounded-3xl bg-paper" />;
   }
 
-  if (meals.isError) {
+  // Une relecture en arrière-plan qui échoue ne remplace pas une fiche ouverte : la
+  // version lue reste celle du formulaire, et l'API répond 409 si elle a vieilli.
+  if (meals.isError && !meals.data) {
     return (
       <section className="card p-6">
         <p className="flex items-start gap-2 text-sm text-danger">

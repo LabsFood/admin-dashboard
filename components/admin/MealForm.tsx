@@ -130,6 +130,11 @@ export default function MealForm({
   const isRecette = variant === "recette";
   const noun = isRecette ? "la recette" : "le plat";
 
+  // La version de la fiche telle que le formulaire l'a lue, figée comme ses champs :
+  // une relecture de la bibliothèque (retour sur l'onglet, invalidation) apporte la
+  // version d'un autre onglet, et l'envoyer avec nos champs anciens écraserait la
+  // fiche plus récente sans 409.
+  const [readLockVersion] = useState(meal?.lockVersion);
   const [name, setName] = useState(meal?.name ?? "");
   const [description, setDescription] = useState(meal?.description ?? "");
   const [country, setCountry] = useState(meal?.country ?? "");
@@ -303,7 +308,7 @@ export default function MealForm({
     }
     const input = buildInput();
     // La version lue : si la fiche a changé depuis (autre onglet), l'API répond 409.
-    if (meal?.lockVersion !== undefined) input.lockVersion = meal.lockVersion;
+    if (readLockVersion !== undefined) input.lockVersion = readLockVersion;
     // Les lignes vides ne partent pas : l'index de l'API n'est plus celui de l'écran.
     const sent = lines.flatMap((l, i) => (lineBlank(l) ? [] : [i]));
     const refused = (err: unknown, title: string) => {
@@ -1634,8 +1639,10 @@ function IngredientName({
   const [open, setOpen] = useState(false);
   const search = useIngredientSearch(open && !row.catalogIngredientId ? row.name.trim().slice(0, 60) : "");
   const matches = (search.data ?? []).filter(
-    // Explicite : une entrée sans ces champs n'est pas sélectionnable.
-    (m) => m.private === false && m.chefProfileId === null && m.status === "active",
+    // Explicite : une entrée sans ces champs n'est pas sélectionnable. La recherche
+    // ne sert pas `chefProfileId` (champ interne) : `private` dit si l'entrée est
+    // celle d'un batch cooker.
+    (m) => m.private === false && m.status === "active",
   );
   const searched = open && !row.catalogIngredientId && row.name.trim().length >= 2;
 

@@ -78,7 +78,10 @@ export interface CatalogIngredient {
   allergensNone?: boolean;
   isBasic?: boolean;
   status?: CatalogIngredientStatus;
-  /** `null` : entrée commune ; sinon l'ingrédient privé de ce batch cooker. */
+  /**
+   * `null` : entrée commune ; sinon l'ingrédient privé de ce batch cooker.
+   * Absent de `GET /ingredients?search=`, qui dit `private` à la place.
+   */
   chefProfileId?: string | null;
   /** `GET /ingredients?search=` : vrai pour l'entrée privée d'un batch cooker. */
   private?: boolean;
