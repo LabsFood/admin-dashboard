@@ -32,6 +32,7 @@ import {
   useSetRecipeProfiles,
   useSetReheatModes,
 } from "@/lib/api/admin";
+import { useFridgeAlert, useSetFridgeAlert } from "@/lib/api/bookings";
 import { CHEF_TIERS, type ChefTier } from "@/lib/api/chefs";
 import { adminErrorMessage } from "@/lib/api/errors";
 
@@ -202,7 +203,88 @@ export default function ParametresPage() {
       <div className="lg:col-span-2">
         <ProfilsRecette />
       </div>
+
+      <AlerteConservation />
     </div>
+  );
+}
+
+/**
+ * Le seuil de l'alerte « au frais » (Recettes lot 3, LF-0271) :
+ * `/admin/settings/fridge-alert`. Au-delà, la date « à manger avant » d'un plat
+ * affiche une alerte, sans rien bloquer. 4 jours par défaut ; la valeur attend
+ * la confirmation du référent hygiène (BLK-31).
+ */
+function AlerteConservation() {
+  const seuil = useFridgeAlert();
+  const save = useSetFridgeAlert();
+  const [brouillon, setBrouillon] = useState<string | null>(null);
+  const valeur = brouillon ?? (seuil.data ? String(seuil.data.days) : "");
+  const jours = Number(valeur);
+  const valide = Number.isInteger(jours) && jours >= 1 && jours <= 14;
+
+  return (
+    <Section title="Alerte de conservation" eyebrow="Recettes" Icon={Flame}>
+      <p className="flex items-center gap-1 text-xs text-ink-mid">
+        Nombre de jours au réfrigérateur au-delà duquel une alerte s&apos;affiche.
+        <InfoPopover label="À quoi sert ce seuil ?">
+          Chaque plat d&apos;une prestation a une date « à manger avant ». Si elle
+          dépasse ce nombre de jours après la prestation, le batch cooker et le client
+          voient une alerte. Rien n&apos;est bloqué. La valeur de 4 jours vient du
+          cahier des charges et reste à confirmer avec un référent hygiène.
+        </InfoPopover>
+      </p>
+
+      {seuil.isPending ? (
+        <div className="h-10 animate-pulse rounded-xl bg-cream-soft" />
+      ) : seuil.isError ? (
+        <p role="alert" className="flex items-start gap-1.5 text-[12px] text-danger">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          {adminErrorMessage(seuil.error)}
+        </p>
+      ) : (
+        <label className="block max-w-[12rem]">
+          <span className="field-label">Jours au frais (1 à 14)</span>
+          <input
+            id="fridge-alert-days"
+            type="number"
+            min={1}
+            max={14}
+            step={1}
+            value={valeur}
+            onChange={(e) => setBrouillon(e.target.value)}
+            aria-invalid={!valide}
+            className="input-base"
+          />
+        </label>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => save.mutate(jours, { onSuccess: () => setBrouillon(null) })}
+          disabled={brouillon === null || !valide || save.isPending}
+          className="btn btn-primary"
+        >
+          {save.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          ) : (
+            <Save className="h-4 w-4" aria-hidden />
+          )}
+          Enregistrer le seuil
+        </button>
+        {save.isSuccess && brouillon === null && (
+          <span className="flex items-center gap-1.5 text-[12px] text-success">
+            <Check className="h-3.5 w-3.5" aria-hidden /> Seuil enregistré.
+          </span>
+        )}
+        {save.isError && (
+          <span role="alert" className="text-[12px] text-danger">
+            {adminErrorMessage(save.error)}
+          </span>
+        )}
+      </div>
+    </Section>
   );
 }
 
