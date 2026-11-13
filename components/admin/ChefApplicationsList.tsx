@@ -15,9 +15,12 @@ import {
   ChevronRight,
   RotateCw,
   Search,
+  UserPlus,
   Users,
 } from "lucide-react";
 import Badge, { type BadgeTone } from "@/components/ui/Badge";
+import ChefApplicationForm from "@/components/admin/ChefApplicationForm";
+import Drawer from "@/components/ui/Drawer";
 import EmptyState from "@/components/ui/EmptyState";
 import { DataTable } from "@/components/ui/DataTable";
 import { cn, formatDate, initials } from "@/lib/utils";
@@ -164,6 +167,7 @@ const COLUMNS = [
 export default function ChefApplicationsList() {
   const [status, setStatus] = useState<"all" | ChefApplicationStatus>("all");
   const [pendingOnly, setPendingOnly] = useState(false);
+  const [opening, setOpening] = useState(false);
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -207,15 +211,31 @@ export default function ChefApplicationsList() {
           n&apos;est approuvable qu&apos;une fois la pièce d&apos;identité et le
           justificatif d&apos;immatriculation validés.
         </p>
-        <button
-          onClick={() => refetch()}
-          disabled={isFetching}
-          className="btn btn-outline btn-sm"
-        >
-          <RotateCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
-          Actualiser
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="btn btn-outline btn-sm"
+          >
+            <RotateCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
+            Actualiser
+          </button>
+          <button onClick={() => setOpening(true)} className="btn btn-primary btn-sm">
+            <UserPlus className="h-3.5 w-3.5" />
+            Ouvrir une candidature
+          </button>
+        </div>
       </div>
+
+      <Drawer
+        open={opening}
+        onClose={() => setOpening(false)}
+        eyebrow="Batch cookers"
+        title="Ouvrir une candidature"
+      >
+        {/* Démonté à la fermeture : la fiche repart vide à la prochaine ouverture. */}
+        {opening && <ChefApplicationForm onCancel={() => setOpening(false)} />}
+      </Drawer>
 
       {/* ── Filtres ────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-3 border-b border-[rgba(0,35,75,0.1)] pb-4">

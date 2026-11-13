@@ -306,7 +306,7 @@ export default function BatchCookerPage({
 
       {onglet === "profil" &&
         (app.data ? (
-          <Profil app={app.data} />
+          <Profil app={app.data} chef={c} />
         ) : c.application && app.isPending ? (
           <div className="h-64 animate-pulse rounded-lg bg-paper" />
         ) : (
@@ -515,7 +515,13 @@ function MiseEnLigne({
 
 /* ── Profil ────────────────────────────────────────────────────────────────── */
 
-function Profil({ app }: { app: NonNullable<ReturnType<typeof useChefApplication>["data"]> }) {
+function Profil({
+  app,
+  chef,
+}: {
+  app: NonNullable<ReturnType<typeof useChefApplication>["data"]>;
+  chef: AdminChefDetail;
+}) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Bloc titre="Identité">
@@ -572,20 +578,22 @@ function Profil({ app }: { app: NonNullable<ReturnType<typeof useChefApplication
       </Bloc>
 
       <Bloc titre="Zones d'intervention">
-        {(app.interventionZones?.length ?? 0) === 0 ? (
+        {/* La fiche donne les zones en vigueur, rangées par ordre alphabétique :
+            celles de la candidature, puis celles que le batch cooker ou l'équipe a réglées. */}
+        {chef.zones.length === 0 ? (
           <p className="text-sm text-ink-soft">Aucune zone renseignée.</p>
         ) : (
           <ul className="space-y-2.5">
-            {app.interventionZones.map((z, i) => (
-              <li key={z.regionCode ?? i} className="flex items-start gap-2.5">
+            {chef.zones.map((z) => (
+              <li key={z.regionCode} className="flex items-start gap-2.5">
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-terra" />
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-navy">
-                    {z.regionLabel ?? z.regionCode}
+                    {z.regionLabel}
                   </span>
                   <span className="block text-[13px] leading-relaxed text-ink-mid">
-                    {z.scope === "cities" && z.cities?.length
-                      ? z.cities.map((c) => c.name).join(", ")
+                    {z.scope === "cities" && z.cities.length > 0
+                      ? z.cities.map((v) => v.name).join(", ")
                       : "Toute la région"}
                   </span>
                 </span>
@@ -593,6 +601,7 @@ function Profil({ app }: { app: NonNullable<ReturnType<typeof useChefApplication
             ))}
           </ul>
         )}
+        <ZonesEditor chefProfileId={chef.id} zones={chef.zones} verifie={chef.isVerified} />
       </Bloc>
     </div>
   );
