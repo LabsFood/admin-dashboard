@@ -390,6 +390,40 @@ export default function ReservationDetailPage({
                     </InfoPopover>
                   </p>
                 )}
+                {/* Recettes lot 4 (LF-0296) : l'étape courses et les rappels partis. */}
+                {!b.shoppingByClient && (
+                  <p className="mt-1 flex flex-wrap items-center gap-1 text-[12px] text-ink-mid">
+                    <span className="font-semibold text-navy">
+                      {b.groceriesValidatedAt
+                        ? `Courses validées ${quand(b.groceriesValidatedAt)}`
+                        : "Courses pas encore validées"}
+                    </span>
+                    {b.groceriesAmountCents != null &&
+                      ` · ticket de ${euros(b.groceriesAmountCents / 100)}`}
+                    <InfoPopover label="Que veut dire « courses validées » ?">
+                      Le batch cooker confirme que les courses sont faites, avec le total
+                      du ticket s’il le souhaite. Ce montant est une information : aucun
+                      paiement des courses ne passe par la plateforme pour l’instant.
+                    </InfoPopover>
+                  </p>
+                )}
+                {!b.shoppingByClient && b.shoppingReminders && (
+                  <p className="mt-1 text-[12px] text-ink-soft">
+                    Rappels envoyés :{" "}
+                    {[
+                      b.shoppingReminders.chefSendAt &&
+                        `batch cooker, liste à envoyer (${quand(b.shoppingReminders.chefSendAt)})`,
+                      b.shoppingReminders.clientAnswerAt &&
+                        `client, liste à renvoyer (${quand(b.shoppingReminders.clientAnswerAt)})`,
+                      b.shoppingReminders.clientFrozenAt &&
+                        `client, liste figée (${quand(b.shoppingReminders.clientFrozenAt)})`,
+                      b.shoppingReminders.chefGroceriesAt &&
+                        `batch cooker, courses à faire (${quand(b.shoppingReminders.chefGroceriesAt)})`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "aucun pour l’instant"}
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => setARecalculer(true)}

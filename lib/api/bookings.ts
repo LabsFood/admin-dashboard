@@ -91,6 +91,16 @@ export interface Booking {
    * donc sur sa propre ligne, jamais fondu dans le prix.
    */
   shoppingFeeCents?: number | null;
+  /** Recettes lot 4 : « Courses faites », et le total du ticket si le batch cooker l'a saisi. */
+  groceriesValidatedAt?: string | null;
+  groceriesAmountCents?: number | null;
+  /** Fiche seulement : quand chaque rappel de la liste est parti (dans l'application). */
+  shoppingReminders?: {
+    chefSendAt: string | null;
+    clientAnswerAt: string | null;
+    clientFrozenAt: string | null;
+    chefGroceriesAt: string | null;
+  };
   /** Ce que paie le client : prestation + courses. */
   amountTtc: number;
   amountAfterTax: number;
