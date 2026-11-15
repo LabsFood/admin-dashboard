@@ -504,3 +504,36 @@ export function useSetFridgeAlert() {
     },
   });
 }
+
+/* ── Courses (Recettes lot 6, préparation) ──────────────────────────────────── */
+
+export interface GroceriesSetting {
+  /** Le plus qu'un client peut fixer comme Budget Courses, en centimes. */
+  budgetMaxCents: number;
+  /** Le forfait courses conseillé aux batch cookers, en centimes : un conseil, jamais un refus. */
+  recommendedShoppingFeeMinCents: number;
+  updatedAt: string | null;
+}
+
+const GROCERIES = ["admin", "settings", "groceries"] as const;
+
+/** `GET /admin/settings/groceries` — 100 € et 15 € par défaut. */
+export function useGroceriesSetting() {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: GROCERIES,
+    queryFn: () => apiFetch<GroceriesSetting>("/admin/settings/groceries"),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** `PUT /admin/settings/groceries` — les deux valeurs à chaque fois, tracé. */
+export function useSetGroceriesSetting() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Omit<GroceriesSetting, "updatedAt">) =>
+      apiFetch<GroceriesSetting>("/admin/settings/groceries", { method: "PUT", body }),
+    onSuccess: (s) => qc.setQueryData(GROCERIES, s),
+  });
+}

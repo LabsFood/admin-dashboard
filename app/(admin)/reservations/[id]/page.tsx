@@ -565,7 +565,7 @@ export default function ReservationDetailPage({
             <dl className="space-y-1.5 text-[13px]">
               <Row label="Prestation" value={money(b.priceCents) ?? "—"} />
               <Row
-                label="Courses"
+                label="Forfait courses"
                 value={
                   b.shoppingByClient
                     ? "à la charge du client"
