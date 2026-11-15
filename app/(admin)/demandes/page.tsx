@@ -54,6 +54,7 @@ import {
   type QuoteStatus,
 } from "@/lib/api/quotes";
 import { adminErrorMessage } from "@/lib/api/errors";
+import { useAllergens } from "@/lib/api/referentials";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Les demandes sur-mesure — `GET /admin/quotes`.
@@ -764,7 +765,68 @@ function OfferAmounts({ offer }: { offer: Quote["offers"][number] }) {
           {offer.conditions}
         </p>
       )}
+      <OfferDishList offer={offer} />
     </>
+  );
+}
+
+/**
+ * Les plats de l'offre (sur-mesure, 15/11) : plats et menus du batch cooker, et
+ * plats express écrits pour la demande. L'avertissement allergie ne bloque rien :
+ * le client et le batch cooker sont invités à en parler dans leur fil.
+ */
+function OfferDishList({ offer }: { offer: Quote["offers"][number] }) {
+  const allergens = useAllergens().data ?? [];
+  const dishes = offer.dishes ?? [];
+  if (dishes.length === 0) return null;
+  const label = (code: string) => allergens.find((a) => a.code === code)?.label ?? code;
+  const conflictOf = (id: string) =>
+    offer.allergy?.conflicts.find((c) => c.mealId === id)?.allergens ?? [];
+  return (
+    <div className="mt-2.5">
+      <p className="text-[11px] font-semibold text-navy">
+        {dishes.length} plat{dishes.length > 1 ? "s" : ""} dans l&apos;offre
+      </p>
+      <ul className="mt-1 space-y-1">
+        {dishes.map((dish) => {
+          const conflict = conflictOf(dish.id);
+          return (
+            <li key={dish.id} className="text-[11px] leading-relaxed text-ink-mid">
+              <span className="font-semibold text-navy">{dish.name}</span>
+              {dish.menu && <span className="text-ink-soft"> · menu « {dish.menu.title} »</span>}
+              {dish.express && (
+                <>
+                  {" "}
+                  <Badge tone="warning">Plat express</Badge>
+                </>
+              )}
+              {dish.allergens.length > 0 && (
+                <span className="text-ink-soft"> · {dish.allergens.map(label).join(", ")}</span>
+              )}
+              {!dish.allergensVerified && <span className="text-ink-soft"> · non vérifiés</span>}
+              {conflict.length > 0 && (
+                <span className="font-semibold text-danger">
+                  {" "}
+                  · allergie du client : {conflict.map(label).join(", ")}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {offer.allergy?.check === "unverified" && (
+        <p className="mt-1.5 rounded-lg bg-warning/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-ink-mid">
+          <strong className="text-navy">À vérifier ensemble.</strong>{" "}
+          {offer.allergy.reasons.includes("ALLERGEN_CONFLICT")
+            ? "Un plat touche une allergie déclarée. "
+            : ""}
+          {offer.allergy.reasons.includes("ALLERGENS_UNVERIFIED")
+            ? "Des allergènes ne sont pas vérifiés (plat express ou recette à confirmer). "
+            : ""}
+          Rien n&apos;est bloqué : le client et le batch cooker sont invités à en parler.
+        </p>
+      )}
+    </div>
   );
 }
 
