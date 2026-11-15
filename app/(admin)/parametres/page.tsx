@@ -32,7 +32,12 @@ import {
   useSetRecipeProfiles,
   useSetReheatModes,
 } from "@/lib/api/admin";
-import { useFridgeAlert, useSetFridgeAlert } from "@/lib/api/bookings";
+import {
+  useFridgeAlert,
+  useGroceriesSetting,
+  useSetFridgeAlert,
+  useSetGroceriesSetting,
+} from "@/lib/api/bookings";
 import { CHEF_TIERS, type ChefTier } from "@/lib/api/chefs";
 import { adminErrorMessage } from "@/lib/api/errors";
 
@@ -205,7 +210,121 @@ export default function ParametresPage() {
       </div>
 
       <AlerteConservation />
+
+      <MontantsCourses />
     </div>
+  );
+}
+
+/**
+ * Les deux montants des courses (Recettes lot 6, préparation) :
+ * `/admin/settings/groceries`. Le plafond du Budget Courses qu'un client peut
+ * fixer, et le forfait courses conseillé aux batch cookers. Aucun paiement des
+ * courses ne passe encore par la plateforme : ces valeurs préparent le lot 6.
+ */
+function MontantsCourses() {
+  const reglage = useGroceriesSetting();
+  const save = useSetGroceriesSetting();
+  const [brouillon, setBrouillon] = useState<{ budget: string; forfait: string } | null>(null);
+  const valeurs =
+    brouillon ??
+    (reglage.data
+      ? {
+          budget: String(reglage.data.budgetMaxCents / 100),
+          forfait: String(reglage.data.recommendedShoppingFeeMinCents / 100),
+        }
+      : { budget: "", forfait: "" });
+  const budget = Math.round(Number(valeurs.budget.replace(",", ".")) * 100);
+  const forfait = Math.round(Number(valeurs.forfait.replace(",", ".")) * 100);
+  const valide =
+    Number.isInteger(budget) &&
+    budget >= 1_000 &&
+    budget <= 100_000 &&
+    Number.isInteger(forfait) &&
+    forfait >= 0 &&
+    forfait <= 20_000;
+
+  return (
+    <Section title="Courses" eyebrow="Recettes" Icon={ShoppingBasket}>
+      <p className="flex items-center gap-1 text-xs text-ink-mid">
+        Le plafond du Budget Courses et le forfait courses conseillé.
+        <InfoPopover label="À quoi servent ces montants ?">
+          Le Budget Courses est le maximum que le batch cooker pourra dépenser pour les
+          courses d&apos;un client ; le client ne pourra pas le fixer au-dessus de ce
+          plafond. Le forfait conseillé s&apos;affiche au batch cooker quand il fixe
+          son forfait courses : un forfait plus bas reste accepté. Le paiement des
+          courses par la plateforme n&apos;est pas encore en service.
+        </InfoPopover>
+      </p>
+
+      {reglage.isPending ? (
+        <div className="h-10 animate-pulse rounded-xl bg-cream-soft" />
+      ) : reglage.isError ? (
+        <p role="alert" className="flex items-start gap-1.5 text-[12px] text-danger">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          {adminErrorMessage(reglage.error)}
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="field-label">Budget Courses maximum, en euros (10 à 1 000)</span>
+            <input
+              id="groceries-budget-max"
+              inputMode="decimal"
+              value={valeurs.budget}
+              onChange={(e) => setBrouillon({ ...valeurs, budget: e.target.value })}
+              className="input-base"
+            />
+          </label>
+          <label className="block">
+            <span className="field-label">Forfait courses conseillé, en euros (0 à 200)</span>
+            <input
+              id="groceries-fee-min"
+              inputMode="decimal"
+              value={valeurs.forfait}
+              onChange={(e) => setBrouillon({ ...valeurs, forfait: e.target.value })}
+              className="input-base"
+            />
+          </label>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() =>
+            save.mutate(
+              { budgetMaxCents: budget, recommendedShoppingFeeMinCents: forfait },
+              { onSuccess: () => setBrouillon(null) },
+            )
+          }
+          disabled={brouillon === null || !valide || save.isPending}
+          className="btn btn-primary"
+        >
+          {save.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          ) : (
+            <Save className="h-4 w-4" aria-hidden />
+          )}
+          Enregistrer les montants
+        </button>
+        {brouillon !== null && !valide && (
+          <span role="alert" className="text-[12px] text-danger">
+            Budget entre 10 et 1 000 €, forfait entre 0 et 200 €.
+          </span>
+        )}
+        {save.isSuccess && brouillon === null && (
+          <span className="flex items-center gap-1.5 text-[12px] text-success">
+            <Check className="h-3.5 w-3.5" aria-hidden /> Montants enregistrés.
+          </span>
+        )}
+        {save.isError && (
+          <span role="alert" className="text-[12px] text-danger">
+            {adminErrorMessage(save.error)}
+          </span>
+        )}
+      </div>
+    </Section>
   );
 }
 
