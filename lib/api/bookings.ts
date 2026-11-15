@@ -44,7 +44,11 @@ export interface BookingMeal {
   mealId: string;
   name?: string | null;
   portions: number;
+  /** Recettes lot 3 : la version figée quand le menu a été écrit. */
   recipeVersion?: number | null;
+  /** Lot 3 : les allergènes du plat à ce moment-là. `null` : pas encore figés. */
+  allergensSnapshot?: string[] | null;
+  pinnedAt?: string | null;
 }
 
 export interface ShoppingItem {
@@ -110,6 +114,9 @@ export interface Booking {
   allergyCheckReasons?: string[];
   /** Fiche seulement : les plats qui contiennent un allergène du client, à remplacer. */
   allergyConflicts?: { mealId: string; allergens: string[] }[];
+  /** Lot 3 : à 72 h du début, les plats ne changent plus, sauf par la console (tracé). */
+  menuFrozen?: boolean;
+  frozenSince?: string;
   shoppingList?: ShoppingList | null;
   photos?: { id: string; url: string; caption?: string | null }[] | null;
   reschedule?: {
@@ -414,6 +421,75 @@ export function useSetBookingSupplements() {
       }),
     onSuccess: (s) => {
       qc.setQueryData(SUPPLEMENTS, s);
+      qc.invalidateQueries({ queryKey: BOOKINGS });
+    },
+  });
+}
+
+/* ── Conservation (Recettes lot 3) ──────────────────────────────────────────── */
+
+export interface EatBefore {
+  /** `YYYY-MM-DD` : celle du batch cooker si posée, sinon celle proposée. */
+  date: string | null;
+  proposed: string | null;
+  setByChef: boolean;
+  setAt: string | null;
+  fridgeDays: number | null;
+  fridgeAlert: boolean;
+}
+
+export interface ConservationSheet {
+  bookingId: string;
+  startsAt: string;
+  status: BookingStatus;
+  fridgeAlertDays: number;
+  dishes: { mealId: string; name: string; eatBefore: EatBefore }[];
+  /** Chaque date posée : qui (nom et rôle, pour la console), quand, quelle valeur. */
+  history?: {
+    mealId: string;
+    value: string | null;
+    changedAt: string;
+    changedBy: { id?: string | null; name?: string | null; role: "chef" | "admin" | null };
+  }[];
+}
+
+/** `GET /chef-missions/{id}/conservation` — la console la lit à tout moment, avec l'historique. */
+export function useBookingConservation(bookingId: string | undefined) {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: [...BOOKINGS, bookingId, "conservation"],
+    queryFn: () => apiFetch<ConservationSheet>(`/chef-missions/${bookingId}/conservation`),
+    enabled: !!bookingId,
+    retry: false,
+  });
+}
+
+export interface FridgeAlert {
+  days: number;
+  updatedAt: string | null;
+}
+
+const FRIDGE_ALERT = ["admin", "settings", "fridge-alert"] as const;
+
+/** `GET /admin/settings/fridge-alert` — 4 jours par défaut (BLK-31 encore ouvert). */
+export function useFridgeAlert() {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: FRIDGE_ALERT,
+    queryFn: () => apiFetch<FridgeAlert>("/admin/settings/fridge-alert"),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** `PUT /admin/settings/fridge-alert` — de 1 à 14 jours, tracé. */
+export function useSetFridgeAlert() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (days: number) =>
+      apiFetch<FridgeAlert>("/admin/settings/fridge-alert", { method: "PUT", body: { days } }),
+    onSuccess: (s) => {
+      qc.setQueryData(FRIDGE_ALERT, s);
       qc.invalidateQueries({ queryKey: BOOKINGS });
     },
   });

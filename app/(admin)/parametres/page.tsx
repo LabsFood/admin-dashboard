@@ -8,7 +8,10 @@ import {
   Building2,
   Check,
   CreditCard,
+  ArrowDown,
+  ArrowUp,
   Flame,
+  ShoppingBasket,
   Tags,
   Layers2,
   Loader2,
@@ -20,13 +23,16 @@ import InfoPopover from "@/components/ui/InfoPopover";
 import TierRules from "@/components/admin/TierRules";
 import { useAuth } from "@/lib/auth";
 import {
+  useAisleSetting,
   useChefTierNames,
   useRecipeProfileSetting,
   useReheatModeSetting,
+  useSetAisles,
   useSetChefTierNames,
   useSetRecipeProfiles,
   useSetReheatModes,
 } from "@/lib/api/admin";
+import { useFridgeAlert, useSetFridgeAlert } from "@/lib/api/bookings";
 import { CHEF_TIERS, type ChefTier } from "@/lib/api/chefs";
 import { adminErrorMessage } from "@/lib/api/errors";
 
@@ -191,9 +197,94 @@ export default function ParametresPage() {
       </div>
 
       <div className="lg:col-span-2">
+        <RayonsCourses />
+      </div>
+
+      <div className="lg:col-span-2">
         <ProfilsRecette />
       </div>
+
+      <AlerteConservation />
     </div>
+  );
+}
+
+/**
+ * Le seuil de l'alerte « au frais » (Recettes lot 3, LF-0271) :
+ * `/admin/settings/fridge-alert`. Au-delà, la date « à manger avant » d'un plat
+ * affiche une alerte, sans rien bloquer. 4 jours par défaut ; la valeur attend
+ * la confirmation du référent hygiène (BLK-31).
+ */
+function AlerteConservation() {
+  const seuil = useFridgeAlert();
+  const save = useSetFridgeAlert();
+  const [brouillon, setBrouillon] = useState<string | null>(null);
+  const valeur = brouillon ?? (seuil.data ? String(seuil.data.days) : "");
+  const jours = Number(valeur);
+  const valide = Number.isInteger(jours) && jours >= 1 && jours <= 14;
+
+  return (
+    <Section title="Alerte de conservation" eyebrow="Recettes" Icon={Flame}>
+      <p className="flex items-center gap-1 text-xs text-ink-mid">
+        Nombre de jours au réfrigérateur au-delà duquel une alerte s&apos;affiche.
+        <InfoPopover label="À quoi sert ce seuil ?">
+          Chaque plat d&apos;une prestation a une date « à manger avant ». Si elle
+          dépasse ce nombre de jours après la prestation, le batch cooker et le client
+          voient une alerte. Rien n&apos;est bloqué. La valeur de 4 jours vient du
+          cahier des charges et reste à confirmer avec un référent hygiène.
+        </InfoPopover>
+      </p>
+
+      {seuil.isPending ? (
+        <div className="h-10 animate-pulse rounded-xl bg-cream-soft" />
+      ) : seuil.isError ? (
+        <p role="alert" className="flex items-start gap-1.5 text-[12px] text-danger">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          {adminErrorMessage(seuil.error)}
+        </p>
+      ) : (
+        <label className="block max-w-[12rem]">
+          <span className="field-label">Jours au frais (1 à 14)</span>
+          <input
+            id="fridge-alert-days"
+            type="number"
+            min={1}
+            max={14}
+            step={1}
+            value={valeur}
+            onChange={(e) => setBrouillon(e.target.value)}
+            aria-invalid={!valide}
+            className="input-base"
+          />
+        </label>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => save.mutate(jours, { onSuccess: () => setBrouillon(null) })}
+          disabled={brouillon === null || !valide || save.isPending}
+          className="btn btn-primary"
+        >
+          {save.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          ) : (
+            <Save className="h-4 w-4" aria-hidden />
+          )}
+          Enregistrer le seuil
+        </button>
+        {save.isSuccess && brouillon === null && (
+          <span className="flex items-center gap-1.5 text-[12px] text-success">
+            <Check className="h-3.5 w-3.5" aria-hidden /> Seuil enregistré.
+          </span>
+        )}
+        {save.isError && (
+          <span role="alert" className="text-[12px] text-danger">
+            {adminErrorMessage(save.error)}
+          </span>
+        )}
+      </div>
+    </Section>
   );
 }
 
@@ -315,6 +406,33 @@ function ModesRechauffage() {
   );
 }
 
+/**
+ * Les rayons des listes de courses (§5.4) : `/admin/settings/aisles`.
+ * L'ordre de la liste est l'ordre de la liste de courses, celui du parcours en
+ * magasin : on le règle avec les flèches.
+ */
+function RayonsCourses() {
+  const liste = useAisleSetting();
+  const save = useSetAisles();
+  return (
+    <ListeReglable
+      title="Rayons des courses"
+      Icon={ShoppingBasket}
+      intro="L'ordre de cette liste est l'ordre des listes de courses : celui du parcours en magasin. 30 rayons au plus."
+      popoverLabel="Que change cette liste ?"
+      popover="Renommer un rayon change son libellé partout. Changer l'ordre change l'ordre des listes de courses. En retirer un ne touche pas les ingrédients qui le portent : ils le gardent, et leur rayon s'affiche tel quel dans les listes jusqu'à ce que vous le remplaciez dans la liste commune."
+      placeholder="Nouveau rayon (ex. Produits bio)"
+      itemLabel="rayon"
+      max={30}
+      reorderable
+      items={liste.data?.aisles}
+      isPending={liste.isPending}
+      error={liste.isError ? liste.error : null}
+      save={save}
+    />
+  );
+}
+
 /** Les profils d'une recette (§4.8) : `/admin/settings/recipe-profiles`. */
 function ProfilsRecette() {
   const liste = useRecipeProfileSetting();
@@ -343,6 +461,9 @@ function ListeReglable({
   popoverLabel,
   popover,
   placeholder,
+  itemLabel = "mode",
+  max,
+  reorderable = false,
   items,
   isPending,
   error,
@@ -354,6 +475,12 @@ function ListeReglable({
   popoverLabel: string;
   popover: string;
   placeholder: string;
+  /** Le nom d'un élément, pour les libellés d'accessibilité. */
+  itemLabel?: string;
+  /** Nombre maximal d'éléments que l'API accepte. */
+  max?: number;
+  /** Flèches pour changer l'ordre : l'ordre de la liste compte. */
+  reorderable?: boolean;
   items: { code: string; label: string }[] | undefined;
   isPending: boolean;
   error: unknown;
@@ -374,13 +501,26 @@ function ListeReglable({
   const incomplet = !modes || modes.length === 0 || modes.some((m) => !m.label.trim());
   const liste = { isPending, isError: error != null, error };
 
-  function ajouter() {
+  const plein = max != null && (modes?.length ?? 0) >= max;
+
+  function deplacer(i: number, by: -1 | 1) {
     if (!modes) return;
+    const suivant = [...modes];
+    [suivant[i], suivant[i + by]] = [suivant[i + by], suivant[i]];
+    setBrouillon(suivant);
+  }
+
+  function ajouter() {
+    if (!modes || plein) return;
     const label = nouveau.trim();
     const base = codeDe(label);
     if (!label || !base) return;
     let code = base;
-    for (let n = 2; modes.some((m) => m.code === code); n++) code = `${base}-${n}`;
+    // L'API borne le code à 40 caractères : le suffixe se compte dedans.
+    for (let n = 2; modes.some((m) => m.code === code); n++) {
+      const suffixe = `-${n}`;
+      code = `${base.slice(0, 40 - suffixe.length).replace(/-$/, "")}${suffixe}`;
+    }
     setBrouillon([...modes, { code, label }]);
     setNouveau("");
   }
@@ -409,13 +549,35 @@ function ListeReglable({
                 onChange={(e) =>
                   setBrouillon(modes.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))
                 }
-                aria-label={`Libellé du mode ${m.code}`}
+                aria-label={`Libellé du ${itemLabel} ${m.code}`}
                 aria-invalid={!m.label.trim()}
                 className="input-base flex-1"
               />
               <span className="w-32 shrink-0 truncate font-mono text-[11px] text-ink-soft">
                 {m.code}
               </span>
+              {reorderable && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => deplacer(i, -1)}
+                    disabled={i === 0}
+                    aria-label={`Monter le ${itemLabel} ${m.code}`}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-ink-soft hover:bg-cream-soft disabled:opacity-30"
+                  >
+                    <ArrowUp className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deplacer(i, 1)}
+                    disabled={i === modes.length - 1}
+                    aria-label={`Descendre le ${itemLabel} ${m.code}`}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-ink-soft hover:bg-cream-soft disabled:opacity-30"
+                  >
+                    <ArrowDown className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 onClick={() => setBrouillon(modes.filter((_, j) => j !== i))}
@@ -438,13 +600,24 @@ function ListeReglable({
                 }
               }}
               placeholder={placeholder}
+              disabled={plein}
               className="input-base flex-1"
             />
-            <button type="button" onClick={ajouter} className="btn btn-sm btn-outline">
+            <button
+              type="button"
+              onClick={ajouter}
+              disabled={plein}
+              className="btn btn-sm btn-outline"
+            >
               Ajouter
             </button>
           </li>
         </ul>
+      )}
+      {plein && (
+        <p className="text-[12px] text-ink-soft">
+          La liste est pleine ({max} {itemLabel}s au plus).
+        </p>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
