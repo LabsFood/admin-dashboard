@@ -217,43 +217,72 @@ export default function ParametresPage() {
 }
 
 /**
- * Les deux montants des courses (Recettes lot 6, préparation) :
- * `/admin/settings/groceries`. Le plafond du Budget Courses qu'un client peut
- * fixer, et le forfait courses conseillé aux batch cookers. Aucun paiement des
- * courses ne passe encore par la plateforme : ces valeurs préparent le lot 6.
+ * Les courses (Recettes lot 6) : `/admin/settings/groceries`. Le Budget Courses
+ * (le même pour tous, montant de l'empreinte), le forfait conseillé, le délai
+ * minimum avant l'heure limite d'annulation, « le silence vaut confirmation »
+ * (éteint tant que le juridique ne l'a pas validé) et les frais du versement
+ * instantané, à la charge du batch cooker.
  */
 function MontantsCourses() {
   const reglage = useGroceriesSetting();
   const save = useSetGroceriesSetting();
-  const [brouillon, setBrouillon] = useState<{ budget: string; forfait: string } | null>(null);
-  const valeurs =
+  type Brouillon = {
+    budget: string;
+    forfait: string;
+    delai: string;
+    silence: boolean;
+    fraisPct: string;
+    fraisMin: string;
+  };
+  const [brouillon, setBrouillon] = useState<Brouillon | null>(null);
+  const d = reglage.data;
+  const valeurs: Brouillon =
     brouillon ??
-    (reglage.data
+    (d
       ? {
-          budget: String(reglage.data.budgetMaxCents / 100),
-          forfait: String(reglage.data.recommendedShoppingFeeMinCents / 100),
+          budget: String(d.budgetMaxCents / 100),
+          forfait: String(d.recommendedShoppingFeeMinCents / 100),
+          delai: String(d.minCancelNoticeMinutes),
+          silence: d.silenceConfirms,
+          fraisPct: String(d.instantPayoutFeeBps / 100),
+          fraisMin: String(d.instantPayoutFeeMinCents / 100),
         }
-      : { budget: "", forfait: "" });
-  const budget = Math.round(Number(valeurs.budget.replace(",", ".")) * 100);
-  const forfait = Math.round(Number(valeurs.forfait.replace(",", ".")) * 100);
+      : { budget: "", forfait: "", delai: "", silence: false, fraisPct: "", fraisMin: "" });
+  const num = (t: string) => Number(t.replace(",", "."));
+  const budget = Math.round(num(valeurs.budget) * 100);
+  const forfait = Math.round(num(valeurs.forfait) * 100);
+  const delai = Math.round(num(valeurs.delai));
+  const fraisBps = Math.round(num(valeurs.fraisPct) * 100);
+  const fraisMin = Math.round(num(valeurs.fraisMin) * 100);
   const valide =
-    Number.isInteger(budget) &&
     budget >= 1_000 &&
     budget <= 100_000 &&
-    Number.isInteger(forfait) &&
     forfait >= 0 &&
-    forfait <= 20_000;
+    forfait <= 20_000 &&
+    delai >= 30 &&
+    delai <= 1_440 &&
+    fraisBps >= 0 &&
+    fraisBps <= 1_000 &&
+    fraisMin >= 0 &&
+    fraisMin <= 1_000;
+  const champ = (cle: keyof Brouillon) => ({
+    value: valeurs[cle] as string,
+    onChange: (e: { target: { value: string } }) => setBrouillon({ ...valeurs, [cle]: e.target.value }),
+    inputMode: "decimal" as const,
+    className: "input-base",
+  });
 
   return (
     <Section title="Courses" eyebrow="Recettes" Icon={ShoppingBasket}>
       <p className="flex items-center gap-1 text-xs text-ink-mid">
-        Le plafond du Budget Courses et le forfait courses conseillé.
-        <InfoPopover label="À quoi servent ces montants ?">
-          Le Budget Courses est le maximum que le batch cooker pourra dépenser pour les
-          courses d&apos;un client ; le client ne pourra pas le fixer au-dessus de ce
-          plafond. Le forfait conseillé s&apos;affiche au batch cooker quand il fixe
-          son forfait courses : un forfait plus bas reste accepté. Le paiement des
-          courses par la plateforme n&apos;est pas encore en service.
+        Le Budget Courses, le forfait conseillé et les règles du paiement des courses.
+        <InfoPopover label="À quoi servent ces réglages ?">
+          Le Budget Courses est le même pour tous les clients : c&apos;est le montant de
+          l&apos;empreinte posée 48 h avant la séance et le maximum du mandat. Le forfait
+          conseillé s&apos;affiche au batch cooker ; un forfait plus bas reste accepté. Le
+          délai minimum sépare le message avant les courses de son heure limite
+          d&apos;annulation. Une réservation garde le Budget en vigueur quand la carte a
+          été enregistrée.
         </InfoPopover>
       </p>
 
@@ -267,24 +296,41 @@ function MontantsCourses() {
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="block">
-            <span className="field-label">Budget Courses maximum, en euros (10 à 1 000)</span>
-            <input
-              id="groceries-budget-max"
-              inputMode="decimal"
-              value={valeurs.budget}
-              onChange={(e) => setBrouillon({ ...valeurs, budget: e.target.value })}
-              className="input-base"
-            />
+            <span className="field-label">Budget Courses, en euros (10 à 1 000)</span>
+            <input id="groceries-budget-max" {...champ("budget")} />
           </label>
           <label className="block">
             <span className="field-label">Forfait courses conseillé, en euros (0 à 200)</span>
+            <input id="groceries-fee-min" {...champ("forfait")} />
+          </label>
+          <label className="block">
+            <span className="field-label">Délai minimum avant l&apos;heure limite, en minutes (30 à 1 440)</span>
+            <input id="groceries-min-notice" {...champ("delai")} />
+          </label>
+          <label className="flex items-start gap-2 self-end pb-2">
             <input
-              id="groceries-fee-min"
-              inputMode="decimal"
-              value={valeurs.forfait}
-              onChange={(e) => setBrouillon({ ...valeurs, forfait: e.target.value })}
-              className="input-base"
+              type="checkbox"
+              checked={valeurs.silence}
+              onChange={(e) => setBrouillon({ ...valeurs, silence: e.target.checked })}
+              className="mt-0.5 h-4 w-4"
             />
+            <span className="text-[13px] text-ink">
+              Le silence vaut confirmation
+              <InfoPopover label="Que change le silence ?">
+                Éteint : le client doit cliquer « Confirmer les courses ». Allumé : sans
+                annulation avant l&apos;heure limite, les courses sont confirmées, à condition
+                que Brevo ait confirmé la remise de l&apos;e-mail. À n&apos;allumer qu&apos;après
+                validation de la clause (article 8) par le juridique.
+              </InfoPopover>
+            </span>
+          </label>
+          <label className="block">
+            <span className="field-label">Versement instantané : frais en % (0 à 10)</span>
+            <input id="groceries-instant-pct" {...champ("fraisPct")} />
+          </label>
+          <label className="block">
+            <span className="field-label">Versement instantané : frais minimum, en euros (0 à 10)</span>
+            <input id="groceries-instant-min" {...champ("fraisMin")} />
           </label>
         </div>
       )}
@@ -294,7 +340,14 @@ function MontantsCourses() {
           type="button"
           onClick={() =>
             save.mutate(
-              { budgetMaxCents: budget, recommendedShoppingFeeMinCents: forfait },
+              {
+                budgetMaxCents: budget,
+                recommendedShoppingFeeMinCents: forfait,
+                minCancelNoticeMinutes: delai,
+                silenceConfirms: valeurs.silence,
+                instantPayoutFeeBps: fraisBps,
+                instantPayoutFeeMinCents: fraisMin,
+              },
               { onSuccess: () => setBrouillon(null) },
             )
           }
@@ -306,16 +359,16 @@ function MontantsCourses() {
           ) : (
             <Save className="h-4 w-4" aria-hidden />
           )}
-          Enregistrer les montants
+          Enregistrer les réglages
         </button>
         {brouillon !== null && !valide && (
           <span role="alert" className="text-[12px] text-danger">
-            Budget entre 10 et 1 000 €, forfait entre 0 et 200 €.
+            Budget 10 à 1 000 €, forfait 0 à 200 €, délai 30 à 1 440 min, frais 0 à 10 % et 0 à 10 €.
           </span>
         )}
         {save.isSuccess && brouillon === null && (
           <span className="flex items-center gap-1.5 text-[12px] text-success">
-            <Check className="h-3.5 w-3.5" aria-hidden /> Montants enregistrés.
+            <Check className="h-3.5 w-3.5" aria-hidden /> Réglages enregistrés.
           </span>
         )}
         {save.isError && (
