@@ -288,6 +288,8 @@ export interface MissionLine {
   /** Réponse du client : il l'a déjà. Rendue seulement si elle porte sur la dernière liste envoyée. */
   alreadyHave?: boolean;
   comment?: string | null;
+  /** Facultative dans toutes les recettes qui la demandent (décision du 16/11). */
+  optional?: true;
 }
 
 /** L'échange autour de la liste (Recettes §10.7), calculé par l'API. */
