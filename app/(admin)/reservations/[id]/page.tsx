@@ -468,6 +468,11 @@ export default function ReservationDetailPage({
                             <span className={cn(l.alreadyHave && "text-ink-soft line-through")}>
                               {l.name}
                             </span>
+                            {l.optional && (
+                              <span className="ml-2 text-xs font-semibold uppercase text-ink-soft">
+                                facultatif
+                              </span>
+                            )}
                             {l.edited && (
                               <span className="ml-2 text-xs font-semibold uppercase text-terra-deep">
                                 corrigée
