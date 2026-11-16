@@ -18,8 +18,10 @@ import { ApiError, useApiFetch } from "./client";
      et un prélèvement échoué ne l'annule pas : la créance survit, la relance
      réutilise le même numéro, et la série ne fait pas de trou.
    - **Avance immédiate** : rattachements et demandes de paiement URSSAF. Tant
-     que l'accès API n'existe pas, la console répond à la place de l'URSSAF —
-     et l'API refuse ces deux routes hors mode simulé.
+     que l'accès API n'existe pas, deux modes : `simulated` (la console répond
+     à la place de l'URSSAF, jamais en production) et `manual` (l'admin saisit
+     la demande sur l'espace Unipros et recopie ici la référence et la
+     réponse). Hors de ces deux modes, l'API refuse les réponses.
    - **Factures clients** : la facture A, au nom du batch cooker, une par
      paiement par carte. Émise au paiement ; celles des paiements antérieurs
      à son ouverture se rattrapent depuis la console.
@@ -295,7 +297,12 @@ export interface UrssafPayment {
   status: string;
   amountCents: number;
   debitedCents: number;
-  urssafReference: string;
+  /** `SIM-…` en mode simulé ; `null` en mode manuel (rien n'est envoyé). */
+  urssafReference: string | null;
+  /** Mode manuel : la référence que l'espace Unipros a donnée à la demande. */
+  externalReference: string | null;
+  /** Mode manuel : `null` tant que la demande n'est pas saisie sur Unipros. */
+  transmittedAt: string | null;
   failureReason?: string | null;
   createdAt: string;
   paidAt?: string | null;
@@ -303,9 +310,21 @@ export interface UrssafPayment {
     id: string;
     reference: string;
     clientName: string;
+    chefProfileId: string;
     chefName: string;
+    /** Le numéro SAP/NOVA du batch cooker, à saisir avec chaque demande. */
+    chefNovaCode: string | null;
   };
 }
+
+/** Une demande du mode manuel : rien n'est parti vers l'URSSAF, l'admin la saisit. */
+export const demandeManuelle = (p: UrssafPayment) => p.urssafReference === null;
+
+export const URSSAF_PAYMENT_STATUS: Record<string, string> = {
+  pending: "En attente de l'URSSAF",
+  succeeded: "Payé",
+  failed: "Refusé",
+};
 
 export const LINK_STATUS: Record<LinkStatus, string> = {
   pending: "En attente",
@@ -331,11 +350,12 @@ export function useUrssafPayments() {
 }
 
 /**
- * Répondre à la place de l'URSSAF.
+ * Noter la réponse de l'URSSAF : à sa place (simulé) ou telle que l'espace
+ * Unipros l'affiche (manuel).
  *
- * L'API refuse ces deux routes (`403 URSSAF_NOT_SIMULATED`) dès que la
- * passerelle n'est pas en mode simulé : c'est voulu, et l'écran doit le dire
- * plutôt que d'afficher « erreur ».
+ * L'API refuse ces routes (`403 URSSAF_NOT_MANUAL_OR_SIMULATED`) hors de ces
+ * deux modes : c'est voulu, et l'écran doit le dire plutôt que d'afficher
+ * « erreur ».
  */
 export function useDecideUrssafLink() {
   const apiFetch = useApiFetch();
@@ -366,24 +386,193 @@ export function useSetUrssafOutcome() {
       id,
       outcome,
       reason,
+      externalReference,
     }: {
       id: string;
       outcome: "paid" | "refused";
       reason?: string;
+      /** Mode manuel : exigée pour `paid` si elle n'a pas été notée à la saisie. */
+      externalReference?: string;
     }) =>
       apiFetch<{ paymentId: string; status: string }>(
         `/admin/urssaf-payments/${id}/outcome`,
-        { method: "POST", body: reason ? { outcome, reason } : { outcome } },
+        {
+          method: "POST",
+          body: {
+            outcome,
+            ...(reason ? { reason } : {}),
+            ...(externalReference ? { externalReference } : {}),
+          },
+        },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [...CLE, "paiements-urssaf"] });
+      qc.invalidateQueries({ queryKey: [...CLE, "transactions-chef"] });
+    },
+  });
+}
+
+/**
+ * Mode manuel : la demande est saisie sur l'espace Unipros. Une seule fois :
+ * une seconde saisie répond `409 URSSAF_ALREADY_TRANSMITTED`, ce qui évite
+ * qu'un autre admin la saisisse à nouveau.
+ */
+export function useMarkUrssafTransmitted() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, externalReference }: { id: string; externalReference: string }) =>
+      apiFetch<{ paymentId: string; externalReference: string; transmittedAt: string }>(
+        `/admin/urssaf-payments/${id}/transmitted`,
+        { method: "POST", body: { externalReference } },
       ),
     onSuccess: () => qc.invalidateQueries({ queryKey: [...CLE, "paiements-urssaf"] }),
   });
 }
 
-/** `true` quand l'API a refusé parce que la passerelle n'est pas simulée. */
+/** `true` quand l'API a refusé parce qu'aucun admin ne répond sur cette passerelle. */
 export const nonSimule = (e: unknown) =>
   e instanceof ApiError &&
   e.status === 403 &&
-  JSON.stringify(e.body ?? "").includes("URSSAF_NOT_SIMULATED");
+  /URSSAF_NOT_(MANUAL_OR_)?SIMULATED/.test(JSON.stringify(e.body ?? ""));
+
+/* ── Dossier URSSAF du client ──────────────────────────────────────────────── */
+
+export interface UrssafDossier {
+  civility: "M" | "F";
+  birthName: string;
+  usageName?: string | null;
+  firstNames: string;
+  birthDate: string;
+  birthCountryCode: string;
+  birthDepartmentCode?: string | null;
+  birthCommuneCode?: string | null;
+  birthCommuneName?: string | null;
+  mobilePhone: string;
+  email: string;
+  address: {
+    line1: string;
+    line2?: string | null;
+    postalCode: string;
+    city: string;
+    countryCode: string;
+  };
+  iban: string;
+  bic: string;
+  accountHolder: string;
+}
+
+export interface RevealedDossier {
+  linkId: string;
+  clientId: string;
+  chefProfileId: string;
+  chefNovaCode: string | null;
+  filledAt: string;
+  updatedAt: string;
+  dossier: UrssafDossier;
+}
+
+/**
+ * Le dossier complet, IBAN compris, pour le saisir sur l'espace Unipros.
+ * Chaque lecture est tracée côté API (`urssaf.dossier_revealed`) : on ne lit
+ * qu'à l'ouverture du tiroir, et rien n'est gardé en cache après fermeture.
+ */
+export function useUrssafDossier(linkId: string | null) {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: [...CLE, "dossier-urssaf", linkId],
+    queryFn: () => apiFetch<RevealedDossier>(`/admin/urssaf-links/${linkId}/dossier`),
+    enabled: !!linkId,
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+  });
+}
+
+/* ── Transactions d'un batch cooker ────────────────────────────────────────── */
+
+export interface ChefTransaction {
+  paymentId: string;
+  method: string;
+  purpose: string;
+  status: string;
+  amountCents: number;
+  createdAt: string;
+  paidAt: string | null;
+  urssafReference: string | null;
+  externalReference: string | null;
+  booking: { id: string; reference: string | null; startsAt: string; clientName: string };
+  commission: {
+    id: string;
+    status: string;
+    collectionMethod: string;
+    amountTtcCents: number;
+    /** En attente, par prélèvement, pas encore facturée, sur une prestation payée. */
+    collectable: boolean;
+    invoice: { id: string; invoiceNumber: string; status: InvoiceStatus } | null;
+    lastDebit: {
+      id: string;
+      status: DebitStatus;
+      failureReason: string | null;
+      initiatedAt: string | null;
+    } | null;
+  } | null;
+}
+
+interface Total {
+  count: number;
+  amountTtcCents: number;
+}
+
+export interface ChefTransactions {
+  chefProfileId: string;
+  totals: { byStatus: Record<string, Total>; collectable: Total };
+  transactions: ChefTransaction[];
+}
+
+export const COMMISSION_STATUS: Record<string, string> = {
+  pending: "À prélever",
+  invoiced: "Facturée",
+  processing: "Prélèvement en cours",
+  collected: "Encaissée",
+  failed: "Échouée",
+  reversed: "Révoquée",
+};
+
+export function useChefTransactions(chefProfileId: string) {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: [...CLE, "transactions-chef", chefProfileId],
+    queryFn: () =>
+      apiFetch<ChefTransactions>(`/admin/chefs/${chefProfileId}/transactions`),
+  });
+}
+
+export interface CollectResult {
+  invoice: { id: string; invoiceNumber: string; amountTtcCents: number };
+  debit: { id: string; status: DebitStatus; failureReason: string | null };
+}
+
+/**
+ * Une facture B pour les commissions choisies, puis son prélèvement SEPA. Le
+ * prélèvement suit ensuite les webhooks Stripe habituels : un refus de Stripe
+ * revient `failed` avec son motif, et la facture reste due.
+ */
+export function useCollectCommissions(chefProfileId: string) {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (commissionIds: string[]) =>
+      apiFetch<CollectResult>(`/admin/chefs/${chefProfileId}/commissions/collect`, {
+        method: "POST",
+        body: { commissionIds },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [...CLE, "transactions-chef", chefProfileId] });
+      qc.invalidateQueries({ queryKey: [...CLE, "factures"] });
+    },
+  });
+}
 
 /* ── Attestations fiscales ─────────────────────────────────────────────────── */
 

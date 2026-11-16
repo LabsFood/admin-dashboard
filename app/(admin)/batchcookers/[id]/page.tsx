@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ArrowLeft,
+  Banknote,
   CalendarRange,
   Check,
   ClipboardList,
@@ -26,6 +27,7 @@ import {
 import Badge from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
 import WriteToUserButton from "@/components/admin/WriteToUserButton";
+import ChefTransactions from "@/components/money/ChefTransactions";
 import { cn, euros, formatDate } from "@/lib/utils";
 import { countryLabel } from "@/lib/countries";
 import { moderatedLabel, moderatedTone } from "@/lib/catalog-labels";
@@ -82,7 +84,7 @@ import { adminErrorMessage } from "@/lib/api/errors";
    après coup, en disant ce que ce détour coûte.
    ───────────────────────────────────────────────────────────────────────────── */
 
-type Onglet = "profil" | "plats" | "menus" | "vitrine" | "prestations";
+type Onglet = "profil" | "plats" | "menus" | "vitrine" | "prestations" | "transactions";
 
 const WORK_STATUS_LABEL: Record<string, string> = {
   "eu-citizen": "Ressortissant français ou de l'Union européenne",
@@ -290,6 +292,7 @@ export default function BatchCookerPage({
             { id: "menus", Icon: LayoutList, label: "Ses menus" },
             { id: "vitrine", Icon: CalendarRange, label: "Sa vitrine" },
             { id: "prestations", Icon: ClipboardList, label: "Ses prestations" },
+            { id: "transactions", Icon: Banknote, label: "Ses transactions" },
           ] as const
         ).map(({ id: tid, Icon, label }) => (
           <button
@@ -325,6 +328,7 @@ export default function BatchCookerPage({
       {onglet === "menus" && <Contenu chefProfileId={c.id} genre="menu" />}
       {onglet === "vitrine" && <Vitrine chefProfileId={c.id} />}
       {onglet === "prestations" && <Prestations chefProfileId={c.id} />}
+      {onglet === "transactions" && <ChefTransactions chefProfileId={c.id} />}
 
       <ChefLegalPanel identity={c.legalIdentity} />
 
