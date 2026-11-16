@@ -25,6 +25,7 @@ import ReasonDialog from "@/components/ui/ReasonDialog";
 import InfoPopover from "@/components/ui/InfoPopover";
 import { useToast } from "@/components/ui/Toaster";
 import { adminErrorMessage } from "@/lib/api/errors";
+import UrssafDossierDrawer from "@/components/money/UrssafDossierDrawer";
 import {
   CESU_ISSUER,
   CESU_MEDIUM,
@@ -47,9 +48,14 @@ import {
   useForceSettleCesu,
   useRetryDebit,
   useRunDueCommissions,
+  URSSAF_PAYMENT_STATUS,
+  demandeManuelle,
+  useMarkUrssafTransmitted,
   useSetUrssafOutcome,
   useUrssafLinks,
   useUrssafPayments,
+  type UrssafLink,
+  type UrssafPayment,
   type CesuPayment,
   type CesuSettlement,
   type CommissionInvoice,
@@ -538,23 +544,29 @@ function VoletUrssaf() {
   const paiements = useUrssafPayments();
   const decider = useDecideUrssafLink();
   const repondre = useSetUrssafOutcome();
+  const saisir = useMarkUrssafTransmitted();
 
-  const simule = !nonSimule(decider.error) && !nonSimule(repondre.error);
+  const [dossier, setDossier] = useState<UrssafLink | null>(null);
+  const [aRefuserLien, setARefuserLien] = useState<UrssafLink | null>(null);
+  const [aSaisir, setASaisir] = useState<UrssafPayment | null>(null);
+  const [aRefuser, setARefuser] = useState<UrssafPayment | null>(null);
+
+  const ouvert = !nonSimule(decider.error) && !nonSimule(repondre.error);
 
   return (
     <div className="space-y-5">
       <Entete
         Icon={Banknote}
         titre="Avance immédiate"
-        texte="Tant que l'accès à l'API de l'URSSAF n'existe pas, la console répond à sa place. Ces réponses simulent ce que l'URSSAF dira : elles engagent la prestation comme si c'était elle."
+        texte="L'accès à l'API de l'URSSAF n'est pas encore ouvert. En mode manuel, Lab's Food saisit chaque rattachement et chaque demande sur l'espace Unipros, puis note ici la référence et la réponse. En mode simulé (jamais en production), la console répond à la place de l'URSSAF."
       />
 
-      {!simule && (
+      {!ouvert && (
         <div className="card flex items-start gap-3 border-warning/30 bg-warning/5 p-4">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#8A6212]" />
           <p className="text-sm leading-relaxed text-[#8A6212]">
-            La passerelle URSSAF n&apos;est pas en mode simulé sur ce serveur :
-            l&apos;API refuse de répondre à sa place. Les listes restent
+            La passerelle URSSAF n&apos;est ni en mode manuel ni simulé sur ce
+            serveur : l&apos;API refuse de noter une réponse. Les listes restent
             consultables, les décisions non.
           </p>
         </div>
@@ -590,23 +602,20 @@ function VoletUrssaf() {
                     {LINK_STATUS[l.status]}
                   </Badge>
                   <button
-                    disabled={decider.isPending || !simule}
-                    onClick={() =>
-                      decider.mutate(
-                        { id: l.id, status: "refused", reason: "Refus simulé" },
-                        {
-                          onSuccess: () => toast.info("Rattachement refusé"),
-                          onError: (e) =>
-                            toast.error("Refus impossible", adminErrorMessage(e)),
-                        },
-                      )
-                    }
+                    onClick={() => setDossier(l)}
+                    className="btn btn-sm btn-outline"
+                  >
+                    <FileText className="h-3 w-3" /> Dossier
+                  </button>
+                  <button
+                    disabled={decider.isPending || !ouvert}
+                    onClick={() => setARefuserLien(l)}
                     className="btn btn-sm btn-outline disabled:opacity-40"
                   >
                     Refuser
                   </button>
                   <button
-                    disabled={decider.isPending || !simule}
+                    disabled={decider.isPending || !ouvert}
                     onClick={() =>
                       decider.mutate(
                         { id: l.id, status: "active" },
@@ -617,10 +626,7 @@ function VoletUrssaf() {
                               "Le client peut régler avec l'avance immédiate.",
                             ),
                           onError: (e) =>
-                            toast.error(
-                              "Rattachement impossible",
-                              adminErrorMessage(e),
-                            ),
+                            toast.error("Rattachement impossible", adminErrorMessage(e)),
                         },
                       )
                     }
@@ -644,93 +650,204 @@ function VoletUrssaf() {
           vide={{
             Icon: Banknote,
             title: "Aucune demande de paiement",
-            text: "Les demandes envoyées à l'URSSAF apparaîtront ici.",
+            text: "Les demandes d'avance immédiate apparaîtront ici, à saisir sur Unipros en mode manuel.",
           }}
         >
           <ul className="space-y-3">
-            {(paiements.data ?? []).map((p) => (
-              <li
-                key={p.paymentId}
-                className="card flex flex-wrap items-center justify-between gap-4 p-5"
-              >
-                <div className="min-w-0">
-                  <p className="font-semibold text-navy">
-                    {centimes(p.amountCents)}
-                    {p.debitedCents > 0 && p.debitedCents !== p.amountCents && (
-                      <span className="ml-2 text-sm font-normal text-ink-mid tabular-nums">
-                        dont {centimes(p.debitedCents)} prélevés
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-sm text-ink-mid">
-                    {p.booking.clientName} → {p.booking.chefName} ·{" "}
-                    <Link
-                      href={`/reservations/${p.booking.id}`}
-                      className="font-mono text-xs hover:text-terra-ink"
-                    >
-                      {p.booking.reference}
-                    </Link>
-                  </p>
-                  <p className="text-xs text-ink-soft">
-                    {p.urssafReference} · {dateCourte(p.createdAt)}
-                    {p.failureReason ? ` · ${p.failureReason}` : ""}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <Badge tone={p.paidAt ? "success" : "warning"}>{p.status}</Badge>
-                  {!p.paidAt && (
-                    <>
-                      <button
-                        disabled={repondre.isPending || !simule}
-                        onClick={() =>
-                          repondre.mutate(
-                            {
-                              id: p.paymentId,
-                              outcome: "refused",
-                              reason: "Refus simulé",
-                            },
-                            {
-                              onSuccess: () => toast.info("Paiement refusé"),
-                              onError: (e) =>
-                                toast.error("Refus impossible", adminErrorMessage(e)),
-                            },
-                          )
-                        }
-                        className="btn btn-sm btn-outline disabled:opacity-40"
+            {(paiements.data ?? []).map((p) => {
+              const manuel = demandeManuelle(p);
+              const enAttente = p.status === "pending";
+              const aSaisirSurUnipros = manuel && enAttente && !p.transmittedAt;
+              return (
+                <li
+                  key={p.paymentId}
+                  className="card flex flex-wrap items-center justify-between gap-4 p-5"
+                >
+                  <div className="min-w-0">
+                    <p className="font-semibold text-navy tabular-nums">
+                      {centimes(p.amountCents)}
+                      {p.debitedCents > 0 && p.debitedCents !== p.amountCents && (
+                        <span className="ml-2 text-sm font-normal text-ink-mid">
+                          dont {centimes(p.debitedCents)} prélevés au client
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-sm text-ink-mid">
+                      {p.booking.clientName} →{" "}
+                      <Link
+                        href={`/batchcookers/${p.booking.chefProfileId}`}
+                        className="hover:text-terra-ink"
                       >
-                        Refuser
-                      </button>
+                        {p.booking.chefName}
+                      </Link>{" "}
+                      ·{" "}
+                      <Link
+                        href={`/reservations/${p.booking.id}`}
+                        className="font-mono text-xs hover:text-terra-ink"
+                      >
+                        {p.booking.reference}
+                      </Link>
+                    </p>
+                    <p className="text-xs text-ink-soft">
+                      {manuel ? (
+                        <>
+                          NOVA{" "}
+                          <span className="font-mono">
+                            {p.booking.chefNovaCode ?? "non renseigné"}
+                          </span>
+                          {p.externalReference && (
+                            <>
+                              {" "}· Unipros{" "}
+                              <span className="font-mono">{p.externalReference}</span>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <span className="font-mono">{p.urssafReference}</span>
+                      )}{" "}
+                      · {dateCourte(p.createdAt)}
+                      {p.failureReason ? ` · ${p.failureReason}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Badge tone={p.paidAt ? "success" : enAttente ? "warning" : "danger"}>
+                      {aSaisirSurUnipros
+                        ? "À saisir sur Unipros"
+                        : (URSSAF_PAYMENT_STATUS[p.status] ?? p.status)}
+                    </Badge>
+                    {aSaisirSurUnipros && (
                       <button
-                        disabled={repondre.isPending || !simule}
-                        onClick={() =>
-                          repondre.mutate(
-                            { id: p.paymentId, outcome: "paid" },
-                            {
-                              onSuccess: () =>
-                                toast.success(
-                                  "Paiement validé",
-                                  "La prestation est réglée et la commission devient due.",
-                                ),
-                              onError: (e) =>
-                                toast.error(
-                                  "Validation impossible",
-                                  adminErrorMessage(e),
-                                ),
-                            },
-                          )
-                        }
+                        disabled={saisir.isPending || !ouvert}
+                        onClick={() => setASaisir(p)}
                         className="btn btn-sm btn-navy disabled:opacity-40"
                       >
-                        Marquer payé
+                        Noter la saisie
                       </button>
-                    </>
-                  )}
-                </div>
-              </li>
-            ))}
+                    )}
+                    {enAttente && !aSaisirSurUnipros && (
+                      <>
+                        <button
+                          disabled={repondre.isPending || !ouvert}
+                          onClick={() => setARefuser(p)}
+                          className="btn btn-sm btn-outline disabled:opacity-40"
+                        >
+                          Refuser
+                        </button>
+                        <button
+                          disabled={repondre.isPending || !ouvert}
+                          onClick={() =>
+                            repondre.mutate(
+                              { id: p.paymentId, outcome: "paid" },
+                              {
+                                onSuccess: () =>
+                                  toast.success(
+                                    "Paiement validé",
+                                    manuel
+                                      ? "La prestation est réglée. La commission attend : prélevez-la depuis la fiche du batch cooker."
+                                      : "La prestation est réglée et la commission devient due.",
+                                  ),
+                                onError: (e) =>
+                                  toast.error("Validation impossible", adminErrorMessage(e)),
+                              },
+                            )
+                          }
+                          className="btn btn-sm btn-navy disabled:opacity-40"
+                        >
+                          Marquer payé
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </Corps>
       </section>
+
+      <UrssafDossierDrawer
+        linkId={dossier?.id ?? null}
+        clientName={dossier?.client.name}
+        chefName={dossier?.chefName}
+        onClose={() => setDossier(null)}
+      />
+
+      <ReasonDialog
+        open={aRefuserLien !== null}
+        onClose={() => setARefuserLien(null)}
+        title="Refuser le rattachement ?"
+        lead="Notez le motif donné par Unipros ou l'URSSAF. Le client pourra refaire sa demande, et payer autrement en attendant."
+        placeholder="Motif du refus : compte bancaire non vérifié, identité incohérente…"
+        confirmLabel="Refuser le rattachement"
+        minLength={5}
+        pending={decider.isPending}
+        error={decider.error ? adminErrorMessage(decider.error) : null}
+        onConfirm={(reason) =>
+          aRefuserLien &&
+          decider.mutate(
+            { id: aRefuserLien.id, status: "refused", reason },
+            {
+              onSuccess: () => {
+                setARefuserLien(null);
+                toast.info("Rattachement refusé");
+              },
+            },
+          )
+        }
+      />
+
+      <ReasonDialog
+        open={aSaisir !== null}
+        onClose={() => setASaisir(null)}
+        title="Noter la saisie sur Unipros"
+        lead={
+          aSaisir
+            ? `Saisissez la demande de ${centimes(aSaisir.amountCents)} sur l'espace Unipros (NOVA du batch cooker : ${aSaisir.booking.chefNovaCode ?? "non renseigné"}), puis recopiez ici la référence qu'Unipros lui a donnée. Une demande ne se note qu'une fois.`
+            : ""
+        }
+        placeholder="Référence Unipros de la demande"
+        confirmLabel="Noter la saisie"
+        minLength={3}
+        maxLength={100}
+        pending={saisir.isPending}
+        error={saisir.error ? adminErrorMessage(saisir.error) : null}
+        onConfirm={(externalReference) =>
+          aSaisir &&
+          saisir.mutate(
+            { id: aSaisir.paymentId, externalReference },
+            {
+              onSuccess: () => {
+                setASaisir(null);
+                toast.success("Saisie notée", "La demande attend la réponse de l'URSSAF.");
+              },
+            },
+          )
+        }
+      />
+
+      <ReasonDialog
+        open={aRefuser !== null}
+        onClose={() => setARefuser(null)}
+        title="Refuser la demande de paiement ?"
+        lead="La prestation redevient due : le client pourra payer par un autre moyen. Le motif est gardé sur le paiement."
+        placeholder="Motif : prélèvement rejeté, demande refusée par le client…"
+        confirmLabel="Refuser la demande"
+        minLength={5}
+        pending={repondre.isPending}
+        error={repondre.error ? adminErrorMessage(repondre.error) : null}
+        onConfirm={(reason) =>
+          aRefuser &&
+          repondre.mutate(
+            { id: aRefuser.paymentId, outcome: "refused", reason },
+            {
+              onSuccess: () => {
+                setARefuser(null);
+                toast.info("Paiement refusé");
+              },
+            },
+          )
+        }
+      />
     </div>
   );
 }
