@@ -507,13 +507,20 @@ export function useSetFridgeAlert() {
   });
 }
 
-/* ── Courses (Recettes lot 6, préparation) ──────────────────────────────────── */
+/* ── Courses (Recettes lot 6) ───────────────────────────────────────────────── */
 
 export interface GroceriesSetting {
-  /** Le plus qu'un client peut fixer comme Budget Courses, en centimes. */
+  /** Le Budget Courses, le même pour tous (décision du 16/11) : l'empreinte, en centimes. */
   budgetMaxCents: number;
   /** Le forfait courses conseillé aux batch cookers, en centimes : un conseil, jamais un refus. */
   recommendedShoppingFeeMinCents: number;
+  /** Le délai minimum entre le message avant les courses et son heure limite. */
+  minCancelNoticeMinutes: number;
+  /** « Le silence vaut confirmation » : éteint tant que le juridique ne l'a pas validé. */
+  silenceConfirms: boolean;
+  /** Les frais du versement instantané, à la charge du batch cooker. */
+  instantPayoutFeeBps: number;
+  instantPayoutFeeMinCents: number;
   updatedAt: string | null;
 }
 
@@ -529,7 +536,7 @@ export function useGroceriesSetting() {
   });
 }
 
-/** `PUT /admin/settings/groceries` — les deux valeurs à chaque fois, tracé. */
+/** `PUT /admin/settings/groceries` — toutes les valeurs à chaque fois, tracé. */
 export function useSetGroceriesSetting() {
   const apiFetch = useApiFetch();
   const qc = useQueryClient();

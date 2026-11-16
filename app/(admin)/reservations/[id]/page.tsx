@@ -46,6 +46,7 @@ import {
 } from "@/lib/api/bookings";
 import { adminErrorMessage } from "@/lib/api/errors";
 import InfoPopover from "@/components/ui/InfoPopover";
+import GroceriesPanel from "@/components/admin/GroceriesPanel";
 import { ContractPanel, WithdrawalPanel } from "@/components/legal/ContractPanels";
 
 /** « lun. 23 nov. », lu comme un jour de calendrier. */
@@ -353,6 +354,9 @@ export default function ReservationDetailPage({
               )}
             </section>
           )}
+
+          {/* ── Courses payées à part (Recettes lot 6) ─────────────────── */}
+          {!b.shoppingByClient && <GroceriesPanel bookingId={b.id} />}
 
           {/* ── Liste de courses ───────────────────────────────────────── */}
           <section className="card p-6">

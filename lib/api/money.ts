@@ -170,6 +170,12 @@ export interface CommissionInvoice {
   periodEnd?: string | null;
   commissionsCount: number;
   debits: CommissionDebit[];
+  /** Recettes lot 6 : un avoir (reprise URSSAF) partage la suite des factures B. */
+  kind?: "invoice" | "credit_note";
+  creditReason?: string | null;
+  /** L'avoir est déduit de cette facture ; `refundedAt` : remboursé à la main. */
+  appliedToInvoiceId?: string | null;
+  refundedAt?: string | null;
 }
 
 export const INVOICE_STATUS: Record<InvoiceStatus, string> = {
@@ -315,6 +321,36 @@ export interface UrssafPayment {
     /** Le numéro SAP/NOVA du batch cooker, à saisir avec chaque demande. */
     chefNovaCode: string | null;
   };
+  /** Recettes lot 6 : la prestation et le forfait courses, jamais les débours. */
+  lines?: { label: string; amountCents: number }[];
+  /** Reprise par l'URSSAF (statut 120), si elle a eu lieu. */
+  reprise?: { reason: string | null; at: string | null } | null;
+}
+
+/** `POST /admin/urssaf-payments/{id}/reprise` — statut 120 : la commission revient au chef. */
+export function useUrssafReprise() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      apiFetch<{
+        paymentId: string;
+        creditNote: { id: string; invoiceNumber: string; amountTtcCents: number } | null;
+        commissionDropped: boolean;
+      }>(`/admin/urssaf-payments/${id}/reprise`, { method: "POST", body: { reason } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CLE }),
+  });
+}
+
+/** `POST /admin/commission-credit-notes/{id}/refunded` — un avoir remboursé à la main. */
+export function useCreditNoteRefunded() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(`/admin/commission-credit-notes/${id}/refunded`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CLE }),
+  });
 }
 
 /** Une demande du mode manuel : rien n'est parti vers l'URSSAF, l'admin la saisit. */
