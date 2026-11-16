@@ -27,7 +27,8 @@ import Badge from "@/components/ui/Badge";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toaster";
 import { cn, euros, formatDateLong } from "@/lib/utils";
-import { aisleLabel } from "@/lib/recipe-fields";
+import { aisleLabel, displayQuantity } from "@/lib/recipe-fields";
+import { useAisles, useAllergens } from "@/lib/api/referentials";
 import {
   BOOKING_STATUSES,
   bookingPortions,
@@ -37,6 +38,7 @@ import {
   isBookingOpen,
   money,
   useBooking,
+  useBookingConservation,
   useBookingShoppingList,
   useRegenerateShoppingList,
   useUpdateBooking,
@@ -45,6 +47,14 @@ import {
 import { adminErrorMessage } from "@/lib/api/errors";
 import InfoPopover from "@/components/ui/InfoPopover";
 import { ContractPanel, WithdrawalPanel } from "@/components/legal/ContractPanels";
+
+/** « lun. 23 nov. », lu comme un jour de calendrier. */
+const jour = (ymd: string) =>
+  new Date(`${ymd}T12:00:00Z`).toLocaleDateString("fr-FR", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Une réservation — `GET /admin/bookings/{id}`.
@@ -73,6 +83,9 @@ export default function ReservationDetailPage({
   const toast = useToast();
   const query = useBooking(id);
   const courses = useBookingShoppingList(id);
+  const conservation = useBookingConservation(id);
+  const allergens = useAllergens();
+  const aisles = useAisles();
   const regenerate = useRegenerateShoppingList();
   const update = useUpdateBooking();
   const [aRecalculer, setARecalculer] = useState(false);
@@ -209,6 +222,18 @@ export default function ReservationDetailPage({
             <h3 className="mb-4 flex items-center gap-2 font-display text-lg font-bold text-navy">
               <UtensilsCrossed className="h-4 w-4 text-terra" aria-hidden /> Plats
               commandés
+              {b.menuFrozen && (
+                <span className="ml-auto inline-flex items-center gap-1">
+                  <Badge tone="navy" dot={false}>
+                    Menu figé
+                  </Badge>
+                  <InfoPopover label="Que veut dire « menu figé » ?">
+                    À 3 jours de la prestation, le client et le batch cooker ne changent
+                    plus les plats, sauf un plat à remplacer pour une allergie. La console
+                    le peut encore ; ce changement est tracé dans le journal d’audit.
+                  </InfoPopover>
+                </span>
+              )}
             </h3>
             {(b.allergyConflicts?.length ?? 0) > 0 && (
               <p className="mb-3 flex flex-wrap items-center gap-1 rounded-xl bg-danger-soft px-3 py-2 text-[13px] text-danger">
@@ -244,6 +269,16 @@ export default function ReservationDetailPage({
                           ? `recette v${m.recipeVersion} · ${m.mealId.slice(0, 8)}…`
                           : `${m.mealId.slice(0, 8)}…`}
                       </span>
+                      {/* Recettes lot 3 : les allergènes enregistrés quand le menu a été écrit. */}
+                      <span className="block text-[12px] text-ink-mid">
+                        {m.allergensSnapshot == null
+                          ? "Allergènes pas encore figés"
+                          : m.allergensSnapshot.length === 0
+                            ? "Allergènes figés : aucun"
+                            : `Allergènes figés : ${m.allergensSnapshot
+                                .map((c) => allergens.data.find((a) => a.code === c)?.label ?? c)
+                                .join(", ")}`}
+                      </span>
                     </span>
                     <Badge tone="navy" dot={false}>
                       {m.portions} portion{m.portions > 1 ? "s" : ""}
@@ -253,6 +288,71 @@ export default function ReservationDetailPage({
               </ul>
             )}
           </section>
+
+          {/* ── Dates « à manger avant » (Recettes lot 3) ──────────────── */}
+          {(b.meals?.length ?? 0) > 0 && (
+            <section className="card p-6">
+              <h3 className="mb-4 flex items-center gap-2 font-display text-lg font-bold text-navy">
+                Dates « à manger avant »
+                <InfoPopover label="D’où viennent ces dates ?">
+                  La plateforme propose le jour de la prestation plus la durée au frais de
+                  la recette figée. Le batch cooker peut la changer jusqu’à 24 h après la
+                  fin ; chaque changement est gardé ci-dessous : qui, quand, et la nouvelle
+                  valeur.
+                </InfoPopover>
+              </h3>
+              {conservation.isPending ? (
+                <div className="h-16 animate-pulse rounded-xl bg-cream-soft" />
+              ) : conservation.isError || !conservation.data ? (
+                <p className="text-sm text-ink-soft">Les dates n’ont pas pu être lues.</p>
+              ) : (
+                <>
+                  <ul className="divide-y divide-[rgba(0,35,75,0.06)]">
+                    {conservation.data.dishes.map((d) => (
+                      <li key={d.mealId} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+                        <span className="text-sm font-semibold text-navy">{d.name}</span>
+                        <span className="flex flex-wrap items-center gap-2 text-[13px] text-ink-mid">
+                          {d.eatBefore.date ? jour(d.eatBefore.date) : "Pas de date"}
+                          {d.eatBefore.fridgeDays !== null && ` · ${d.eatBefore.fridgeDays} j au frais`}
+                          <Badge tone={d.eatBefore.setByChef ? "navy" : "neutral"} dot={false}>
+                            {d.eatBefore.setByChef ? "Date du batch cooker" : "Date proposée"}
+                          </Badge>
+                          {d.eatBefore.fridgeAlert && (
+                            <Badge tone="warning" dot={false}>
+                              Plus de {conservation.data.fridgeAlertDays} j
+                            </Badge>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mb-1.5 mt-4 text-[12px] font-semibold uppercase tracking-wide text-ink-soft">
+                    Historique
+                  </p>
+                  {(conservation.data.history?.length ?? 0) === 0 ? (
+                    <p className="text-[13px] text-ink-soft">
+                      Le batch cooker n’a modifié aucune date.
+                    </p>
+                  ) : (
+                    <ul className="space-y-1 text-[13px] text-ink-mid">
+                      {conservation.data.history!.map((h, i) => (
+                        <li key={i}>
+                          {formatDateLong(h.changedAt)} ·{" "}
+                          <span className="font-semibold text-navy">
+                            {h.changedBy.name ?? "Compte supprimé"}
+                          </span>
+                          {h.changedBy.role === "chef" && " (batch cooker)"}
+                          {h.changedBy.role === "admin" && " (Lab’s Food)"} ·{" "}
+                          {conservation.data.dishes.find((d) => d.mealId === h.mealId)?.name ?? "un plat"} :{" "}
+                          {h.value ? jour(h.value) : "retour à la date proposée"}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              )}
+            </section>
+          )}
 
           {/* ── Liste de courses ───────────────────────────────────────── */}
           <section className="card p-6">
@@ -289,6 +389,40 @@ export default function ReservationDetailPage({
                       elles portent sur la dernière liste envoyée. Sans réponse, le batch
                       cooker achète toute la liste.
                     </InfoPopover>
+                  </p>
+                )}
+                {/* Recettes lot 4 (LF-0296) : l'étape courses et les rappels partis. */}
+                {!b.shoppingByClient && (
+                  <p className="mt-1 flex flex-wrap items-center gap-1 text-[12px] text-ink-mid">
+                    <span className="font-semibold text-navy">
+                      {b.groceriesValidatedAt
+                        ? `Courses validées ${quand(b.groceriesValidatedAt)}`
+                        : "Courses pas encore validées"}
+                    </span>
+                    {b.groceriesAmountCents != null &&
+                      ` · ticket de ${euros(b.groceriesAmountCents / 100)}`}
+                    <InfoPopover label="Que veut dire « courses validées » ?">
+                      Le batch cooker confirme que les courses sont faites, avec le total
+                      du ticket s’il le souhaite. Ce montant est une information : aucun
+                      paiement des courses ne passe par la plateforme pour l’instant.
+                    </InfoPopover>
+                  </p>
+                )}
+                {!b.shoppingByClient && b.shoppingReminders && (
+                  <p className="mt-1 text-[12px] text-ink-soft">
+                    Rappels envoyés :{" "}
+                    {[
+                      b.shoppingReminders.chefSendAt &&
+                        `batch cooker, liste à envoyer (${quand(b.shoppingReminders.chefSendAt)})`,
+                      b.shoppingReminders.clientAnswerAt &&
+                        `client, liste à renvoyer (${quand(b.shoppingReminders.clientAnswerAt)})`,
+                      b.shoppingReminders.clientFrozenAt &&
+                        `client, liste figée (${quand(b.shoppingReminders.clientFrozenAt)})`,
+                      b.shoppingReminders.chefGroceriesAt &&
+                        `batch cooker, courses à faire (${quand(b.shoppingReminders.chefGroceriesAt)})`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "aucun pour l’instant"}
                   </p>
                 )}
               </div>
@@ -351,7 +485,7 @@ export default function ReservationDetailPage({
                             )}
                           </span>
                           <span className="shrink-0 text-xs tabular-nums text-ink-soft">
-                            {l.qty.toLocaleString("fr-FR")} {l.unit}
+                            {displayQuantity(l.qty, l.unit)}
                           </span>
                         </li>
                       ))}
@@ -432,7 +566,7 @@ export default function ReservationDetailPage({
             <dl className="space-y-1.5 text-[13px]">
               <Row label="Prestation" value={money(b.priceCents) ?? "—"} />
               <Row
-                label="Courses"
+                label="Forfait courses"
                 value={
                   b.shoppingByClient
                     ? "à la charge du client"
