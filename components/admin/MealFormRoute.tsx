@@ -1,5 +1,6 @@
 "use client";
 
+import FormSkeleton from "@/components/admin/FormSkeleton";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AlertTriangle, RotateCw } from "lucide-react";
@@ -28,7 +29,7 @@ export default function MealFormRoute({
   if (!id) return <MealForm variant={variant} backHref={backHref} />;
 
   if (meals.isPending) {
-    return <div className="h-96 animate-pulse rounded-3xl bg-paper" />;
+    return <FormSkeleton />;
   }
 
   if (meals.isError) {

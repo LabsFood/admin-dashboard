@@ -1,8 +1,8 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import {
   AlertTriangle,
   CalendarRange,
@@ -109,10 +109,7 @@ export default function MenusPage() {
   return (
     <div className="space-y-6">
       {/* ── La semaine en cours ─────────────────────────────────────────────── */}
-      <motion.section
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      <section
         className="relative overflow-hidden rounded-3xl bg-teal p-6 text-white lg:p-7"
       >
         <div
@@ -121,7 +118,7 @@ export default function MenusPage() {
         />
         <div className="relative flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-terra-soft">
+            <p className="text-xs uppercase tracking-[0.2em] text-terra-soft">
               Semaine {now.week} · {now.year}
             </p>
             <h2 className="mt-1.5 font-display text-2xl font-bold lg:text-3xl">
@@ -159,7 +156,7 @@ export default function MenusPage() {
             ))}
           </div>
         )}
-      </motion.section>
+      </section>
 
       {/* ── Onglets ─────────────────────────────────────────────────────────── */}
       <div
@@ -206,7 +203,7 @@ export default function MenusPage() {
             {label}
             <span
               className={cn(
-                "font-mono text-[11px]",
+                "tabular-nums text-xs",
                 tab === id ? "text-white/60" : "text-ink-soft",
               )}
             >
@@ -259,16 +256,9 @@ export default function MenusPage() {
             </p>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {filtered.map((m, i) => (
-                <motion.article
+              {filtered.map((m) => (
+                <article
                   key={m.id}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{
-                    duration: 0.32,
-                    delay: Math.min(i * 0.04, 0.32),
-                    ease: [0.16, 1, 0.3, 1],
-                  }}
                   className="card card-hover overflow-hidden text-left"
                 >
                   <button
@@ -295,20 +285,20 @@ export default function MenusPage() {
                         </Badge>
                       </div>
                       {m.isFeatured && (
-                        <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-navy/85 px-2 py-1 text-[10px] font-semibold uppercase text-terra-soft">
+                        <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-navy/85 px-2 py-1 text-xs font-semibold uppercase text-terra-soft">
                           <Flame className="h-3 w-3" aria-hidden /> Vedette
                         </span>
                       )}
                     </div>
                     <div className="p-4">
-                      <p className="font-mono text-[10px] uppercase tracking-wide text-terra">
+                      <p className="text-xs uppercase tracking-wide text-terra-ink">
                         {countryLabel(m.country) || "Origine à renseigner"}
                       </p>
                       <h3 className="mt-1 line-clamp-2 font-display text-sm font-bold leading-tight text-navy">
                         {m.name}
                       </h3>
                       {m.description && (
-                        <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-ink-soft">
+                        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-ink-soft">
                           {m.description}
                         </p>
                       )}
@@ -319,7 +309,7 @@ export default function MenusPage() {
                           </span>
                         ))}
                       </div>
-                      <div className="hairline mt-3 flex items-center justify-between border-t pt-2.5 text-[11px] text-ink-soft">
+                      <div className="hairline mt-3 flex items-center justify-between border-t pt-2.5 text-xs text-ink-soft">
                         <span className="inline-flex items-center gap-1">
                           <Clock className="h-3 w-3" aria-hidden />
                           {m.prepTime} min
@@ -331,7 +321,7 @@ export default function MenusPage() {
                       </div>
                     </div>
                   </button>
-                </motion.article>
+                </article>
               ))}
             </div>
           )}
@@ -352,7 +342,7 @@ export default function MenusPage() {
           count={allMenus.length}
         >
           <div className="flex items-center justify-between">
-            <p className="text-sm text-ink-mid">
+            <p className="text-sm text-ink-mid tabular-nums">
               {allMenus.length} menu{allMenus.length > 1 ? "s" : ""} au
               catalogue.
             </p>
@@ -362,22 +352,15 @@ export default function MenusPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {allMenus.map((menu, i) => {
+            {allMenus.map((menu) => {
               const dishes =
                 menu.dishes ??
                 (menu.dishIds ?? [])
                   .map((id) => allMeals.find((m) => m.id === id))
                   .filter((m): m is NonNullable<typeof m> => m !== undefined);
               return (
-                <motion.article
+                <article
                   key={menu.id}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{
-                    duration: 0.32,
-                    delay: Math.min(i * 0.05, 0.3),
-                    ease: [0.16, 1, 0.3, 1],
-                  }}
                   className="card card-hover"
                 >
                   <button
@@ -396,7 +379,7 @@ export default function MenusPage() {
                     <div className="p-5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-terra">
+                          <p className="text-xs uppercase tracking-[0.16em] text-terra-ink">
                             {menu.period ? periodLabel[menu.period] : "Menu"}
                           </p>
                           <h3 className="mt-0.5 font-display text-base font-bold leading-tight text-navy">
@@ -433,13 +416,13 @@ export default function MenusPage() {
                           ),
                         )}
                         {dishes.length > 5 && (
-                          <span className="flex h-9 w-9 items-center justify-center rounded-lg border-2 border-paper bg-cream-deep text-[11px] font-semibold text-ink-mid">
+                          <span className="flex h-9 w-9 items-center justify-center rounded-lg border-2 border-paper bg-cream-deep text-xs font-semibold text-ink-mid tabular-nums">
                             +{dishes.length - 5}
                           </span>
                         )}
                       </div>
 
-                      <div className="hairline mt-3 flex items-center justify-between border-t pt-3 text-[11px] text-ink-soft">
+                      <div className="hairline mt-3 flex items-center justify-between border-t pt-3 text-xs text-ink-soft">
                         <span className="inline-flex items-center gap-1.5">
                           <UtensilsCrossed
                             className="h-3.5 w-3.5"
@@ -456,7 +439,7 @@ export default function MenusPage() {
                       </div>
                     </div>
                   </button>
-                </motion.article>
+                </article>
               );
             })}
           </div>
@@ -477,7 +460,7 @@ export default function MenusPage() {
           count={allWeeks.length}
         >
           <div className="flex items-center justify-between">
-            <p className="text-sm text-ink-mid">
+            <p className="text-sm text-ink-mid tabular-nums">
               {allWeeks.length} semaine{allWeeks.length > 1 ? "s" : ""} composée
               {allWeeks.length > 1 ? "s" : ""}.
             </p>
@@ -489,20 +472,13 @@ export default function MenusPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[...allWeeks]
               .sort((a, b) => b.year - a.year || b.weekNumber - a.weekNumber)
-              .map((w, i) => {
+              .map((w) => {
                 const list = weekMeals(w, allMeals);
                 const range = isoWeekRange(w.year, w.weekNumber);
                 const isNow = w.year === now.year && w.weekNumber === now.week;
                 return (
-                  <motion.article
+                  <article
                     key={w.id ?? `${w.year}-${w.weekNumber}`}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{
-                      duration: 0.32,
-                      delay: Math.min(i * 0.05, 0.3),
-                      ease: [0.16, 1, 0.3, 1],
-                    }}
                     className={cn(
                       "card card-hover",
                       isNow && "ring-1 ring-teal/35",
@@ -515,13 +491,13 @@ export default function MenusPage() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-terra">
+                          <p className="text-xs uppercase tracking-[0.16em] text-terra-ink">
                             Semaine {w.weekNumber} · {w.year}
                           </p>
-                          <h3 className="mt-0.5 font-display text-base font-bold text-navy">
+                          <h3 className="mt-0.5 font-display text-base font-bold text-navy tabular-nums">
                             {formatDate(range.start.toISOString())}
                           </h3>
-                          <p className="mt-0.5 text-xs text-ink-soft">
+                          <p className="mt-0.5 text-xs text-ink-soft tabular-nums">
                             jusqu&apos;au {formatDate(range.end.toISOString())}
                           </p>
                         </div>
@@ -555,19 +531,19 @@ export default function MenusPage() {
                           ),
                         )}
                         {list.length > 5 && (
-                          <span className="flex h-9 w-9 items-center justify-center rounded-lg border-2 border-paper bg-cream-deep text-[11px] font-semibold text-ink-mid">
+                          <span className="flex h-9 w-9 items-center justify-center rounded-lg border-2 border-paper bg-cream-deep text-xs font-semibold text-ink-mid tabular-nums">
                             +{list.length - 5}
                           </span>
                         )}
                       </div>
 
-                      <p className="hairline mt-3 flex items-center gap-1.5 border-t pt-3 text-[11px] text-ink-soft">
+                      <p className="hairline mt-3 flex items-center gap-1.5 border-t pt-3 text-xs text-ink-soft">
                         <UtensilsCrossed className="h-3.5 w-3.5" aria-hidden />
                         {list.length} plat{list.length > 1 ? "s" : ""} à
                         l&apos;ardoise
                       </p>
                     </button>
-                  </motion.article>
+                  </article>
                 );
               })}
           </div>
@@ -672,11 +648,13 @@ function Section({
 
   if (query.isPending) {
     return (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <SkeletonGroup className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="card h-64 animate-pulse" />
+          <div key={i} className="card h-64 p-4">
+            <Skeleton className="h-full rounded-[10px]" />
+          </div>
         ))}
-      </div>
+      </SkeletonGroup>
     );
   }
 
@@ -860,7 +838,7 @@ function WeekDrawer({
         <div className="space-y-5">
           {/* ── Ce que les clients verront, dans l'ordre ── */}
           <div>
-            <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-soft">
               <UtensilsCrossed className="h-3.5 w-3.5" aria-hidden /> À
               l&apos;ardoise ({retenus.length})
             </p>
@@ -878,7 +856,7 @@ function WeekDrawer({
                   >
                     <span
                       aria-hidden
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-xs bg-cream-soft font-mono text-[10px] font-semibold text-navy"
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-xs bg-cream-soft tabular-nums text-xs font-semibold text-navy"
                     >
                       {i + 1}
                     </span>
@@ -901,7 +879,7 @@ function WeekDrawer({
                       <p className="truncate text-sm font-medium text-navy">
                         {m.name}
                       </p>
-                      <p className="font-mono text-[10px] text-ink-soft">
+                      <p className="text-xs text-ink-soft">
                         {countryLabel(m.country) || "—"}
                       </p>
                     </div>
@@ -909,7 +887,7 @@ function WeekDrawer({
                       type="button"
                       onClick={() => setPicked(picked.filter((p) => p !== m.id))}
                       aria-label={`Retirer ${m.name} de l'ardoise`}
-                      className="shrink-0 rounded-md p-1.5 text-ink-soft transition-colors hover:bg-danger-soft hover:text-danger"
+                      className="hit shrink-0 rounded-md p-1.5 text-ink-soft transition-colors hover:bg-danger-soft hover:text-danger"
                     >
                       <X className="h-4 w-4" aria-hidden />
                     </button>
@@ -972,7 +950,7 @@ function WeekDrawer({
                         <span className="block truncate text-[13px] font-medium text-navy">
                           {m.name}
                         </span>
-                        <span className="block truncate font-mono text-[10px] text-ink-soft">
+                        <span className="block truncate text-xs text-ink-soft">
                           {[
                             countryLabel(m.country) || null,
                             m.status !== "published"
@@ -1001,7 +979,7 @@ function WeekDrawer({
 
           {/* ── Déplacer l'ardoise sur une autre semaine ISO ── */}
           <div className="hairline border-t pt-4">
-            <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-soft">
               <CalendarRange className="h-3.5 w-3.5" aria-hidden /> Semaine ISO
             </p>
             <div className="flex gap-2">
@@ -1037,7 +1015,7 @@ function WeekDrawer({
               </div>
             </div>
             {cible && (
-              <p className="mt-2 font-mono text-[11px] text-ink-soft">
+              <p className="mt-2 tabular-nums text-xs text-ink-soft">
                 {formatDate(range.start.toISOString())} →{" "}
                 {formatDate(range.end.toISOString())}
               </p>

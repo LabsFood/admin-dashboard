@@ -1,5 +1,7 @@
 "use client";
 
+import { InboxPageSkeleton, InboxRowsSkeleton } from "@/components/admin/InboxSkeleton";
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -49,10 +51,13 @@ const EMPTY: Record<Filter, string> = {
   archived: "Aucun message archivé.",
 };
 
+/** La carte liste + message : partagée avec le squelette pour qu'il ait la même taille. */
+const CARTE = "card grid h-[calc(100vh-13rem)] min-h-120 grid-cols-1 overflow-hidden lg:grid-cols-[340px_1fr]";
+
 export default function ContactPage() {
   return (
     // `useSearchParams` impose une frontière Suspense.
-    <Suspense fallback={null}>
+    <Suspense fallback={<InboxPageSkeleton cardClassName={CARTE} tabs={5} />}>
       <ContactInbox />
     </Suspense>
   );
@@ -106,7 +111,7 @@ function ContactInbox() {
         ]}
       />
 
-      <div className="card grid h-[calc(100vh-13rem)] min-h-120 grid-cols-1 overflow-hidden lg:grid-cols-[340px_1fr]">
+      <div className={CARTE}>
         {/* Liste */}
         <div
           className={cn(
@@ -115,9 +120,7 @@ function ContactInbox() {
           )}
         >
           {messages.isPending ? (
-            <p className="flex items-center justify-center gap-2 py-10 text-sm text-ink-soft">
-              <Loader2 className="h-4 w-4 animate-spin" /> Chargement…
-            </p>
+            <InboxRowsSkeleton />
           ) : messages.isError ? (
             <div role="alert" className="p-6 text-center text-sm text-ink-soft">
               Les messages n&apos;ont pas pu être chargés.
@@ -142,7 +145,7 @@ function ContactInbox() {
                       m.id === active?.id ? "bg-terra-pale/35" : "hover:bg-cream-soft",
                     )}
                   >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-navy text-[11px] font-bold text-white">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-navy text-xs font-bold text-white">
                       {initials(m.name)}
                     </span>
                     <div className="min-w-0 flex-1">
@@ -160,7 +163,7 @@ function ContactInbox() {
                       <p className="truncate text-xs font-medium text-ink-mid">
                         {m.subject}
                       </p>
-                      <p className="mt-0.5 flex items-center gap-1.5 text-[10px] text-ink-soft">
+                      <p className="mt-0.5 flex items-center gap-1.5 text-xs text-ink-soft">
                         <Globe className="h-3 w-3" />
                         {CONTACT_SOURCE_LABEL[m.source]} · {timeAgo(m.createdAt)}
                       </p>
@@ -175,13 +178,17 @@ function ContactInbox() {
         {/* Détail */}
         {active ? (
           <Detail key={active.id} message={active} onBack={() => select(null)} />
+        ) : selectedId && fetched.isPending ? (
+          <SkeletonGroup className="hidden space-y-3 p-6 lg:block">
+            <Skeleton className="h-6 w-1/2" />
+            <Skeleton className="h-4 w-1/3" />
+            <Skeleton className="h-40" />
+          </SkeletonGroup>
         ) : (
           <div className="hidden items-center justify-center text-sm text-ink-soft lg:flex">
-            {selectedId && fetched.isPending
-              ? "Chargement du message…"
-              : selectedId && fetched.isError
-                ? "Ce message est introuvable."
-                : "Choisissez un message."}
+            {selectedId && fetched.isError
+              ? "Ce message est introuvable."
+              : "Choisissez un message."}
           </div>
         )}
       </div>
@@ -220,7 +227,7 @@ function Detail({ message, onBack }: { message: ContactMessage; onBack: () => vo
         <button
           onClick={onBack}
           aria-label="Retour aux messages"
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-cream-soft text-navy lg:hidden"
+          className="hit flex h-9 w-9 items-center justify-center rounded-full bg-cream-soft text-navy lg:hidden"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
@@ -235,14 +242,14 @@ function Detail({ message, onBack }: { message: ContactMessage; onBack: () => vo
             <span className="font-medium text-ink-mid">{message.name}</span>
             <a
               href={`mailto:${message.email}`}
-              className="inline-flex items-center gap-1 hover:text-terra"
+              className="inline-flex items-center gap-1 hover:text-terra-ink"
             >
               <Mail className="h-3 w-3" /> {message.email}
             </a>
             {message.phone && (
               <a
                 href={`tel:${message.phone}`}
-                className="inline-flex items-center gap-1 hover:text-terra"
+                className="inline-flex items-center gap-1 hover:text-terra-ink"
               >
                 <Phone className="h-3 w-3" /> {message.phone}
               </a>
@@ -258,7 +265,7 @@ function Detail({ message, onBack }: { message: ContactMessage; onBack: () => vo
               {message.message}
             </p>
           </div>
-          <p className="mt-2 text-[11px] text-ink-soft">
+          <p className="mt-2 text-xs text-ink-soft tabular-nums">
             Reçu {timeAgo(message.createdAt)} via {CONTACT_SOURCE_LABEL[message.source]}
           </p>
         </div>
@@ -270,7 +277,7 @@ function Detail({ message, onBack }: { message: ContactMessage; onBack: () => vo
                 {r.body}
               </p>
             </div>
-            <p className="mt-2 text-right text-[11px] text-ink-soft">
+            <p className="mt-2 text-right text-xs text-ink-soft">
               Réponse envoyée par email
               {r.sentByName ? ` par ${r.sentByName}` : ""} · {timeAgo(r.createdAt)} à{" "}
               {formatTime(r.createdAt)}
@@ -289,7 +296,7 @@ function Detail({ message, onBack }: { message: ContactMessage; onBack: () => vo
           aria-label={`Réponse à ${message.name}`}
           className="input-base resize-none"
         />
-        <p className="mt-1.5 text-[11px] text-ink-soft">
+        <p className="mt-1.5 text-xs text-ink-soft">
           La réponse part par email à {message.email}, telle que vous l&apos;écrivez.
         </p>
         <div className="mt-2 flex items-center justify-between">

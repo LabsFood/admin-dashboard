@@ -1,7 +1,7 @@
 import {
   LayoutDashboard,
   CalendarRange,
-  Sparkles,
+  MessageSquareText,
   MessageCircle,
   Users,
   UtensilsCrossed,
@@ -22,7 +22,8 @@ export interface NavItem {
   href: string;
   label: string;
   Icon: LucideIcon;
-  eyebrow: string;
+  /** Repère de section ; absent quand il répéterait le titre. */
+  eyebrow?: string;
   title: string;
   subtitle: string;
 }
@@ -40,7 +41,6 @@ export const NAV_SECTIONS: NavSection[] = [
         href: "/",
         label: "Vue d'ensemble",
         Icon: LayoutDashboard,
-        eyebrow: "Tableau de bord",
         title: "Vue d'ensemble",
         subtitle: "L'activité de Lab's Food en un coup d'œil.",
       },
@@ -60,7 +60,7 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         href: "/demandes",
         label: "Demandes sur-mesure",
-        Icon: Sparkles,
+        Icon: MessageSquareText,
         eyebrow: "Devis",
         title: "Demandes sur-mesure",
         subtitle: "Briefs clients à analyser et à chiffrer.",
@@ -184,7 +184,6 @@ export const NAV_SECTIONS: NavSection[] = [
         href: "/parametres",
         label: "Paramètres",
         Icon: Settings,
-        eyebrow: "Réglages",
         title: "Paramètres",
         subtitle: "Configuration de la console et du compte.",
       },

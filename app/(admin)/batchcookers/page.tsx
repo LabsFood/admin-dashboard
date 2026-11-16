@@ -1,5 +1,6 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import ChefApplicationsList from "@/components/admin/ChefApplicationsList";
@@ -13,9 +14,28 @@ import { cn } from "@/lib/utils";
  */
 type Stage = "candidatures" | "reseau";
 
+/* Les onglets (44 px) puis la grille de cartes du réseau, comme `ChefNetwork` en chargement. */
+function BatchCookersSkeleton() {
+  return (
+    <SkeletonGroup className="space-y-6">
+      <div className="flex items-center gap-2">
+        <Skeleton className="h-11 w-28" />
+        <Skeleton className="h-11 w-28" />
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="card h-44 p-4">
+            <Skeleton className="h-full rounded-[10px]" />
+          </div>
+        ))}
+      </div>
+    </SkeletonGroup>
+  );
+}
+
 export default function BatchCookersPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<BatchCookersSkeleton />}>
       <BatchCookers />
     </Suspense>
   );

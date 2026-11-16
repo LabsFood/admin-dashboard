@@ -1,8 +1,8 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import {
   ArrowRight,
   LayoutGrid,
@@ -117,11 +117,13 @@ export default function ClientsPage() {
       </div>
 
       {isPending ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <SkeletonGroup className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="card h-44 animate-pulse bg-cream-soft" />
+            <div key={i} className="card h-44 p-4">
+              <Skeleton className="h-full rounded-[10px]" />
+            </div>
           ))}
-        </div>
+        </SkeletonGroup>
       ) : isError ? (
         <div className="card">
           <EmptyState
@@ -149,12 +151,9 @@ export default function ClientsPage() {
         </div>
       ) : view === "card" ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((c, i) => (
-            <motion.div
+          {filtered.map((c) => (
+            <div
               key={c.userId}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.32, delay: Math.min(i * 0.04, 0.3), ease: [0.16, 1, 0.3, 1] }}
             >
               {c.id === null ? (
                 <AccountOnly card c={c} className="card h-full p-5" />
@@ -198,7 +197,7 @@ export default function ClientsPage() {
                     {c.dietaryPreferences.map((d) => (
                       <span
                         key={d}
-                        className="rounded-full bg-teal-pale px-2 py-0.5 text-[10px] font-medium text-teal"
+                        className="rounded-full bg-teal-pale px-2 py-0.5 text-xs font-medium text-teal"
                       >
                         {d}
                       </span>
@@ -207,7 +206,7 @@ export default function ClientsPage() {
                 )}
 
                 <div className="mt-4 flex items-center justify-between border-t border-[rgba(0,35,75,0.06)] pt-3">
-                  <span className="text-[11px] text-ink-soft">
+                  <span className="text-xs text-ink-soft">
                     {c.lastOrderAt
                       ? `Dernière session ${formatDate(c.lastOrderAt)}`
                       : c.createdAt
@@ -218,12 +217,12 @@ export default function ClientsPage() {
                 </div>
               </Link>
               )}
-            </motion.div>
+            </div>
           ))}
         </div>
       ) : (
         <div className="card overflow-hidden">
-          <div className="hidden grid-cols-[1.6fr_0.8fr_0.7fr_0.9fr_0.8fr_auto] gap-4 border-b border-[rgba(0,35,75,0.07)] bg-cream-soft px-5 py-3 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-soft lg:grid">
+          <div className="hidden grid-cols-[1.6fr_0.8fr_0.7fr_0.9fr_0.8fr_auto] gap-4 border-b border-[rgba(0,35,75,0.07)] bg-cream-soft px-5 py-3 text-xs uppercase tracking-[0.14em] text-ink-soft lg:grid">
             <span>Client</span>
             <span>Ville</span>
             <span>Sessions</span>
@@ -249,7 +248,7 @@ export default function ClientsPage() {
                       <p className="truncate text-sm font-semibold text-navy">
                         {c.name}
                       </p>
-                      <p className="truncate font-mono text-[11px] text-ink-soft">
+                      <p className="truncate text-xs text-ink-soft">
                         {c.email}
                       </p>
                     </div>
@@ -258,13 +257,13 @@ export default function ClientsPage() {
                     <MapPin className="h-3 w-3 text-ink-soft" />
                     {c.city ?? DASH}
                   </p>
-                  <p className="text-sm font-semibold text-navy">
+                  <p className="text-sm font-semibold text-navy tabular-nums">
                     {c.ordersCount ?? DASH}
-                    <span className="ml-1 text-[11px] font-normal text-ink-soft lg:hidden">
+                    <span className="ml-1 text-xs font-normal text-ink-soft lg:hidden">
                       sessions
                     </span>
                   </p>
-                  <p className="text-sm font-semibold text-navy">
+                  <p className="text-sm font-semibold text-navy tabular-nums">
                     {c.totalSpent != null ? euros(c.totalSpent) : DASH}
                   </p>
                   <Badge tone={clientTone[c.status]}>
@@ -336,7 +335,7 @@ function AccountOnly({
         </div>
 
         <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-[rgba(0,35,75,0.06)] pt-3">
-          <span className="text-[11px] text-ink-soft">Profil non renseigné</span>
+          <span className="text-xs text-ink-soft">Profil non renseigné</span>
           <DeleteAccountButton
             userId={c.userId}
             nom={c.name || c.email}
@@ -354,8 +353,8 @@ function AccountOnly({
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-navy">{c.name}</p>
-        <p className="truncate font-mono text-[11px] text-ink-soft">{c.email}</p>
-        <p className="text-[11px] text-ink-soft">
+        <p className="truncate text-xs text-ink-soft">{c.email}</p>
+        <p className="text-xs text-ink-soft">
           Profil non renseigné : pas de fiche à ouvrir.
         </p>
       </div>
@@ -392,7 +391,7 @@ function ViewToggle({
           title={label}
           onClick={() => onChange(id)}
           className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-full transition-colors",
+            "hit flex h-8 w-8 items-center justify-center rounded-full transition-colors",
             view === id
               ? "bg-navy text-white"
               : "text-ink-soft hover:text-navy",
@@ -409,7 +408,7 @@ function Cell({ label, value }: { label: string; value: string | number }) {
   return (
     <div>
       <p className="font-display text-sm font-bold text-navy">{value}</p>
-      <p className="text-[10px] uppercase tracking-wide text-ink-soft">
+      <p className="text-xs uppercase tracking-wide text-ink-soft">
         {label}
       </p>
     </div>
@@ -420,7 +419,7 @@ function MiniStat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="card p-4">
       <p className="font-display text-2xl font-bold text-navy">{value}</p>
-      <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-soft">
+      <p className="mt-0.5 text-xs font-semibold uppercase tracking-[0.1em] text-ink-soft">
         {label}
       </p>
     </div>

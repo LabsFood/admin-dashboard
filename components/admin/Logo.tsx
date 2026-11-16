@@ -34,7 +34,7 @@ export default function Logo({
         </p>
         <p
           className={cn(
-            "font-mono text-[9px] uppercase tracking-[0.22em]",
+            "text-[9px] uppercase tracking-[0.22em]",
             light ? "text-white/55" : "text-ink-soft",
           )}
         >

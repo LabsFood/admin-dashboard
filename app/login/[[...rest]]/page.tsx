@@ -1,5 +1,6 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
@@ -8,6 +9,7 @@ import { SignIn } from "@clerk/nextjs";
 import Logo from "@/components/admin/Logo";
 import { clerkAuthAppearance } from "@/lib/clerk-appearance";
 import { cn } from "@/lib/utils";
+import { fade } from "@/lib/motion";
 
 /* Bols de nourriture décoratifs qui flottent autour de la carte (desktop only).
    Images Unsplash chargées en <img> simple (pas de config next/image requise). */
@@ -57,12 +59,13 @@ function LoginInner() {
       </span>
 
       {/* Bols de nourriture flottants */}
-      {FOOD.map((item, i) => (
+      {FOOD.map((item) => (
+        // décor : simple fondu de 160 ms, sans décalage entre les bols
         <motion.div
           key={item.src}
-          initial={{ opacity: 0, scale: 0.92 }}
-          animate={{ opacity: 1, scale: 1, rotate: item.rotate }}
-          transition={{ duration: 0.55, delay: 0.15 + i * 0.1, ease: [0.16, 1, 0.3, 1] }}
+          initial={{ opacity: 0, rotate: item.rotate }}
+          animate={{ opacity: 1, rotate: item.rotate }}
+          transition={fade.transition}
           className={cn(
             "absolute hidden overflow-hidden rounded-full ring-[6px] ring-white/70 shadow-[0_28px_60px_-20px_rgba(0,35,75,0.45)] md:block",
             item.pos,
@@ -75,10 +78,9 @@ function LoginInner() {
       ))}
 
       {/* Carte de connexion */}
+      {/* fréquence d'usage : une seule entrée par session, fondu de 160 ms sans déplacement */}
       <motion.div
-        initial={{ opacity: 0, y: 22 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        {...fade}
         className="relative z-10  border border-white/60 bg-white/90 p-8 shadow-[0_40px_100px_-30px_rgba(0,35,75,0.4)] backdrop-blur-md sm:p-10"
       >
         <div className="mb-7 flex justify-center">
@@ -117,16 +119,34 @@ function LoginInner() {
       </motion.div>
 
       {/* Pied de page */}
-      <p className="absolute bottom-5 left-0 right-0 text-center font-mono text-[10px] uppercase tracking-[0.2em] text-ink-soft/70">
+      <p className="absolute bottom-5 left-0 right-0 text-center text-xs uppercase tracking-[0.2em] text-ink-soft/70">
         Lab&apos;s Food · Console · {new Date().getFullYear()}
       </p>
     </div>
   );
 }
 
+/* Attente de `useSearchParams` : le fond et la carte de connexion, vides. */
+function LoginSkeleton() {
+  return (
+    <SkeletonGroup className="flex min-h-screen items-center justify-center bg-gradient-to-br from-cream-soft via-paper to-cream px-4 py-12">
+      <div className="w-[26rem] max-w-full border border-white/60 bg-white/90 p-8 sm:p-10">
+        <Skeleton className="mx-auto h-9 w-36" />
+        <Skeleton className="mx-auto mt-7 h-9 w-48" />
+        <Skeleton className="mx-auto mt-3 h-4 w-64 max-w-full" />
+        <div className="mt-7 space-y-3">
+          <Skeleton className="h-10" />
+          <Skeleton className="h-10" />
+          <Skeleton className="h-10" />
+        </div>
+      </div>
+    </SkeletonGroup>
+  );
+}
+
 export default function LoginPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<LoginSkeleton />}>
       <LoginInner />
     </Suspense>
   );

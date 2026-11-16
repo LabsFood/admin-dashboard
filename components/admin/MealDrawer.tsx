@@ -164,7 +164,7 @@ export default function MealDrawer({
                 className="aspect-[16/10] w-full object-cover"
               />
               {meal.isFeatured && (
-                <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-navy/85 px-2 py-1 text-[10px] font-semibold uppercase text-terra-soft">
+                <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-navy/85 px-2 py-1 text-xs font-semibold uppercase text-terra-soft">
                   <Flame className="h-3 w-3" /> Vedette
                 </span>
               )}
@@ -319,12 +319,12 @@ export default function MealDrawer({
               <ol className="space-y-2 text-[13px] leading-relaxed text-ink-mid">
                 {steps.map((s, i) => (
                   <li key={`${i}-${s.text.slice(0, 12)}`} className="flex gap-2.5">
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-xs bg-cream-deep font-mono text-[10px] font-semibold text-navy">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-xs bg-cream-deep tabular-nums text-xs font-semibold text-navy">
                       {i + 1}
                     </span>
                     <span>
                       {(s.type || s.durationMinutes) && (
-                        <span className="mr-1.5 font-mono text-[10px] uppercase tracking-wide text-ink-soft">
+                        <span className="mr-1.5 text-xs uppercase tracking-wide text-ink-soft">
                           {[
                             s.type ? refLabel(stepTypes.data, s.type) : null,
                             s.durationMinutes ? `${s.durationMinutes} min` : null,
@@ -484,7 +484,7 @@ function Stat({
     <div className="rounded-2xl bg-paper p-3">
       <Icon className="mx-auto h-4 w-4 text-terra" aria-hidden />
       <p className="mt-1 font-display text-base font-bold text-navy">{value}</p>
-      <p className="text-[10px] uppercase tracking-wide text-ink-soft">{label}</p>
+      <p className="text-xs uppercase tracking-wide text-ink-soft">{label}</p>
     </div>
   );
 }
@@ -492,7 +492,7 @@ function Stat({
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-soft">
         {title}
       </p>
       {children}

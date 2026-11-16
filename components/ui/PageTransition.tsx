@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import type { ReactNode } from "react";
+import { fade } from "@/lib/motion";
 
 export default function PageTransition({
   children,
@@ -11,12 +12,8 @@ export default function PageTransition({
   className?: string;
 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-      className={className}
-    >
+    // fréquence d'usage : une console ne fait pas d'entrée, un fondu de 160 ms suffit
+    <motion.div {...fade} className={className}>
       {children}
     </motion.div>
   );

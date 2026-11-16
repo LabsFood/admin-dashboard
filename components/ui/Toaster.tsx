@@ -112,6 +112,7 @@ function ToastCard({
   const { Icon, bar, icon } = STYLE[toast.kind];
 
   return (
+    // retour d'action : slow-out en ~200 ms (ressort amorti), sortie slow-in en 180 ms
     <motion.div
       layout
       initial={{ opacity: 0, y: 12, scale: 0.98 }}
@@ -137,7 +138,7 @@ function ToastCard({
         <button
           onClick={onDismiss}
           aria-label="Fermer"
-          className="-mr-1 -mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-cream-soft hover:text-navy"
+          className="hit -mr-1 -mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-cream-soft hover:text-navy"
         >
           <X className="h-3.5 w-3.5" />
         </button>

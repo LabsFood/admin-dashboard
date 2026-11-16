@@ -36,7 +36,7 @@ export default function FilterTabs<T extends string>({
             {o.count !== undefined && (
               <span
                 className={cn(
-                  "rounded-full px-1.5 py-0.5 font-mono text-[10px]",
+                  "rounded-full px-1.5 py-0.5 tabular-nums text-xs",
                   active ? "bg-white/20 text-white" : "bg-cream-deep text-ink-mid",
                 )}
               >

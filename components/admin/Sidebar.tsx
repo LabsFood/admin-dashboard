@@ -73,7 +73,7 @@ export default function Sidebar() {
         <nav className="scroll-thin flex-1 overflow-y-auto px-3 pb-2">
           {NAV_SECTIONS.map((section) => (
             <div key={section.label} className="mb-4">
-              <p className="px-3 pb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-white/35">
+              <p className="px-3 pb-1.5 text-xs uppercase tracking-[0.18em] text-white/35">
                 {section.label}
               </p>
               <ul className="space-y-0.5">
@@ -104,9 +104,9 @@ export default function Sidebar() {
                         {badge ? (
                           <span
                             className={cn(
-                              "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 font-mono text-[10px] font-semibold",
+                              "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 tabular-nums text-[10px] font-semibold",
                               active
-                                ? "bg-white text-terra"
+                                ? "bg-white text-terra-ink"
                                 : "bg-terra text-white",
                             )}
                           >

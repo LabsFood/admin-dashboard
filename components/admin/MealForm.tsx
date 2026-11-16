@@ -5,7 +5,6 @@ import InfoPopover from "@/components/ui/InfoPopover";
 import { problemText } from "@/lib/readiness";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
 import posthog from "posthog-js";
 import {
   AlertTriangle,
@@ -284,17 +283,14 @@ export default function MealForm({
         {isRecette ? "Toutes les recettes" : "Tous les plats"}
       </Link>
 
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      <div
         className="relative overflow-hidden rounded-3xl bg-navy p-6 text-white lg:p-7"
       >
         <div
           aria-hidden
           className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 rounded-full bg-terra/25 blur-3xl"
         />
-        <p className="relative font-mono text-[10px] uppercase tracking-[0.2em] text-terra-soft">
+        <p className="relative text-xs uppercase tracking-[0.2em] text-terra-soft">
           {isRecette ? "Carte des recettes" : "Catalogue de plats"}
         </p>
         <h2 className="relative mt-1.5 font-display text-2xl font-bold lg:text-3xl">
@@ -308,7 +304,7 @@ export default function MealForm({
           Le nom et le temps de préparation suffisent pour enregistrer. Le reste
           se complète à tout moment.
         </p>
-      </motion.div>
+      </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Colonne principale */}
@@ -514,7 +510,7 @@ export default function MealForm({
                 <span className="block text-[13px] font-semibold text-navy">
                   Ce plat ne contient aucun des 14 allergènes
                 </span>
-                <span className="mt-0.5 block text-[11px] leading-relaxed text-ink-soft">
+                <span className="mt-0.5 block text-xs leading-relaxed text-ink-soft">
                   Une déclaration explicite, pas un oubli — c&apos;est ce qui
                   distingue « vérifié, aucun » de « pas encore renseigné ».
                 </span>
@@ -1093,7 +1089,7 @@ function IngredientRows({
                   type="button"
                   onClick={() => onChange(value.filter((_, j) => j !== i))}
                   aria-label={`Retirer l'ingrédient ${i + 1}`}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-danger-soft hover:text-danger"
+                  className="hit flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-danger-soft hover:text-danger"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -1117,7 +1113,7 @@ function IngredientRows({
                     Quantité fixe
                   </label>
                   {row.toVerify && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-2.5 py-1 text-[11px] font-semibold text-[#8A6212]">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-2.5 py-1 text-xs font-semibold text-[#8A6212]">
                       À vérifier
                       <button
                         type="button"
@@ -1183,7 +1179,7 @@ function IngredientName({
         className={cn("input-base w-full", row.catalogIngredientId && "pr-14")}
       />
       {row.catalogIngredientId && (
-        <span className="chip-teal pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px]">
+        <span className="chip-teal pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs">
           liste
         </span>
       )}
@@ -1205,7 +1201,7 @@ function IngredientName({
               >
                 {m.name}
                 {m.aliases.length > 0 && (
-                  <span className="ml-1.5 text-[11px] text-ink-soft">{m.aliases.join(", ")}</span>
+                  <span className="ml-1.5 text-xs text-ink-soft">{m.aliases.join(", ")}</span>
                 )}
               </button>
             </li>
@@ -1251,7 +1247,7 @@ function StepRows({
             <li key={i} className="flex items-start gap-2">
               <span
                 aria-hidden
-                className="mt-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-xs bg-cream-deep font-mono text-[10px] font-semibold text-navy"
+                className="mt-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-xs bg-cream-deep tabular-nums text-xs font-semibold text-navy"
               >
                 {i + 1}
               </span>
@@ -1296,7 +1292,7 @@ function StepRows({
                   onClick={() => move(i, -1)}
                   disabled={i === 0}
                   aria-label={`Monter l'étape ${i + 1}`}
-                  className="flex h-7 w-9 items-center justify-center rounded-md text-ink-soft hover:bg-cream-soft disabled:opacity-30"
+                  className="hit flex h-7 w-9 items-center justify-center rounded-md text-ink-soft hover:bg-cream-soft disabled:opacity-30"
                 >
                   <ArrowUp className="h-3.5 w-3.5" />
                 </button>
@@ -1305,7 +1301,7 @@ function StepRows({
                   onClick={() => move(i, 1)}
                   disabled={i === value.length - 1}
                   aria-label={`Descendre l'étape ${i + 1}`}
-                  className="flex h-7 w-9 items-center justify-center rounded-md text-ink-soft hover:bg-cream-soft disabled:opacity-30"
+                  className="hit flex h-7 w-9 items-center justify-center rounded-md text-ink-soft hover:bg-cream-soft disabled:opacity-30"
                 >
                   <ArrowDown className="h-3.5 w-3.5" />
                 </button>
@@ -1313,7 +1309,7 @@ function StepRows({
                   type="button"
                   onClick={() => onChange(value.filter((_, j) => j !== i))}
                   aria-label={`Retirer l'étape ${i + 1}`}
-                  className="flex h-9 w-9 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-danger-soft hover:text-danger"
+                  className="hit flex h-9 w-9 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-danger-soft hover:text-danger"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -1428,7 +1424,7 @@ function PhotoField({
               Retirer
             </button>
           )}
-          <span className="text-[11px] text-ink-soft">
+          <span className="text-xs text-ink-soft">
             JPG, PNG ou WebP, {PHOTO_MAX_MB} Mo au plus
           </span>
         </div>
@@ -1448,7 +1444,7 @@ function PhotoField({
               className="input-base pl-9"
             />
           </div>
-          <p className="text-[11px] leading-relaxed text-ink-soft">
+          <p className="text-xs leading-relaxed text-ink-soft">
             Vous pouvez coller une URL déjà hébergée. Pour envoyer un fichier,
             enregistrez d&apos;abord le plat : l&apos;envoi a besoin de son
             identifiant.
@@ -1500,11 +1496,11 @@ function Field({
     <label className="block">
       <span className="field-label">
         {label}
-        {required && <span className="text-terra"> *</span>}
+        {required && <span className="text-terra-ink"> *</span>}
       </span>
       {children}
       {hint && (
-        <span className="mt-1 block text-[11px] leading-relaxed text-ink-soft">
+        <span className="mt-1 block text-xs leading-relaxed text-ink-soft">
           {hint}
         </span>
       )}

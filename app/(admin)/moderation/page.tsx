@@ -1,7 +1,7 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { useState } from "react";
-import { motion } from "framer-motion";
 import posthog from "posthog-js";
 import {
   AlertTriangle,
@@ -78,10 +78,7 @@ export default function ModerationPage() {
 
   return (
     <div className="space-y-6">
-      <motion.section
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      <section
         className="card flex flex-wrap items-center justify-between gap-4 p-6"
       >
         <div className="flex items-center gap-4">
@@ -89,7 +86,7 @@ export default function ModerationPage() {
             <ShieldCheck className="h-6 w-6" aria-hidden />
           </span>
           <div>
-            <h2 className="font-display text-xl font-bold text-navy">
+            <h2 className="font-display text-xl font-bold text-navy tabular-nums">
               {queue.isPending
                 ? "Lecture de la file…"
                 : scope === "pending"
@@ -124,7 +121,7 @@ export default function ModerationPage() {
             </button>
           ))}
         </div>
-      </motion.section>
+      </section>
 
       <FilterTabs<KindFilter>
         value={kind}
@@ -147,11 +144,13 @@ export default function ModerationPage() {
           </button>
         </section>
       ) : queue.isPending ? (
-        <div className="space-y-2">
+        <SkeletonGroup className="space-y-2">
           {[0, 1, 2, 3, 4].map((i) => (
-            <div key={i} className="card h-20 animate-pulse" />
+            <div key={i} className="card h-20 p-4">
+              <Skeleton className="h-full rounded-[10px]" />
+            </div>
           ))}
-        </div>
+        </SkeletonGroup>
       ) : items.length === 0 ? (
         <section className="card">
           <EmptyState
@@ -172,7 +171,6 @@ export default function ModerationPage() {
                 key={item.id || i}
                 item={item}
                 onOpen={() => setOpenId(item.id)}
-                delay={Math.min(i * 0.03, 0.3)}
               />
             ))}
           </ul>
@@ -182,7 +180,7 @@ export default function ModerationPage() {
               aria-label="Pagination de la file"
               className="flex items-center justify-between"
             >
-              <p className="text-[13px] text-ink-soft">
+              <p className="text-[13px] text-ink-soft tabular-nums">
                 Page {meta.page} sur {meta.totalPages} · {meta.total} au total
               </p>
               <div className="flex gap-2">
@@ -216,11 +214,9 @@ export default function ModerationPage() {
 function QueueRow({
   item,
   onOpen,
-  delay,
 }: {
   item: ReviewItem;
   onOpen: () => void;
-  delay: number;
 }) {
   const toast = useToast();
   const review = useMarkReviewed();
@@ -298,10 +294,7 @@ function QueueRow({
   }
 
   return (
-    <motion.li
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay, ease: [0.16, 1, 0.3, 1] }}
+    <li
       className="card p-4"
     >
       <div className="flex flex-wrap items-center gap-4">
@@ -353,7 +346,7 @@ function QueueRow({
               </Badge>
             ))}
           </div>
-          <p className="mt-1 truncate font-mono text-[11px] text-ink-soft">
+          <p className="mt-1 truncate text-xs text-ink-soft">
             {[
               item.chefName ?? "Batch cooker inconnu",
               item.kind === "menu" && item.dishCount != null
@@ -373,7 +366,7 @@ function QueueRow({
               .join(" · ")}
           </p>
           {item.publishedAt && (
-            <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-ink-soft">
+            <p className="mt-0.5 inline-flex items-center gap-1 text-xs text-ink-soft">
               <Clock className="h-3 w-3" aria-hidden />
               publié {timeAgo(item.publishedAt)}
               {item.reviewedAt && ` · relu le ${formatDate(item.reviewedAt)}`}
@@ -449,6 +442,6 @@ function QueueRow({
         error={moderate.isError ? adminErrorMessage(moderate.error) : null}
         onConfirm={(reason, extra) => decide("published", reason, extra)}
       />
-    </motion.li>
+    </li>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { useState } from "react";
 import { ChevronDown, Clock, LayoutList, UtensilsCrossed } from "lucide-react";
 import Drawer from "@/components/ui/Drawer";
@@ -139,7 +140,9 @@ export default function ModerationDrawer({
       {fiche && (
         <div className="space-y-5">
           {source.isPending ? (
-            <div className="aspect-[16/10] w-full animate-pulse rounded-2xl bg-cream-soft" />
+            <SkeletonGroup>
+              <Skeleton className="aspect-[16/10] w-full rounded-2xl" />
+            </SkeletonGroup>
           ) : fiche.imageUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
@@ -236,7 +239,7 @@ export default function ModerationDrawer({
                 ))}
               </div>
               {fiche.customDiets.length > 0 && (
-                <p className="mt-1.5 text-[11px] leading-relaxed text-ink-soft">
+                <p className="mt-1.5 text-xs leading-relaxed text-ink-soft">
                   En italique : tapé à la main, hors liste de référence.
                 </p>
               )}
@@ -296,7 +299,7 @@ export default function ModerationDrawer({
                     ))}
                   </div>
                   {fiche.customAllergens.length > 0 && (
-                    <p className="mt-1.5 text-[11px] leading-relaxed text-ink-soft">
+                    <p className="mt-1.5 text-xs leading-relaxed text-ink-soft">
                       En italique : hors des 14 réglementés.
                     </p>
                   )}
@@ -313,7 +316,7 @@ export default function ModerationDrawer({
                 aria-expanded={rawOpen}
                 className="flex w-full items-center justify-between text-left"
               >
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+                <span className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
                   {extra.length} champ{extra.length > 1 ? "s" : ""} renvoyé
                   {extra.length > 1 ? "s" : ""} et non affiché
                   {extra.length > 1 ? "s" : ""}
@@ -328,12 +331,12 @@ export default function ModerationDrawer({
               </button>
               {rawOpen && (
                 <>
-                  <p className="mt-2 text-[11px] leading-relaxed text-ink-soft">
+                  <p className="mt-2 text-xs leading-relaxed text-ink-soft">
                     La réponse de la file n&apos;est pas décrite dans le Swagger.
                     Ce panneau montre ce que l&apos;API envoie en plus, pour que
                     rien ne se perde en attendant.
                   </p>
-                  <pre className="scroll-thin mt-2 max-h-64 overflow-auto rounded-md bg-cream-soft p-3 font-mono text-[10px] leading-relaxed text-ink-mid">
+                  <pre className="scroll-thin mt-2 max-h-64 overflow-auto rounded-md bg-cream-soft p-3 font-mono text-xs leading-relaxed text-ink-mid">
                     {JSON.stringify(Object.fromEntries(extra), null, 2)}
                   </pre>
                 </>
@@ -364,7 +367,7 @@ function Row({ label, value }: { label: string; value: string }) {
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-soft">
         {title}
       </p>
       {children}

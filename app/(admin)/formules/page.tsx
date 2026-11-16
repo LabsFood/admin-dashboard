@@ -1,8 +1,8 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import {
   AlertTriangle,
   Check,
@@ -11,7 +11,7 @@ import {
   Pencil,
   Plus,
   RotateCw,
-  Sparkles,
+  Landmark,
   Trash2,
   TrendingUp,
   X,
@@ -76,10 +76,7 @@ export default function FormulesPage() {
 
   return (
     <div className="space-y-6">
-      <motion.section
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      <section
         className="grid grid-cols-1 gap-4 sm:grid-cols-3"
       >
         <div className="card flex items-center gap-3 p-5">
@@ -93,7 +90,7 @@ export default function FormulesPage() {
             <p className="font-display text-2xl font-bold text-navy">
               {figures.isPending ? "…" : total}
             </p>
-            <p className="text-[11px] uppercase tracking-wide text-ink-soft">
+            <p className="text-xs uppercase tracking-wide text-ink-soft">
               Réservations, toutes formules
             </p>
           </div>
@@ -106,34 +103,36 @@ export default function FormulesPage() {
             <Check className="h-5 w-5" />
           </span>
           <div>
-            <p className="font-display text-2xl font-bold text-navy">
+            <p className="font-display text-2xl font-bold text-navy tabular-nums">
               {formules.isPending
                 ? "…"
                 : `${liste.filter((f) => f.active).length}/${liste.length}`}
             </p>
-            <p className="text-[11px] uppercase tracking-wide text-ink-soft">
+            <p className="text-xs uppercase tracking-wide text-ink-soft">
               Formules proposées
             </p>
           </div>
         </div>
         <div className="rounded-3xl bg-navy p-5 text-white">
-          <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.12em] text-terra-soft">
-            <Sparkles className="h-3.5 w-3.5" aria-hidden /> Avantage fiscal
+          <p className="flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-terra-soft">
+            <Landmark className="h-3.5 w-3.5" aria-hidden /> Avantage fiscal
           </p>
           <p className="mt-1.5 text-sm leading-relaxed text-white/75">
             Service à la personne — crédit d&apos;impôt de{" "}
-            <span className="font-bold text-terra-soft">50 %</span>. Il n&apos;est
+            <span className="font-bold text-terra-soft tabular-nums">50 %</span>. Il n&apos;est
             pas appliqué par l&apos;API : les deux prix sont saisis.
           </p>
         </div>
-      </motion.section>
+      </section>
 
       {formules.isPending ? (
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 xl:grid-cols-4">
+        <SkeletonGroup className="grid grid-cols-1 gap-5 lg:grid-cols-2 xl:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="card h-80 animate-pulse" />
+            <div key={i} className="card h-80 p-4">
+              <Skeleton className="h-full rounded-[10px]" />
+            </div>
           ))}
-        </div>
+        </SkeletonGroup>
       ) : liste.length === 0 ? (
         <p className="card p-6 text-sm text-ink-soft">
           Aucune formule en base. Elles sont posées côté serveur : la console ne
@@ -141,11 +140,10 @@ export default function FormulesPage() {
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 xl:grid-cols-4">
-          {liste.map((f, i) => (
+          {liste.map((f) => (
             <FormuleCard
               key={f.id}
               formule={f}
-              index={i}
               reservations={reservations.get(f.id)}
             />
           ))}
@@ -206,7 +204,9 @@ function FormulesDesBatchCookers() {
       </p>
 
       {offres.isPending ? (
-        <div className="mt-4 h-24 animate-pulse rounded-2xl bg-cream-soft" />
+        <SkeletonGroup className="mt-4">
+          <Skeleton className="h-24 rounded-2xl" />
+        </SkeletonGroup>
       ) : offres.isError ? (
         <p className="mt-4 flex items-start gap-2 text-sm text-danger">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
@@ -222,7 +222,7 @@ function FormulesDesBatchCookers() {
             <div key={chefId}>
               <Link
                 href={`/batchcookers/${chefId}`}
-                className="text-sm font-semibold text-navy hover:text-terra"
+                className="text-sm font-semibold text-navy hover:text-terra-ink"
               >
                 {groupe.nom}
               </Link>
@@ -250,7 +250,7 @@ function FormulesDesBatchCookers() {
                         {o.bookingsCount} réservation{o.bookingsCount > 1 ? "s" : ""}
                       </p>
                     </div>
-                    <p className="font-display text-lg font-bold text-navy">
+                    <p className="font-display text-lg font-bold text-navy tabular-nums">
                       {euros(Math.round(o.priceCents / 100))}
                     </p>
                   </li>
@@ -276,11 +276,9 @@ function duree(minutes: number): string {
 
 function FormuleCard({
   formule: f,
-  index,
   reservations,
 }: {
   formule: Formule;
-  index: number;
   reservations?: number;
 }) {
   const toast = useToast();
@@ -362,10 +360,7 @@ function FormuleCard({
   }
 
   return (
-    <motion.article
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.34, delay: Math.min(index * 0.06, 0.3), ease: [0.16, 1, 0.3, 1] }}
+    <article
       className={cn(
         "card relative flex flex-col p-6",
         f.popular && "ring-1 ring-terra/50",
@@ -373,7 +368,7 @@ function FormuleCard({
       )}
     >
       {f.popular && (
-        <span className="absolute -top-2.5 left-6 rounded-full bg-terra px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+        <span className="absolute -top-2.5 left-6 rounded-full bg-terra px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide text-white">
           Populaire
         </span>
       )}
@@ -434,7 +429,7 @@ function FormuleCard({
         <div className="mt-4">
           {f.priceTtc > 0 ? (
             <>
-              <p className="font-display text-3xl font-bold text-navy">
+              <p className="font-display text-3xl font-bold text-navy tabular-nums">
                 {euros(Math.round(f.priceTtc / 100))}
               </p>
               <p className="text-xs text-terra-deep">
@@ -468,7 +463,7 @@ function FormuleCard({
                     type="button"
                     onClick={() => setFeatures(features.filter((_, j) => j !== i))}
                     aria-label={`Retirer « ${feat} »`}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-ink-soft hover:bg-danger-soft hover:text-danger"
+                    className="hit flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-ink-soft hover:bg-danger-soft hover:text-danger"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -522,7 +517,7 @@ function FormuleCard({
       )}
 
       <div className="hairline mt-4 flex items-center justify-between border-t pt-3">
-        <span className="text-[11px] text-ink-soft">
+        <span className="text-xs text-ink-soft">
           {reservations != null
             ? `${reservations} réservation${reservations > 1 ? "s" : ""}`
             : "Aucune réservation"}
@@ -547,7 +542,7 @@ function FormuleCard({
               type="button"
               onClick={() => setEditing(false)}
               aria-label="Annuler"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-soft hover:bg-cream-soft hover:text-navy"
+              className="hit flex h-8 w-8 items-center justify-center rounded-lg text-ink-soft hover:bg-cream-soft hover:text-navy"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -558,7 +553,7 @@ function FormuleCard({
               type="button"
               onClick={ouvrir}
               aria-label={`Modifier ${f.name}`}
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-cream-soft text-navy hover:bg-cream-deep"
+              className="hit flex h-8 w-8 items-center justify-center rounded-lg bg-cream-soft text-navy hover:bg-cream-deep"
             >
               <Pencil className="h-3.5 w-3.5" />
             </button>
@@ -570,7 +565,7 @@ function FormuleCard({
               aria-checked={f.active}
               aria-label={`${f.active ? "Retirer" : "Proposer"} ${f.name}`}
               className={cn(
-                "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+                "hit relative h-6 w-11 shrink-0 rounded-full transition-colors",
                 f.active ? "bg-terra" : "bg-cream-deep",
               )}
             >
@@ -619,6 +614,6 @@ function FormuleCard({
         }
         confirmLabel={f.active ? "Retirer de l'offre" : "Proposer de nouveau"}
       />
-    </motion.article>
+    </article>
   );
 }

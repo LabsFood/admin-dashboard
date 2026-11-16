@@ -56,19 +56,19 @@ export default function RoleEditor({
       />
 
       {setRole.isPending && (
-        <p className="flex items-center gap-1.5 text-[11px] text-ink-soft">
+        <p className="flex items-center gap-1.5 text-xs text-ink-soft">
           <Loader2 className="h-3 w-3 animate-spin" /> Mise à jour du rôle…
         </p>
       )}
 
       {done && !setRole.isPending && (
-        <p className="flex items-center gap-1.5 text-[11px] text-success">
+        <p className="flex items-center gap-1.5 text-xs text-success">
           <Check className="h-3 w-3" /> Rôle mis à jour.
         </p>
       )}
 
       {setRole.isError && (
-        <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-danger">
+        <p className="flex items-start gap-1.5 text-xs leading-relaxed text-danger">
           <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
           {adminErrorMessage(setRole.error)}
         </p>

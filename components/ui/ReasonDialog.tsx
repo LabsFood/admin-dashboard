@@ -91,7 +91,7 @@ export default function ReasonDialog({
 
         {codes && codes.length > 0 && (
           <fieldset className="mt-4">
-            <legend className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+            <legend className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-soft">
               {codeLabel}
             </legend>
             <div className="flex flex-wrap gap-1.5">
@@ -112,7 +112,7 @@ export default function ReasonDialog({
                 </button>
               ))}
             </div>
-            <p className="mt-1.5 min-h-[1.25rem] text-[11px] leading-relaxed text-ink-soft">
+            <p className="mt-1.5 min-h-[1.25rem] text-xs leading-relaxed text-ink-soft">
               {selected?.hint ?? "Facultatif : il classe la décision, il ne la remplace pas."}
             </p>
           </fieldset>
@@ -125,7 +125,7 @@ export default function ReasonDialog({
           rows={4}
           className="input-base mt-4 resize-y"
         />
-        <p className="mt-1 flex items-center justify-between text-[11px] text-ink-soft">
+        <p className="mt-1 flex items-center justify-between text-xs text-ink-soft">
           <span className={tooShort ? "text-danger" : ""}>
             {tooShort
               ? `Encore ${minLength - trimmed.length} caractères`
@@ -162,7 +162,7 @@ export default function ReasonDialog({
                 {notify.label}
               </span>
               {notify.hint && (
-                <span className="mt-0.5 block text-[11px] leading-relaxed text-ink-soft">
+                <span className="mt-0.5 block text-xs leading-relaxed text-ink-soft">
                   {notify.hint}
                 </span>
               )}

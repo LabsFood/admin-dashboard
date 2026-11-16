@@ -1,5 +1,6 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { use, useState } from "react";
 import Link from "next/link";
 import posthog from "posthog-js";
@@ -169,10 +170,14 @@ export default function CandidatureDetailPage({
 
   if (isPending) {
     return (
-      <div className="space-y-4">
-        <div className="h-24 animate-pulse rounded-lg bg-cream-soft" />
-        <div className="h-64 animate-pulse rounded-lg bg-cream-soft" />
-      </div>
+      <SkeletonGroup className="space-y-4">
+        <div className="card h-24 p-4">
+          <Skeleton className="h-full rounded-[10px]" />
+        </div>
+        <div className="card h-64 p-4">
+          <Skeleton className="h-full rounded-[10px]" />
+        </div>
+      </SkeletonGroup>
     );
   }
 
@@ -243,24 +248,24 @@ export default function CandidatureDetailPage({
             {initials(fullName)}
           </span>
           <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-soft">
+            <p className="font-mono text-xs uppercase tracking-[0.18em] text-ink-soft">
               {data.reference}
             </p>
             <h1 className="mt-0.5 font-display text-2xl font-bold text-navy">{fullName}</h1>
-            <p className="mt-1 text-sm text-ink-mid">
+            <p className="mt-1 text-sm text-ink-mid tabular-nums">
               {[address.city, identity.email, identity.phone].filter(Boolean).join(" · ")}
             </p>
           </div>
         </div>
         <div className="flex flex-col items-end gap-1.5">
           <Badge tone={STATUS_TONE[data.status]}>{STATUS_LABEL[data.status]}</Badge>
-          <p className="text-xs text-ink-soft">Déposée le {formatDate(data.submittedAt)}</p>
+          <p className="text-xs text-ink-soft tabular-nums">Déposée le {formatDate(data.submittedAt)}</p>
           {data.decidedAt && (
-            <p className="text-xs text-ink-soft">Décidée le {formatDate(data.decidedAt)}</p>
+            <p className="text-xs text-ink-soft tabular-nums">Décidée le {formatDate(data.decidedAt)}</p>
           )}
           <Link
             href={`/batchcookers/${data.chefProfileId}`}
-            className="text-xs font-semibold text-terra underline-offset-4 hover:underline"
+            className="text-xs font-semibold text-terra-ink underline-offset-4 hover:underline"
           >
             Voir le profil batch cooker
           </Link>
@@ -367,7 +372,7 @@ export default function CandidatureDetailPage({
                     <span className="font-semibold text-navy">
                       {z.regionLabel ?? z.regionCode}
                     </span>
-                    <span className="block text-xs text-ink-mid">
+                    <span className="block text-xs text-ink-mid tabular-nums">
                       {z.scope === "cities" && z.cities.length > 0
                         ? z.cities.map((c) => c.name).join(", ")
                         : "Toute la région"}
@@ -392,7 +397,7 @@ export default function CandidatureDetailPage({
         <aside className="space-y-5 rounded-lg bg-paper p-5 lg:sticky lg:top-6 lg:self-start">
           <div>
             <h2 className="font-display text-lg font-bold text-navy">Pièces du dossier</h2>
-            <p className="mt-1 text-xs leading-relaxed text-ink-mid">
+            <p className="mt-1 text-xs leading-relaxed text-ink-mid tabular-nums">
               {documents.filter((d) => d.status === "valid").length} validée
               {documents.filter((d) => d.status === "valid").length > 1 ? "s" : ""} sur{" "}
               {documents.length}
@@ -404,10 +409,10 @@ export default function CandidatureDetailPage({
             if (docs.length === 0) return null;
             return (
               <div key={family}>
-                <h3 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-navy">
+                <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-navy">
                   {label}
                 </h3>
-                <p className="mb-2 mt-0.5 text-[11px] leading-snug text-ink-soft">{hint}</p>
+                <p className="mb-2 mt-0.5 text-xs leading-snug text-ink-soft">{hint}</p>
                 <ul className="divide-y divide-[rgba(0,35,75,0.08)] border-y border-[rgba(0,35,75,0.08)]">
                   {docs.map((doc) => (
                     <DocumentRow key={doc.type} doc={doc} appId={data.id} />
@@ -440,7 +445,7 @@ export default function CandidatureDetailPage({
       {/* ── Ce que l'API renvoie et qu'on n'affiche pas encore ─────────── */}
       {unrendered.length > 0 && (
         <section className="rounded-lg bg-warning-soft px-5 py-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#9A6E15]">
+          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#9A6E15] tabular-nums">
             {unrendered.length} champ{unrendered.length > 1 ? "s" : ""} non affiché
             {unrendered.length > 1 ? "s" : ""}
           </p>
@@ -451,7 +456,7 @@ export default function CandidatureDetailPage({
             {unrendered.map(({ key, preview }) => (
               <li
                 key={key}
-                className="rounded-full bg-paper px-2.5 py-1 font-mono text-[11px] text-navy"
+                className="rounded-full bg-paper px-2.5 py-1 font-mono text-xs text-navy"
               >
                 {key}
                 <span className="ml-1.5 text-ink-soft">{preview}</span>
@@ -475,7 +480,7 @@ export default function CandidatureDetailPage({
           Réponse brute de l’API
         </button>
         {rawOpen && (
-          <pre className="mt-3 max-h-96 overflow-auto rounded-lg bg-navy p-4 font-mono text-[11px] leading-relaxed text-white/80">
+          <pre className="mt-3 max-h-96 overflow-auto rounded-lg bg-navy p-4 font-mono text-xs leading-relaxed text-white/80">
             {JSON.stringify(data, null, 2)}
           </pre>
         )}
@@ -514,11 +519,11 @@ function DocumentRow({
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-[13px] font-semibold leading-snug text-navy">{doc.label}</p>
-          <p className="mt-0.5 text-[11px] leading-snug text-ink-soft">
+          <p className="mt-0.5 text-xs leading-snug text-ink-soft tabular-nums">
             {meta.length > 0 ? meta.join(" · ") : "Aucun dépôt"}
           </p>
           {doc.reason && (
-            <p className="mt-1 text-[11px] leading-snug text-danger">{doc.reason}</p>
+            <p className="mt-1 text-xs leading-snug text-danger">{doc.reason}</p>
           )}
         </div>
         <Badge className="shrink-0" tone={DOC_TONE[doc.status] ?? "neutral"}>
@@ -692,7 +697,7 @@ function DecisionBar({
               />
               <span className="min-w-0">
                 <span className="block text-[13px] font-semibold text-navy">{t}</span>
-                <span className="mt-0.5 block text-[11px] leading-relaxed text-ink-soft">
+                <span className="mt-0.5 block text-xs leading-relaxed text-ink-soft">
                   {d}
                 </span>
               </span>
@@ -797,7 +802,7 @@ function DecisionBar({
                     onClick={() => toggle(d.type)}
                     aria-pressed={on}
                     className={cn(
-                      "rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                      "rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors",
                       on
                         ? "border-navy bg-navy text-white"
                         : "border-[rgba(0,35,75,0.18)] text-ink-mid hover:bg-cream-soft",
@@ -881,7 +886,7 @@ function MiseEnLigne({
     <div className="space-y-3 border-t border-[rgba(0,35,75,0.1)] pt-4">
       <div>
         <p className="text-[13px] font-semibold text-navy">Vitrine publique</p>
-        <p className="mt-0.5 text-[11px] leading-relaxed text-ink-soft">
+        <p className="mt-0.5 text-xs leading-relaxed text-ink-soft">
           Approuver vérifie le batch cooker. Tant que sa vitrine n&apos;est pas
           mise en ligne, aucun client ne le voit ni ne peut le réserver.
         </p>
@@ -927,7 +932,7 @@ function MiseEnLigne({
         </p>
       )}
 
-      <p className="text-[11px] leading-relaxed text-ink-soft">
+      <p className="text-xs leading-relaxed text-ink-soft">
         L&apos;état actuel n&apos;est pas lisible ici : l&apos;API n&apos;expose
         pas la fiche d&apos;un batch cooker. Ces deux boutons sont sans danger à
         répéter.

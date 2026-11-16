@@ -1,5 +1,6 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -172,7 +173,7 @@ function VoletCesu() {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-display text-lg font-bold text-navy">
+                    <p className="font-display text-lg font-bold text-navy tabular-nums">
                       {centimes(p.amountTtc)}
                     </p>
                     <Badge tone={TON_CESU[p.settlementStatus]}>
@@ -327,7 +328,7 @@ function VoletCommissions() {
 
       {filtre === "issued" && factures.length > 0 && (
         <p className="text-sm text-ink-mid">
-          <span className="font-display text-lg font-bold text-navy">
+          <span className="font-display text-lg font-bold text-navy tabular-nums">
             {centimes(du)}
           </span>{" "}
           dus sur {factures.length} facture{factures.length > 1 ? "s" : ""}.
@@ -439,7 +440,7 @@ function Facture({ facture: f }: { facture: CommissionInvoice }) {
           <p className="mt-1.5 text-sm text-ink-mid">
             <Link
               href={`/batchcookers/${f.chefProfileId}`}
-              className="font-semibold text-navy hover:text-terra"
+              className="font-semibold text-navy hover:text-terra-ink"
             >
               {f.chefDisplayName ?? "Batch cooker"}
             </Link>
@@ -455,10 +456,10 @@ function Facture({ facture: f }: { facture: CommissionInvoice }) {
         </div>
 
         <div className="shrink-0 text-right">
-          <p className="font-display text-lg font-bold text-navy">
+          <p className="font-display text-lg font-bold text-navy tabular-nums">
             {centimes(f.amountTtcCents)}
           </p>
-          <p className="text-[11px] text-ink-soft">
+          <p className="text-xs text-ink-soft tabular-nums">
             dont {centimes(f.amountVatCents)} de TVA
           </p>
           {echoue && (
@@ -656,7 +657,7 @@ function VoletUrssaf() {
                   <p className="font-semibold text-navy">
                     {centimes(p.amountCents)}
                     {p.debitedCents > 0 && p.debitedCents !== p.amountCents && (
-                      <span className="ml-2 text-sm font-normal text-ink-mid">
+                      <span className="ml-2 text-sm font-normal text-ink-mid tabular-nums">
                         dont {centimes(p.debitedCents)} prélevés
                       </span>
                     )}
@@ -665,7 +666,7 @@ function VoletUrssaf() {
                     {p.booking.clientName} → {p.booking.chefName} ·{" "}
                     <Link
                       href={`/reservations/${p.booking.id}`}
-                      className="font-mono text-xs hover:text-terra"
+                      className="font-mono text-xs hover:text-terra-ink"
                     >
                       {p.booking.reference}
                     </Link>
@@ -787,18 +788,18 @@ function VoletAttestations() {
                     <p className="font-semibold text-navy">
                       {c.clientName ?? c.clientEmail}
                     </p>
-                    <p className="text-xs text-ink-soft">
+                    <p className="text-xs text-ink-soft tabular-nums">
                       {c.clientEmail} · {c.paymentsCount} paiement
                       {c.paymentsCount > 1 ? "s" : ""}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <p className="font-display text-lg font-bold text-navy">
+                    <p className="font-display text-lg font-bold text-navy tabular-nums">
                       {centimes(c.platformAttestedAmountCents)}
                     </p>
-                    <p className="text-[11px] text-ink-soft">attestés par Lab&apos;s Food</p>
+                    <p className="text-xs text-ink-soft">attestés par Lab&apos;s Food</p>
                     {ecart > 0 && (
-                      <p className="mt-0.5 text-[11px] text-[#8A6212]">
+                      <p className="mt-0.5 text-xs text-[#8A6212] tabular-nums">
                         {centimes(ecart)} éligibles non attestés
                       </p>
                     )}
@@ -823,14 +824,14 @@ function VoletAttestations() {
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <Link
                             href={`/batchcookers/${p.chefProfileId}`}
-                            className="font-semibold text-navy hover:text-terra"
+                            className="font-semibold text-navy hover:text-terra-ink"
                           >
                             {p.chefDisplayName}
                           </Link>
-                          <span className="text-ink-mid">
+                          <span className="text-ink-mid tabular-nums">
                             {centimes(p.platformAttestedAmountCents)}
                             {p.eligibleAmountCents !== p.platformAttestedAmountCents && (
-                              <span className="text-ink-soft">
+                              <span className="text-ink-soft tabular-nums">
                                 {" "}
                                 / {centimes(p.eligibleAmountCents)} éligibles
                               </span>
@@ -939,7 +940,7 @@ function VoletFacturesClients() {
         {resultat && (
           <div className="rounded-xl bg-cream-soft px-4 py-3 text-sm text-ink-mid">
             <p>
-              <span className="font-semibold text-navy">
+              <span className="font-semibold text-navy tabular-nums">
                 {resultat.issued.length} facture{resultat.issued.length > 1 ? "s" : ""}{" "}
                 émise{resultat.issued.length > 1 ? "s" : ""}
               </span>
@@ -1045,11 +1046,13 @@ function Corps({
 }) {
   if (query.isPending) {
     return (
-      <div className="space-y-3">
+      <SkeletonGroup className="space-y-3">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="card h-24 animate-pulse bg-cream-soft" />
+          <div key={i} className="card h-24 p-4">
+            <Skeleton className="h-full rounded-[10px]" />
+          </div>
         ))}
-      </div>
+      </SkeletonGroup>
     );
   }
 

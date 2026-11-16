@@ -1,7 +1,7 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { useState } from "react";
-import { motion } from "framer-motion";
 import {
   AlertTriangle,
   Bell,
@@ -48,7 +48,7 @@ export default function ParametresPage() {
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
       {/* Profil admin */}
-      <Section title="Mon compte" eyebrow="Identité" Icon={UserCircle2}>
+      <Section title="Mon compte" Icon={UserCircle2}>
         <Field label="Nom complet">
           <input defaultValue={user?.name} className="input-base" />
         </Field>
@@ -91,7 +91,7 @@ export default function ParametresPage() {
       </Section>
 
       {/* Notifications */}
-      <Section title="Notifications" eyebrow="Alertes" Icon={Bell}>
+      <Section title="Notifications" Icon={Bell}>
         {[
           {
             key: "newReservation",
@@ -223,7 +223,9 @@ function PaliersBatchCookers() {
       </p>
 
       {noms.isPending ? (
-        <div className="h-24 animate-pulse rounded-xl bg-cream-soft" />
+        <SkeletonGroup>
+          <Skeleton className="h-24 rounded-xl" />
+        </SkeletonGroup>
       ) : noms.isError || !valeurs ? (
         <p role="alert" className="flex items-start gap-1.5 text-[12px] text-danger">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -393,7 +395,9 @@ function ListeReglable({
       </p>
 
       {liste.isPending ? (
-        <div className="h-24 animate-pulse rounded-xl bg-cream-soft" />
+        <SkeletonGroup>
+          <Skeleton className="h-24 rounded-xl" />
+        </SkeletonGroup>
       ) : liste.isError || !modes ? (
         <p role="alert" className="flex items-start gap-1.5 text-[12px] text-danger">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -413,7 +417,7 @@ function ListeReglable({
                 aria-invalid={!m.label.trim()}
                 className="input-base flex-1"
               />
-              <span className="w-32 shrink-0 truncate font-mono text-[11px] text-ink-soft">
+              <span className="w-32 shrink-0 truncate font-mono text-xs text-ink-soft">
                 {m.code}
               </span>
               <button
@@ -485,22 +489,21 @@ function Section({
   children,
 }: {
   title: string;
-  eyebrow: string;
+  eyebrow?: string;
   Icon: typeof Bell;
   children: React.ReactNode;
 }) {
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+    <section
       className="card p-6"
     >
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-soft">
-            {eyebrow}
-          </p>
+          {eyebrow && (
+            <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">
+              {eyebrow}
+            </p>
+          )}
           <h3 className="mt-0.5 font-display text-lg font-bold text-navy">
             {title}
           </h3>
@@ -510,7 +513,7 @@ function Section({
         </span>
       </div>
       <div className="space-y-3">{children}</div>
-    </motion.section>
+    </section>
   );
 }
 
@@ -523,7 +526,7 @@ function Field({
 }) {
   return (
     <div>
-      <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-soft">
+      <p className="mb-1.5 text-xs uppercase tracking-[0.14em] text-ink-soft">
         {label}
       </p>
       {children}
@@ -558,7 +561,7 @@ function Toggle({
   return (
     <button
       onClick={() => onChange(!on)}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+      className={`hit relative h-6 w-11 shrink-0 rounded-full transition-colors ${
         on ? "bg-terra" : "bg-cream-deep"
       }`}
     >
