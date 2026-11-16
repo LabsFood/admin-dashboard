@@ -291,12 +291,12 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-soft">
         {label}
-        {required && <span className="text-terra"> *</span>}
+        {required && <span className="text-terra-ink"> *</span>}
       </span>
       {children}
-      {hint && <span className="mt-1 block text-[11px] text-ink-soft">{hint}</span>}
+      {hint && <span className="mt-1 block text-xs text-ink-soft">{hint}</span>}
     </label>
   );
 }

@@ -1,9 +1,9 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { motion } from "framer-motion";
 import {
   AlertTriangle,
   Archive,
@@ -18,7 +18,8 @@ import {
   Percent,
   RotateCw,
   Send,
-  Sparkles,
+  MessageSquareText,
+  Wallet,
   Users,
   UtensilsCrossed,
   X,
@@ -84,10 +85,40 @@ const quoteError = (error: unknown) =>
     MESSAGES[(error.body as { code?: string } | null)?.code ?? ""]) ||
   adminErrorMessage(error);
 
+/* Trois totaux, la commission, les filtres, puis des cartes de 192 px : la page chargée. */
+function DemandesSkeleton() {
+  return (
+    <SkeletonGroup className="space-y-6">
+      <div className="grid grid-cols-3 gap-3 lg:gap-4">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="card h-[82px] p-4">
+            <Skeleton className="h-full rounded-[10px]" />
+          </div>
+        ))}
+      </div>
+      <div className="card h-[70px] p-4">
+        <Skeleton className="h-full rounded-[10px]" />
+      </div>
+      <div className="flex gap-2 pb-1">
+        {[0, 1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-[34px] w-24" />
+        ))}
+      </div>
+      <div className="space-y-4">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="card h-48 p-4">
+            <Skeleton className="h-full rounded-[10px]" />
+          </div>
+        ))}
+      </div>
+    </SkeletonGroup>
+  );
+}
+
 export default function DemandesPage() {
   // `useSearchParams` impose une frontière Suspense au rendu statique.
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<DemandesSkeleton />}>
       <Demandes />
     </Suspense>
   );
@@ -163,15 +194,17 @@ function Demandes() {
       />
 
       {quotes.isPending ? (
-        <div className="space-y-4">
+        <SkeletonGroup className="space-y-4">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="card h-48 animate-pulse" />
+            <div key={i} className="card h-48 p-4">
+              <Skeleton className="h-full rounded-[10px]" />
+            </div>
           ))}
-        </div>
+        </SkeletonGroup>
       ) : filtrees.length === 0 ? (
         <div className="card">
           <EmptyState
-            Icon={Sparkles}
+            Icon={MessageSquareText}
             title={filter === "all" ? "Aucune demande" : "Aucune demande dans cet état"}
             text={
               filter === "all"
@@ -182,8 +215,8 @@ function Demandes() {
         </div>
       ) : (
         <div className="space-y-4">
-          {filtrees.map((q, i) => (
-            <QuoteCard key={q.id} quote={q} index={i} pointee={q.id === pointee} />
+          {filtrees.map((q) => (
+            <QuoteCard key={q.id} quote={q} pointee={q.id === pointee} />
           ))}
         </div>
       )}
@@ -303,11 +336,9 @@ function CommissionCard() {
 
 function QuoteCard({
   quote: q,
-  index,
   pointee,
 }: {
   quote: Quote;
-  index: number;
   pointee: boolean;
 }) {
   const toast = useToast();
@@ -399,16 +430,13 @@ function QuoteCard({
   }
 
   return (
-    <motion.article
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay: Math.min(index * 0.04, 0.3), ease: [0.16, 1, 0.3, 1] }}
+    <article
       className={`card p-5 lg:p-6 ${pointee ? "ring-2 ring-terra/50" : ""}`}
     >
       <div className="flex flex-col gap-5 lg:flex-row lg:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="font-mono text-[11px] text-ink-soft">{q.reference}</p>
+            <p className="font-mono text-xs text-ink-soft">{q.reference}</p>
             <Badge tone={quoteStatusTone[q.status]} dot>
               {quoteStatusLabel[q.status]}
             </Badge>
@@ -416,7 +444,7 @@ function QuoteCard({
               <Badge tone="danger">Sans batch cooker</Badge>
             )}
             {q.createdAt && (
-              <span className="text-[11px] text-ink-soft">{formatDate(q.createdAt)}</span>
+              <span className="text-xs text-ink-soft tabular-nums">{formatDate(q.createdAt)}</span>
             )}
           </div>
 
@@ -426,9 +454,9 @@ function QuoteCard({
           <p className="text-xs text-ink-soft">
             Demandé par <span className="font-semibold">{client}</span>
             {q.client?.email && q.client?.name && (
-              <span className="ml-1.5 font-mono">{q.client.email}</span>
+              <span className="ml-1.5">{q.client.email}</span>
             )}
-            {q.client?.phone && <span className="ml-1.5 font-mono">{q.client.phone}</span>}
+            {q.client?.phone && <span className="ml-1.5 tabular-nums">{q.client.phone}</span>}
           </p>
 
           {q.brief && (
@@ -456,12 +484,12 @@ function QuoteCard({
               />
             )}
             {q.budgetCents != null && (
-              <Meta Icon={Sparkles} label={`Budget ${centsToEuros(q.budgetCents)}`} />
+              <Meta Icon={Wallet} label={`Budget ${centsToEuros(q.budgetCents)}`} />
             )}
             {(q.diet ?? []).map((d) => (
               <span
                 key={d}
-                className="rounded-full bg-terra/10 px-2.5 py-1 text-[11px] font-medium text-terra-deep"
+                className="rounded-full bg-terra/10 px-2.5 py-1 text-xs font-medium text-terra-deep"
               >
                 {d}
               </span>
@@ -469,7 +497,7 @@ function QuoteCard({
             {(q.allergies ?? []).map((a) => (
               <span
                 key={a}
-                className="rounded-full bg-danger/10 px-2.5 py-1 text-[11px] font-medium text-danger"
+                className="rounded-full bg-danger/10 px-2.5 py-1 text-xs font-medium text-danger"
               >
                 ⚠ {a}
               </span>
@@ -495,7 +523,7 @@ function QuoteCard({
             chef && (
               <Link
                 href={`/batchcookers/${chef.chefProfileId}`}
-                className="mt-3 inline-flex items-center gap-1 text-[12px] font-semibold text-terra hover:underline"
+                className="mt-3 inline-flex items-center gap-1 text-[12px] font-semibold text-terra-ink hover:underline"
               >
                 <ChefHat className="h-3.5 w-3.5" aria-hidden /> {chef.displayName}
                 <ArrowUpRight className="h-3 w-3" aria-hidden />
@@ -524,7 +552,7 @@ function QuoteCard({
                   placeholder="170"
                   className="input-base"
                 />
-                <span className="mt-1 block text-[11px] leading-relaxed text-ink-soft">
+                <span className="mt-1 block text-xs leading-relaxed text-ink-soft">
                   Ce qu&apos;il touche. Le prix client est calculé avec la
                   commission.
                 </span>
@@ -580,12 +608,12 @@ function QuoteCard({
             </div>
           ) : offre || acceptee ? (
             <div className="rounded-2xl border border-terra/25 bg-terra/8 p-4">
-              <p className="text-[11px] uppercase tracking-[0.12em] text-terra-deep">
+              <p className="text-xs uppercase tracking-[0.12em] text-terra-deep">
                 {acceptee ? "Offre acceptée" : `Offre · ${offerStatusLabel[offre!.status]}`}
               </p>
               <OfferAmounts offer={(acceptee ?? offre)!} />
               {!acceptee && offre && (
-                <p className="mt-1.5 text-[11px] text-ink-soft">
+                <p className="mt-1.5 text-xs text-ink-soft">
                   Valable jusqu&apos;au {dayLabel(offre.validUntil)}
                 </p>
               )}
@@ -613,7 +641,7 @@ function QuoteCard({
                 Chiffrer à la place du batch cooker
               </button>
               {!chef && (
-                <p className="text-center text-[11px] text-ink-soft">
+                <p className="text-center text-xs text-ink-soft">
                   Affectez d&apos;abord un batch cooker : l&apos;offre part en son nom.
                 </p>
               )}
@@ -649,9 +677,9 @@ function QuoteCard({
               {passees.map((o) => (
                 <li
                   key={o.id}
-                  className="rounded-xl bg-cream-soft px-3 py-2 text-[11px] leading-relaxed text-ink-mid"
+                  className="rounded-xl bg-cream-soft px-3 py-2 text-xs leading-relaxed text-ink-mid"
                 >
-                  <span className="font-semibold text-navy">
+                  <span className="font-semibold text-navy tabular-nums">
                     {centsToEuros(o.clientPriceCents)}
                   </span>{" "}
                   · {offerStatusLabel[o.status]} · {formatDate(o.createdAt)}
@@ -708,31 +736,31 @@ function QuoteCard({
         }
         confirmLabel="Envoyer l'offre"
       />
-    </motion.article>
+    </article>
   );
 }
 
 function OfferAmounts({ offer }: { offer: Quote["offers"][number] }) {
   return (
     <>
-      <p className="mt-1 font-display text-2xl font-bold text-navy">
+      <p className="mt-1 font-display text-2xl font-bold text-navy tabular-nums">
         {centsToEuros(offer.clientPriceCents)}
       </p>
-      <p className="text-[11px] text-ink-mid">
+      <p className="text-xs text-ink-mid">
         soit {centsToEuros(offer.afterTaxCreditCents)} après crédit d&apos;impôt
       </p>
-      <p className="mt-1 text-[11px] text-ink-mid">
+      <p className="mt-1 text-xs text-ink-mid">
         Net batch cooker {centsToEuros(offer.netCents)} · commission{" "}
         {(offer.commissionBps / 100).toLocaleString("fr-FR")} %
       </p>
       {offer.proposedDate && (
-        <p className="mt-1 text-[11px] text-ink-mid">
+        <p className="mt-1 text-xs text-ink-mid">
           Date proposée : {dayLabel(offer.proposedDate)}
           {offer.proposedTimeSlot ? `, ${slotLabel[offer.proposedTimeSlot]}` : ""}
         </p>
       )}
       {offer.conditions && (
-        <p className="mt-1.5 whitespace-pre-line text-[11px] italic leading-relaxed text-ink-mid">
+        <p className="mt-1.5 whitespace-pre-line text-xs italic leading-relaxed text-ink-mid">
           {offer.conditions}
         </p>
       )}
@@ -753,7 +781,7 @@ function Ligne({ label, value, fort }: { label: string; value: string; fort?: bo
 
 function Meta({ Icon, label }: { Icon: typeof Users; label: string }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-cream-deep px-2.5 py-1 text-[11px] font-medium text-ink-mid">
+    <span className="inline-flex items-center gap-1 rounded-full bg-cream-deep px-2.5 py-1 text-xs font-medium text-ink-mid">
       <Icon className="h-3 w-3 text-ink-soft" aria-hidden />
       {label}
     </span>
@@ -774,7 +802,7 @@ function MiniStat({
       <p className={`font-display text-2xl font-bold ${alert ? "text-danger" : "text-navy"}`}>
         {value}
       </p>
-      <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-soft">
+      <p className="mt-0.5 text-xs font-semibold uppercase tracking-[0.1em] text-ink-soft">
         {label}
       </p>
     </div>

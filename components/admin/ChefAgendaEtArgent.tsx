@@ -1,5 +1,6 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -123,7 +124,9 @@ export default function ChefAgendaEtArgent({
             vitrine publiée.
           </p>
         ) : creneaux.isPending ? (
-          <div className="mt-3 h-20 animate-pulse rounded-xl bg-cream-soft" />
+          <SkeletonGroup className="mt-3">
+            <Skeleton className="h-20 rounded-xl" />
+          </SkeletonGroup>
         ) : sansOffre ? (
           <p className="mt-3 text-[13px] text-ink-mid">
             Aucune formule active : sans elle, l&apos;API ne peut calculer aucun
@@ -163,13 +166,13 @@ export default function ChefAgendaEtArgent({
                     {heures.slice(0, 8).map((iso) => (
                       <span
                         key={iso}
-                        className="rounded-md bg-cream-soft px-1.5 py-0.5 font-mono text-[11px] text-ink-mid"
+                        className="rounded-md bg-cream-soft px-1.5 py-0.5 font-mono text-xs text-ink-mid"
                       >
                         {heure(iso)}
                       </span>
                     ))}
                     {heures.length > 8 && (
-                      <span className="text-[11px] text-ink-soft">
+                      <span className="text-xs text-ink-soft tabular-nums">
                         +{heures.length - 8}
                       </span>
                     )}
@@ -194,7 +197,9 @@ export default function ChefAgendaEtArgent({
         </div>
 
         {factures.isPending ? (
-          <div className="mt-3 h-16 animate-pulse rounded-xl bg-cream-soft" />
+          <SkeletonGroup className="mt-3">
+            <Skeleton className="h-16 rounded-xl" />
+          </SkeletonGroup>
         ) : siennes.length === 0 ? (
           <p className="mt-2 text-[13px] text-ink-mid">
             Aucune facture de commission émise à son nom.
@@ -205,7 +210,7 @@ export default function ChefAgendaEtArgent({
           <>
             {du > 0 && (
               <p className="mt-2 text-[13px] text-ink-mid">
-                <span className="font-display text-lg font-bold text-navy">
+                <span className="font-display text-lg font-bold text-navy tabular-nums">
                   {centimes(du)}
                 </span>{" "}
                 encore dus.
@@ -230,7 +235,7 @@ export default function ChefAgendaEtArgent({
                     {INVOICE_STATUS[f.status]}
                   </Badge>
                   <span>{centimes(f.amountTtcCents)}</span>
-                  <span className="text-ink-soft">
+                  <span className="text-ink-soft tabular-nums">
                     {new Date(f.issuedAt).toLocaleDateString("fr-FR")}
                   </span>
                 </li>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { BadgeCheck, Eye, EyeOff, Star } from "lucide-react";
 import Badge from "@/components/ui/Badge";
 import FilterTabs from "@/components/ui/FilterTabs";
@@ -38,7 +37,7 @@ export default function AvisPage() {
           </span>
           <div>
             <p className="font-display text-2xl font-bold text-navy">{avg}</p>
-            <p className="text-[11px] uppercase tracking-wide text-ink-soft">
+            <p className="text-xs uppercase tracking-wide text-ink-soft">
               Note moyenne
             </p>
           </div>
@@ -62,12 +61,9 @@ export default function AvisPage() {
       />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {filtered.map((a, i) => (
-          <motion.article
+        {filtered.map((a) => (
+          <article
             key={a.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.32, delay: Math.min(i * 0.05, 0.3), ease: [0.16, 1, 0.3, 1] }}
             className="card flex flex-col p-5"
           >
             <div className="flex items-start justify-between gap-3">
@@ -80,7 +76,7 @@ export default function AvisPage() {
                     <BadgeCheck className="h-4 w-4 text-info" />
                   )}
                 </div>
-                <p className="text-xs text-ink-soft">
+                <p className="text-xs text-ink-soft tabular-nums">
                   {a.city} · {formatDate(a.date)} · {a.source}
                 </p>
               </div>
@@ -125,7 +121,7 @@ export default function AvisPage() {
                 )}
               </button>
             </div>
-          </motion.article>
+          </article>
         ))}
       </div>
     </div>
@@ -136,7 +132,7 @@ function MiniStat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="card p-4">
       <p className="font-display text-2xl font-bold text-navy">{value}</p>
-      <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-soft">
+      <p className="mt-0.5 text-xs font-semibold uppercase tracking-[0.1em] text-ink-soft">
         {label}
       </p>
     </div>

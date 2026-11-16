@@ -72,7 +72,7 @@ export default function WriteToUserButton({
       onClick={start}
       disabled={open.isPending}
       className={cn(
-        "inline-flex items-center gap-1.5 text-xs font-semibold text-terra underline-offset-4 hover:underline disabled:opacity-60",
+        "inline-flex items-center gap-1.5 text-xs font-semibold text-terra-ink underline-offset-4 hover:underline disabled:opacity-60",
         className,
       )}
     >

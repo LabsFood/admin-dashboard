@@ -22,6 +22,7 @@ import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import ChefApplicationForm from "@/components/admin/ChefApplicationForm";
 import Drawer from "@/components/ui/Drawer";
 import EmptyState from "@/components/ui/EmptyState";
+import { SkeletonRows } from "@/components/ui/Skeleton";
 import { DataTable } from "@/components/ui/DataTable";
 import { cn, formatDate, initials } from "@/lib/utils";
 import { useChefApplications } from "@/lib/api/admin";
@@ -84,13 +85,13 @@ const COLUMNS = [
       <div className="flex items-center gap-3">
         <span
           aria-hidden
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-navy text-[11px] font-bold text-white"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-navy text-xs font-bold text-white"
         >
           {initials(c.getValue())}
         </span>
         <Link
           href={`/candidatures/${c.row.original.id}`}
-          className="truncate font-semibold text-navy hover:text-terra"
+          className="truncate font-semibold text-navy hover:text-terra-ink"
         >
           {c.getValue()}
         </Link>
@@ -109,7 +110,7 @@ const COLUMNS = [
         <div className="flex items-center gap-2">
           <Badge tone={STATUS_TONE[s]}>{STATUS_LABEL[s]}</Badge>
           {c.row.original.reactivatedPendingReview && (
-            <span className="whitespace-nowrap text-[11px] text-terra">rouverte</span>
+            <span className="whitespace-nowrap text-xs text-terra-ink">rouverte</span>
           )}
         </div>
       );
@@ -120,7 +121,7 @@ const COLUMNS = [
     cell: (c) => {
       const n = c.getValue();
       return n > 0 ? (
-        <span className="font-semibold text-terra">{n}</span>
+        <span className="font-semibold text-terra-ink">{n}</span>
       ) : (
         <span className="text-ink-soft">—</span>
       );
@@ -141,7 +142,7 @@ const COLUMNS = [
   column.accessor("submittedAt", {
     header: "Déposée le",
     cell: (c) => (
-      <span className="whitespace-nowrap text-ink-soft">
+      <span className="whitespace-nowrap text-ink-soft tabular-nums">
         {c.getValue() ? formatDate(c.getValue()) : "—"}
       </span>
     ),
@@ -290,7 +291,7 @@ export default function ChefApplicationsList() {
 
       {/* ── Liste ──────────────────────────────────────────────────────── */}
       <section>
-        <p className="mb-3 text-xs text-ink-soft" aria-live="polite">
+        <p className="mb-3 text-xs text-ink-soft tabular-nums" aria-live="polite">
           {isPending
             ? "Chargement…"
             : meta
@@ -299,11 +300,7 @@ export default function ChefApplicationsList() {
         </p>
 
         {isPending ? (
-          <div className="space-y-px">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-14 animate-pulse bg-cream-soft" />
-            ))}
-          </div>
+          <SkeletonRows count={4} />
         ) : isError ? (
           <div className="rounded-lg bg-paper py-10">
             <EmptyState
@@ -347,7 +344,7 @@ export default function ChefApplicationsList() {
             <DataTable table={table} />
             {meta && meta.totalPages > 1 && (
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[rgba(0,35,75,0.1)] bg-paper px-4 py-3">
-                <p className="text-xs text-ink-soft">
+                <p className="text-xs text-ink-soft tabular-nums">
                   Page {meta.page} sur {meta.totalPages} · {meta.total} dossiers
                 </p>
                 <div className="flex items-center gap-1">
@@ -355,7 +352,7 @@ export default function ChefApplicationsList() {
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={!meta.hasPreviousPage || isFetching}
                     aria-label="Page précédente"
-                    className="flex h-7 w-7 items-center justify-center rounded-md border border-[rgba(0,35,75,0.18)] text-navy transition-colors hover:bg-cream-soft disabled:cursor-not-allowed disabled:opacity-40"
+                    className="hit flex h-7 w-7 items-center justify-center rounded-md border border-[rgba(0,35,75,0.18)] text-navy transition-colors hover:bg-cream-soft disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <ChevronLeft className="h-3.5 w-3.5" />
                   </button>
@@ -363,7 +360,7 @@ export default function ChefApplicationsList() {
                     onClick={() => setPage((p) => p + 1)}
                     disabled={!meta.hasNextPage || isFetching}
                     aria-label="Page suivante"
-                    className="flex h-7 w-7 items-center justify-center rounded-md border border-[rgba(0,35,75,0.18)] text-navy transition-colors hover:bg-cream-soft disabled:cursor-not-allowed disabled:opacity-40"
+                    className="hit flex h-7 w-7 items-center justify-center rounded-md border border-[rgba(0,35,75,0.18)] text-navy transition-colors hover:bg-cream-soft disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <ChevronRight className="h-3.5 w-3.5" />
                   </button>

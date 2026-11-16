@@ -1,8 +1,13 @@
 "use client";
 
+import {
+  InboxPageSkeleton,
+  InboxRowsSkeleton,
+  ThreadSkeleton,
+} from "@/components/admin/InboxSkeleton";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, Loader2, MessageCircle, Search } from "lucide-react";
+import { AlertTriangle, MessageCircle, Search } from "lucide-react";
 import ConversationThread from "@/components/admin/ConversationThread";
 import EmptyState from "@/components/ui/EmptyState";
 import FilterTabs from "@/components/ui/FilterTabs";
@@ -44,10 +49,13 @@ const EMPTY: Record<InboxFilter, { title: string; text: string }> = {
   },
 };
 
+/** La carte liste + fil : partagée avec le squelette pour qu'il ait la même taille. */
+const CARTE = "card grid h-[calc(100vh-15rem)] min-h-120 grid-cols-1 overflow-hidden lg:grid-cols-[320px_1fr]";
+
 export default function MessageriePage() {
   return (
     // `useSearchParams` impose une frontière Suspense.
-    <Suspense fallback={null}>
+    <Suspense fallback={<InboxPageSkeleton cardClassName={CARTE} tabs={3} search />}>
       <Messagerie />
     </Suspense>
   );
@@ -107,7 +115,7 @@ function Messagerie() {
         ]}
       />
 
-      <div className="card grid h-[calc(100vh-15rem)] min-h-120 grid-cols-1 overflow-hidden lg:grid-cols-[320px_1fr]">
+      <div className={CARTE}>
         {/* Liste des conversations */}
         <div
           className={cn(
@@ -129,9 +137,7 @@ function Messagerie() {
           </div>
 
           {conversations.isPending ? (
-            <p className="flex items-center justify-center gap-2 py-10 text-sm text-ink-soft">
-              <Loader2 className="h-4 w-4 animate-spin" /> Chargement…
-            </p>
+            <InboxRowsSkeleton />
           ) : conversations.isError ? (
             <div role="alert" className="p-6 text-center text-sm text-ink-soft">
               Les conversations n&apos;ont pas pu être chargées.
@@ -174,11 +180,11 @@ function Messagerie() {
             conversation={active}
             onBack={() => select(null)}
           />
+        ) : selectedId && fetched.isPending ? (
+          <ThreadSkeleton className="hidden lg:block" />
         ) : (
           <div className="hidden items-center justify-center text-sm text-ink-soft lg:flex">
-            {selectedId && fetched.isPending
-              ? "Chargement de la conversation…"
-              : "Choisissez une conversation."}
+            Choisissez une conversation.
           </div>
         )}
       </div>
@@ -214,12 +220,12 @@ function ConversationRow({
         <div className="flex items-center justify-between gap-2">
           <p className="truncate text-sm font-semibold text-navy">{title}</p>
           {c.lastMessageAt && (
-            <span className="shrink-0 text-[10px] text-ink-soft">
+            <span className="shrink-0 text-xs text-ink-soft tabular-nums">
               {timeAgo(c.lastMessageAt)}
             </span>
           )}
         </div>
-        <p className="flex items-center gap-1.5 truncate text-[11px] text-terra">
+        <p className="flex items-center gap-1.5 truncate text-xs text-terra-ink">
           {c.type === "support"
             ? "Support"
             : c.booking?.reference
@@ -239,7 +245,7 @@ function ConversationRow({
         )}
       </div>
       {c.unreadCount > 0 && (
-        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-terra px-1 font-mono text-[10px] font-bold text-white">
+        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-terra px-1 tabular-nums text-[10px] font-bold text-white">
           {c.unreadCount}
         </span>
       )}

@@ -1,5 +1,6 @@
 "use client";
 
+import FormSkeleton from "@/components/admin/FormSkeleton";
 import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -20,7 +21,7 @@ function Composer() {
   if (!id) return <MenuForm />;
 
   if (menus.isPending) {
-    return <div className="h-96 animate-pulse rounded-3xl bg-paper" />;
+    return <FormSkeleton />;
   }
 
   if (menus.isError) {
@@ -63,7 +64,7 @@ function Composer() {
 
 export default function ComposerPage() {
   return (
-    <Suspense fallback={<div className="h-96 animate-pulse rounded-3xl bg-paper" />}>
+    <Suspense fallback={<FormSkeleton />}>
       <Composer />
     </Suspense>
   );

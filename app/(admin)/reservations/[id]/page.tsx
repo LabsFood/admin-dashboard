@@ -1,8 +1,8 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { use, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import posthog from "posthog-js";
 import {
   ArrowLeft,
@@ -17,7 +17,7 @@ import {
   RefreshCw,
   RotateCw,
   ShoppingBasket,
-  Sparkles,
+  ClipboardList,
   UserRound,
   Users,
   UtensilsCrossed,
@@ -93,10 +93,14 @@ export default function ReservationDetailPage({
 
   if (query.isPending) {
     return (
-      <div className="space-y-4">
-        <div className="h-36 animate-pulse rounded-3xl bg-paper" />
-        <div className="h-64 animate-pulse rounded-lg bg-paper" />
-      </div>
+      <SkeletonGroup className="space-y-4">
+        <div className="card h-36 p-4">
+          <Skeleton className="h-full rounded-[10px]" />
+        </div>
+        <div className="card h-64 p-4">
+          <Skeleton className="h-full rounded-[10px]" />
+        </div>
+      </SkeletonGroup>
     );
   }
 
@@ -141,10 +145,7 @@ export default function ReservationDetailPage({
       </Link>
 
       {/* ── L'essentiel ──────────────────────────────────────────────────── */}
-      <motion.section
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      <section
         className="relative overflow-hidden rounded-3xl bg-navy p-6 text-white lg:p-8"
       >
         <div
@@ -152,13 +153,13 @@ export default function ReservationDetailPage({
           className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-terra/25 blur-3xl"
         />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="min-w-0">
+          <div className="min-w-0 tabular-nums">
             {b.reference && (
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-terra-soft">
+              <p className="font-mono text-xs uppercase tracking-[0.2em] text-terra-soft">
                 {b.reference}
               </p>
             )}
-            <h2 className="mt-2 font-display text-3xl font-bold capitalize leading-tight lg:text-4xl">
+            <h2 className="mt-2 font-display text-3xl font-bold capitalize leading-tight lg:text-4xl tabular-nums">
               {b.startsAt ? formatDateLong(b.startsAt) : "Date à confirmer"}
             </h2>
             <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/65">
@@ -181,7 +182,7 @@ export default function ReservationDetailPage({
           </div>
           {b.amountTtc != null && (
             <div className="flex flex-col items-start lg:items-end">
-              <p className="font-display text-3xl font-bold text-terra-soft">
+              <p className="font-display text-3xl font-bold text-terra-soft tabular-nums">
                 {euros(Math.round(b.amountTtc / 100))}
               </p>
               <p className="text-xs text-white/60">
@@ -191,7 +192,7 @@ export default function ReservationDetailPage({
             </div>
           )}
         </div>
-      </motion.section>
+      </section>
 
       {/* ── Un report en cours ───────────────────────────────────────────── */}
       {b.reschedule?.status === "pending" && (
@@ -263,7 +264,7 @@ export default function ReservationDetailPage({
                       <span className="block text-sm font-semibold text-navy">
                         {m.name ?? "Plat retiré du catalogue"}
                       </span>
-                      <span className="block font-mono text-[11px] text-ink-soft">
+                      <span className="block font-mono text-xs text-ink-soft">
                         {m.recipeVersion != null
                           ? `recette v${m.recipeVersion} · ${m.mealId.slice(0, 8)}…`
                           : `${m.mealId.slice(0, 8)}…`}
@@ -301,7 +302,7 @@ export default function ReservationDetailPage({
                 </InfoPopover>
               </h3>
               {conservation.isPending ? (
-                <div className="h-16 animate-pulse rounded-xl bg-cream-soft" />
+                <Skeleton className="h-16 rounded-xl" />
               ) : conservation.isError || !conservation.data ? (
                 <p className="text-sm text-ink-soft">Les dates n’ont pas pu être lues.</p>
               ) : (
@@ -440,11 +441,11 @@ export default function ReservationDetailPage({
             </div>
 
             {courses.isPending ? (
-              <div className="space-y-2">
+              <SkeletonGroup className="space-y-2">
                 {[0, 1, 2].map((i) => (
-                  <div key={i} className="h-9 animate-pulse rounded-xl bg-cream-soft" />
+                  <Skeleton key={i} className="h-9 rounded-xl" />
                 ))}
-              </div>
+              </SkeletonGroup>
             ) : groupes.length === 0 ? (
               <p className="text-sm leading-relaxed text-ink-soft">
                 Aucune liste. Elle se calcule depuis les recettes des plats : si
@@ -454,7 +455,7 @@ export default function ReservationDetailPage({
               <div className="space-y-4">
                 {groupes.map((g) => (
                   <div key={g.aisle || "sans-rayon"}>
-                    <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.16em] text-ink-soft">
+                    <p className="mb-2 text-xs uppercase tracking-[0.16em] text-ink-soft">
                       {aisleLabel(g.aisle, aisles.data) ?? "Sans rayon"}
                     </p>
                     <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -468,12 +469,12 @@ export default function ReservationDetailPage({
                               {l.name}
                             </span>
                             {l.edited && (
-                              <span className="ml-2 text-[10px] font-semibold uppercase text-terra-deep">
+                              <span className="ml-2 text-xs font-semibold uppercase text-terra-deep">
                                 corrigée
                               </span>
                             )}
                             {l.alreadyHave && (
-                              <span className="ml-2 text-[10px] font-semibold uppercase text-success">
+                              <span className="ml-2 text-xs font-semibold uppercase text-success">
                                 déjà chez le client
                               </span>
                             )}
@@ -499,7 +500,7 @@ export default function ReservationDetailPage({
           {b.notes && (
             <section className="card p-6">
               <h3 className="mb-2 flex items-center gap-2 font-display text-base font-bold text-navy">
-                <Sparkles className="h-4 w-4 text-terra" aria-hidden /> Consignes du
+                <ClipboardList className="h-4 w-4 text-terra" aria-hidden /> Consignes du
                 client
               </h3>
               <p className="rounded-xl bg-cream-soft px-4 py-3 text-sm leading-relaxed text-ink-mid">
@@ -607,7 +608,7 @@ export default function ReservationDetailPage({
                   </dl>
                 )}
                 {b.commissionEstimated && (
-                  <p className="mt-2 text-[11px] leading-relaxed text-ink-soft">
+                  <p className="mt-2 text-xs leading-relaxed text-ink-soft">
                     Estimé : la commission se fixe au paiement.
                   </p>
                 )}
@@ -630,7 +631,7 @@ export default function ReservationDetailPage({
                 {b.city}
               </p>
               {b.arrivedAt && (
-                <p className="mt-2 text-[12px] text-ink-soft">
+                <p className="mt-2 text-[12px] text-ink-soft tabular-nums">
                   Arrivée pointée le {formatDateLong(b.arrivedAt)}
                 </p>
               )}

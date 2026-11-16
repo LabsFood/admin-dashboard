@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { motion } from "framer-motion";
 import { AlertTriangle, BookOpen, Check, GitMerge, Loader2, Pencil, Search, Users, UserRound } from "lucide-react";
 import IngredientEditor from "@/components/admin/IngredientEditor";
@@ -120,7 +121,7 @@ export default function ToValidatePage() {
       ))}
 
       {liste.isPending ? (
-        <div className="h-40 animate-pulse rounded-xl bg-cream-soft" />
+        <Skeleton className="h-40 rounded-xl" />
       ) : liste.isError ? (
         <p role="alert" className="flex items-start gap-1.5 text-[13px] text-danger">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
@@ -398,7 +399,7 @@ function NearEntries({
       {!searchable ? (
         <p className="text-[12px] text-ink-soft">Écrivez au moins deux lettres pour chercher.</p>
       ) : near.isPending ? (
-        <div className="h-8 animate-pulse rounded bg-white/60" />
+        <Skeleton className="h-8 rounded bg-white/60" />
       ) : near.isError ? (
         <p role="alert" className="text-[12px] text-danger">
           {adminErrorMessage(near.error)}
@@ -455,7 +456,7 @@ function Dishes({ id }: { id: string }) {
         Recettes qui l&apos;utilisent{dishes.data ? ` (${dishes.data.total})` : ""}
       </p>
       {dishes.isPending ? (
-        <div className="h-8 animate-pulse rounded bg-white/60" />
+        <Skeleton className="h-8 rounded bg-white/60" />
       ) : dishes.isError ? (
         <p role="alert" className="text-[12px] text-danger">
           {adminErrorMessage(dishes.error)}

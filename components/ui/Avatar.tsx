@@ -98,9 +98,9 @@ export function AvatarEditor({ role }: { role?: string }) {
           <p className="truncate text-sm font-semibold text-navy">
             {me.data?.fullName || "Mon compte"}
           </p>
-          <p className="truncate text-[11px] text-ink-soft">{me.data?.email}</p>
+          <p className="truncate text-xs text-ink-soft">{me.data?.email}</p>
           {role && (
-            <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-terra">
+            <p className="mt-0.5 text-xs font-semibold uppercase tracking-[0.1em] text-terra-ink">
               {role}
             </p>
           )}
@@ -120,7 +120,7 @@ export function AvatarEditor({ role }: { role?: string }) {
         <label
           htmlFor="admin-avatar-file"
           className={cn(
-            "inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-cream-soft px-2.5 py-1.5 text-[11px] font-semibold text-navy transition-colors hover:bg-cream-deep",
+            "inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-cream-soft px-2.5 py-1.5 text-xs font-semibold text-navy transition-colors hover:bg-cream-deep",
             occupe && "pointer-events-none opacity-50",
           )}
         >
@@ -139,7 +139,7 @@ export function AvatarEditor({ role }: { role?: string }) {
             disabled={occupe}
             title="Retirer la photo"
             aria-label="Retirer la photo"
-            className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-danger-soft hover:text-danger disabled:opacity-40"
+            className="hit flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-danger-soft hover:text-danger disabled:opacity-40"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
@@ -147,11 +147,11 @@ export function AvatarEditor({ role }: { role?: string }) {
       </div>
 
       {erreur ? (
-        <p role="alert" className="mt-1.5 text-[11px] leading-relaxed text-danger">
+        <p role="alert" className="mt-1.5 text-xs leading-relaxed text-danger">
           {erreur}
         </p>
       ) : (
-        <p className="mt-1.5 text-[11px] leading-relaxed text-ink-soft">
+        <p className="mt-1.5 text-xs leading-relaxed text-ink-soft">
           JPG, PNG ou WebP, {PHOTO_MAX_MB} Mo au plus.
         </p>
       )}

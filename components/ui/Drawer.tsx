@@ -4,6 +4,7 @@ import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
+import { DURATION } from "@/lib/motion";
 
 export default function Drawer({
   open,
@@ -43,14 +44,16 @@ export default function Drawer({
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-50 flex justify-end">
+          {/* mise en scène : on assombrit derrière, fondu de 200 ms */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
+            transition={{ duration: DURATION.base }}
             onClick={onClose}
             className="absolute inset-0 bg-navy/40 backdrop-blur-[2px]"
           />
+          {/* slow-out : le tiroir glisse depuis le bord et se pose en ~250 ms (ressort amorti) */}
           <motion.aside
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
@@ -61,7 +64,7 @@ export default function Drawer({
             <header className="flex items-start justify-between gap-4 border-b border-[rgba(0,35,75,0.08)] bg-paper px-5 py-4">
               <div className="min-w-0">
                 {eyebrow && (
-                  <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-terra">
+                  <p className="text-xs uppercase tracking-[0.18em] text-terra-ink">
                     {eyebrow}
                   </p>
                 )}
@@ -74,7 +77,7 @@ export default function Drawer({
               <button
                 onClick={onClose}
                 aria-label="Fermer"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-ink-soft transition-colors hover:bg-cream-deep hover:text-navy"
+                className="hit flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-ink-soft transition-colors hover:bg-cream-deep hover:text-navy"
               >
                 <X className="h-4 w-4" />
               </button>

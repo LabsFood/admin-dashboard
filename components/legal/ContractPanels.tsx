@@ -29,7 +29,7 @@ export function WithdrawalPanel({ withdrawal }: { withdrawal?: BookingWithdrawal
           Reste dû par le client :{" "}
           {withdrawal.amountDueCents == null ? "à fixer" : euros(withdrawal.amountDueCents)}
         </div>
-        <div className="font-semibold text-navy">
+        <div className="font-semibold text-navy tabular-nums">
           À rembourser :{" "}
           {withdrawal.refundCents == null ? "à fixer" : euros(withdrawal.refundCents)} avant le{" "}
           {formatDateLong(deadline)}
@@ -97,7 +97,7 @@ export function ChefLegalPanel({ identity }: { identity?: ChefLegalIdentity }) {
         </InfoPopover>
       </h3>
       {missing.length > 0 && (
-        <p className="mb-2 text-sm font-semibold text-terra">
+        <p className="mb-2 text-sm font-semibold text-terra-ink">
           À compléter : {missing.map((m) => MISSING_LABEL[m] ?? m).join(", ")}
         </p>
       )}

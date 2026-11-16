@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { motion } from "framer-motion";
 import {
   ArrowLeft,
   Calendar,
@@ -16,7 +15,7 @@ import {
   Phone,
   Printer,
   Receipt,
-  Sparkles,
+  StickyNote,
   Truck,
 } from "lucide-react";
 import Badge from "@/components/ui/Badge";
@@ -69,17 +68,14 @@ export default function KossamDetailPage() {
       </Link>
 
       {/* En-tête */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      <div
         className="relative overflow-hidden rounded-3xl bg-navy p-6 text-white lg:p-8"
       >
         <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-teal-soft/35 blur-3xl" />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="flex items-center gap-3">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-terra-soft">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 font-mono text-xs uppercase tracking-[0.16em] text-terra-soft">
                 <Milk className="h-3 w-3" /> {order.reference}
               </span>
               <Badge tone={kossamTone[status]} dot>
@@ -101,7 +97,7 @@ export default function KossamDetailPage() {
             </p>
           </div>
           <div className="lg:text-right">
-            <p className="font-display text-3xl font-bold text-terra-soft">
+            <p className="font-display text-3xl font-bold text-terra-soft tabular-nums">
               {euros(order.total)}
             </p>
             <Badge tone={paymentTone[payment]} className="mt-1">
@@ -109,7 +105,7 @@ export default function KossamDetailPage() {
             </Badge>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* Suivi */}
       <section className="card p-6">
@@ -125,7 +121,7 @@ export default function KossamDetailPage() {
             <div className="relative grid grid-cols-4 gap-2">
               <div className="absolute left-0 right-0 top-4 h-0.5 bg-cream-deep" />
               <div
-                className="absolute left-0 top-4 h-0.5 bg-terra transition-all"
+                className="absolute left-0 top-4 h-0.5 bg-terra transition-[width] duration-200"
                 style={{
                   width: `${(stepIndex / (KOSSAM_STATUS_FLOW.length - 1)) * 100}%`,
                 }}
@@ -151,7 +147,7 @@ export default function KossamDetailPage() {
                       )}
                     </span>
                     <p
-                      className={`mt-2 text-[10px] font-semibold uppercase tracking-[0.08em] ${
+                      className={`mt-2 text-xs font-semibold uppercase tracking-[0.08em] ${
                         reached ? "text-navy" : "text-ink-soft"
                       }`}
                     >
@@ -204,14 +200,14 @@ export default function KossamDetailPage() {
                     <p className="text-sm font-semibold text-navy">
                       Kossam {it.format}
                     </p>
-                    <p className="text-xs text-ink-soft">
+                    <p className="text-xs text-ink-soft tabular-nums">
                       {euros(it.unitPrice)} l&apos;unité
                     </p>
                   </div>
-                  <span className="font-mono text-sm text-ink-mid">
+                  <span className="tabular-nums text-sm text-ink-mid">
                     × {it.qty}
                   </span>
-                  <span className="font-display text-sm font-bold text-navy">
+                  <span className="font-display text-sm font-bold text-navy tabular-nums">
                     {euros(it.qty * it.unitPrice)}
                   </span>
                 </li>
@@ -239,8 +235,8 @@ export default function KossamDetailPage() {
           {/* Notes */}
           {order.notes && (
             <section className="rounded-3xl border border-terra/30 bg-terra-pale/30 p-5">
-              <p className="mb-1.5 flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-terra-deep">
-                <Sparkles className="h-3.5 w-3.5" /> Note de commande
+              <p className="mb-1.5 flex items-center gap-1.5 text-xs uppercase tracking-[0.14em] text-terra-deep">
+                <StickyNote className="h-3.5 w-3.5" /> Note de commande
               </p>
               <p className="text-sm text-navy">{order.notes}</p>
             </section>
@@ -325,7 +321,7 @@ function InfoLine({
 }) {
   return (
     <div className="rounded-2xl bg-cream-soft p-3">
-      <p className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-soft">
+      <p className="flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-ink-soft">
         <Icon className="h-3 w-3" /> {label}
       </p>
       <p className="mt-1 text-sm font-medium text-navy">{value}</p>

@@ -300,7 +300,7 @@ function VillesPicker({
     : [];
 
   return (
-    <div className="mt-2.5">
+    <div className="mt-2.5 tabular-nums">
       {villes.length > 0 && (
         <ul className="mb-2 flex flex-wrap gap-1.5" aria-label="Villes choisies">
           {villes.map((v) => (
@@ -316,7 +316,7 @@ function VillesPicker({
                   type="button"
                   onClick={() => onChange(villes.filter((x) => x !== v))}
                   aria-label={`Retirer ${v.name}`}
-                  className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full hover:bg-white/20"
+                  className="hit ml-0.5 flex h-4 w-4 items-center justify-center rounded-full hover:bg-white/20"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -362,7 +362,7 @@ function VillesPicker({
                     >
                       <Plus className="h-3 w-3 shrink-0 text-amber-deep" />
                       <span className="min-w-0 truncate text-navy">{c.name}</span>
-                      <span className="ml-auto text-[11px] text-ink-soft">{c.department}</span>
+                      <span className="ml-auto text-xs text-ink-soft">{c.department}</span>
                     </button>
                   </li>
                 ))

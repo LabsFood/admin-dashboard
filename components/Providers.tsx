@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "@clerk/nextjs";
 import posthog from "posthog-js";
 import * as Sentry from "@sentry/nextjs";
+import { MotionConfig } from "framer-motion";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { makeQueryClient } from "@/lib/api/query-client";
@@ -48,7 +49,10 @@ export default function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <SentryUser />
-      <Toaster>{children}</Toaster>
+      {/* Mouvement réduit : Framer Motion coupe les déplacements si l'OS le demande. */}
+      <MotionConfig reducedMotion="user">
+        <Toaster>{children}</Toaster>
+      </MotionConfig>
       {/* Devtools React Query — exclus du bundle de production. */}
       {process.env.NODE_ENV === "development" && (
         <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-right" />

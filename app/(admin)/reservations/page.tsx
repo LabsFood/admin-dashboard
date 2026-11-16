@@ -1,8 +1,8 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import {
   AlertTriangle,
   ArrowRight,
@@ -148,11 +148,13 @@ export default function ReservationsPage() {
       </div>
 
       {query.isPending ? (
-        <div className="space-y-3">
+        <SkeletonGroup className="space-y-3">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="card h-20 animate-pulse" />
+            <div key={i} className="card h-20 p-4">
+              <Skeleton className="h-full rounded-[10px]" />
+            </div>
           ))}
-        </div>
+        </SkeletonGroup>
       ) : total === 0 ? (
         <div className="card">
           <EmptyState
@@ -173,8 +175,8 @@ export default function ReservationsPage() {
       ) : (
         <>
           <ul className="space-y-3">
-            {visibles.map((b, i) => (
-              <BookingRow key={b.id} booking={b} index={i} />
+            {visibles.map((b) => (
+              <BookingRow key={b.id} booking={b} />
             ))}
           </ul>
 
@@ -226,17 +228,13 @@ export default function ReservationsPage() {
   );
 }
 
-function BookingRow({ booking: b, index }: { booking: Booking; index: number }) {
+function BookingRow({ booking: b }: { booking: Booking }) {
   const plats = bookingMealNames(b);
   const portions = bookingPortions(b);
   const impaye = b.status === "pending";
 
   return (
-    <motion.li
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: Math.min(index * 0.03, 0.3), ease: [0.16, 1, 0.3, 1] }}
-    >
+    <li>
       <Link
         href={`/reservations/${b.id}`}
         className="card card-hover flex flex-wrap items-center gap-x-5 gap-y-3 p-4"
@@ -247,7 +245,7 @@ function BookingRow({ booking: b, index }: { booking: Booking; index: number }) 
               <span className="font-display text-sm font-bold text-navy">
                 {new Date(b.startsAt).getDate()}
               </span>
-              <span className="font-mono text-[8px] uppercase text-ink-soft">
+              <span className="text-xs uppercase text-ink-soft tabular-nums">
                 {new Date(b.startsAt).toLocaleDateString("fr-FR", { month: "short" })}
               </span>
             </>
@@ -271,7 +269,7 @@ function BookingRow({ booking: b, index }: { booking: Booking; index: number }) 
               </Badge>
             )}
           </p>
-          <p className="mt-0.5 truncate font-mono text-[11px] text-ink-soft">
+          <p className="mt-0.5 truncate font-mono text-xs text-ink-soft">
             {[
               b.reference,
               b.startsAt ? formatDate(b.startsAt) : null,
@@ -286,7 +284,7 @@ function BookingRow({ booking: b, index }: { booking: Booking; index: number }) 
           )}
         </div>
 
-        <div className="hidden min-w-0 flex-col items-start text-[11px] text-ink-soft sm:flex">
+        <div className="hidden min-w-0 flex-col items-start text-xs text-ink-soft sm:flex">
           {b.chef?.displayName && (
             <span className="inline-flex items-center gap-1.5">
               <ChefHat className="h-3.5 w-3.5" aria-hidden /> {b.chef.displayName}
@@ -300,14 +298,14 @@ function BookingRow({ booking: b, index }: { booking: Booking; index: number }) 
         </div>
 
         {b.amountTtc != null && (
-          <span className="font-display text-sm font-bold text-navy">
+          <span className="font-display text-sm font-bold text-navy tabular-nums">
             {euros(Math.round(b.amountTtc / 100))}
           </span>
         )}
 
         <ArrowRight className="h-4 w-4 shrink-0 text-terra" aria-hidden />
       </Link>
-    </motion.li>
+    </li>
   );
 }
 
@@ -315,7 +313,7 @@ function MiniStat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="card p-4">
       <p className="font-display text-2xl font-bold text-navy">{value}</p>
-      <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-soft">
+      <p className="mt-0.5 text-xs font-semibold uppercase tracking-[0.1em] text-ink-soft">
         {label}
       </p>
     </div>
@@ -377,7 +375,7 @@ function SupplementsCard() {
                   : "Lecture des réglages…"}
               </p>
             )}
-            <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
+            <p className="mt-1 text-xs leading-relaxed text-ink-soft">
               Vaut pour les prochaines réservations. Celles déjà créées gardent
               leurs montants.
             </p>

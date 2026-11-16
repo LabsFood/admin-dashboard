@@ -1,7 +1,7 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { useState } from "react";
-import { motion } from "framer-motion";
 import {
   AlertTriangle,
   CalendarClock,
@@ -81,10 +81,7 @@ export default function IngredientsPage() {
 
   return (
     <div className="space-y-6">
-      <motion.section
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
+      <section
         className="card flex flex-wrap items-center justify-between gap-4 p-6"
       >
         <div className="flex items-center gap-4">
@@ -115,7 +112,7 @@ export default function IngredientsPage() {
         >
           <Plus className="h-4 w-4" aria-hidden /> Ajouter un ingrédient
         </button>
-      </motion.section>
+      </section>
 
       <IngredientTabs current="/ingredients" />
 
@@ -227,7 +224,9 @@ export default function IngredientsPage() {
         </div>
 
         {liste.isPending ? (
-          <div className="h-40 animate-pulse rounded-xl bg-cream-soft" />
+          <SkeletonGroup>
+            <Skeleton className="h-40 rounded-xl" />
+          </SkeletonGroup>
         ) : liste.isError ? (
           <p role="alert" className="flex items-start gap-1.5 text-[13px] text-danger">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
@@ -269,7 +268,7 @@ export default function IngredientsPage() {
                         {refLabel(diets.data, d)}
                       </span>
                     ))}
-                    <span className="chip-muted">
+                    <span className="chip-muted tabular-nums">
                       {seasonsLine(i.seasonMonths.length ? i.seasonMonths : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])}
                     </span>
                   </p>

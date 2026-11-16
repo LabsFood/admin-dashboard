@@ -1,5 +1,6 @@
 "use client";
 
+import FormSkeleton from "@/components/admin/FormSkeleton";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AlertTriangle, RotateCw } from "lucide-react";
@@ -30,7 +31,7 @@ export default function MealFormRoute({
   if (!id) return <MealForm variant={variant} backHref={backHref} />;
 
   if (meals.isPending || (meals.isFetching && !meals.isFetchedAfterMount && !meals.isError)) {
-    return <div className="h-96 animate-pulse rounded-3xl bg-paper" />;
+    return <FormSkeleton />;
   }
 
   // Une relecture en arrière-plan qui échoue ne remplace pas une fiche ouverte : la

@@ -1,8 +1,8 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import {
   AlertTriangle,
   BookOpen,
@@ -80,10 +80,7 @@ export default function RecettesPage() {
 
   return (
     <div className="space-y-6">
-      <motion.section
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      <section
         className="card flex flex-wrap items-center justify-between gap-4 p-6"
       >
         <div className="flex items-center gap-4">
@@ -91,7 +88,7 @@ export default function RecettesPage() {
             <Globe2 className="h-6 w-6" aria-hidden />
           </span>
           <div>
-            <h2 className="font-display text-xl font-bold text-navy">
+            <h2 className="font-display text-xl font-bold text-navy tabular-nums">
               {meals.isPending
                 ? "Chargement de la carte…"
                 : `${all.length} ${all.length > 1 ? "recettes" : "recette"} au catalogue`}
@@ -104,7 +101,7 @@ export default function RecettesPage() {
         <Link href="/recettes/nouvelle" className="btn btn-primary">
           <Plus className="h-4 w-4" aria-hidden /> Ajouter une recette
         </Link>
-      </motion.section>
+      </section>
 
       {meals.isError ? (
         <section className="card p-6">
@@ -117,11 +114,13 @@ export default function RecettesPage() {
           </button>
         </section>
       ) : meals.isPending ? (
-        <div className="space-y-3">
+        /* Une région : bandeau de titre (h-12) puis des lignes de 76 px (vignette 48 + py-3.5). */
+        <SkeletonGroup className="card space-y-px overflow-hidden">
+          <Skeleton className="h-12 rounded-none" />
           {[0, 1, 2].map((i) => (
-            <div key={i} className="card h-32 animate-pulse" />
+            <Skeleton key={i} className="h-[76px] rounded-none" />
           ))}
-        </div>
+        </SkeletonGroup>
       ) : all.length === 0 ? (
         <section className="card">
           <EmptyState
@@ -170,7 +169,7 @@ export default function RecettesPage() {
                       <Globe2 className="h-4 w-4 text-terra" aria-hidden />
                       {groupLabel(group)}
                     </h3>
-                    <span className="font-mono text-[11px] text-ink-soft">
+                    <span className="tabular-nums text-xs text-ink-soft">
                       {recipes.length} recette{recipes.length > 1 ? "s" : ""}
                     </span>
                   </div>
@@ -207,7 +206,7 @@ export default function RecettesPage() {
                             <p className="truncate text-sm font-semibold text-navy">
                               {m.name}
                             </p>
-                            <p className="font-mono text-[11px] text-ink-soft">
+                            <p className="text-xs text-ink-soft">
                               {countryLabel(m.country) || "Pays non renseigné"}
                             </p>
                           </div>
@@ -218,7 +217,7 @@ export default function RecettesPage() {
                               </span>
                             ))}
                           </div>
-                          <span className="hidden items-center gap-1 text-[11px] text-ink-soft md:inline-flex">
+                          <span className="hidden items-center gap-1 text-xs text-ink-soft md:inline-flex">
                             <Clock className="h-3 w-3" aria-hidden />
                             {m.prepTime} min
                           </span>
