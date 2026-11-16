@@ -17,7 +17,8 @@ import {
   useDisputeRecovered,
   useGroceryReceiptUrl,
 } from "@/lib/api/groceries";
-import { euros, formatDateLong } from "@/lib/utils";
+import { centimes } from "@/lib/api/money";
+import { formatDateLong } from "@/lib/utils";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Les courses d'une réservation (Recettes lot 6) : le mandat signé et sa
@@ -62,7 +63,7 @@ export default function GroceriesPanel({ bookingId }: { bookingId: string }) {
       </div>
 
       <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-[13px] sm:grid-cols-2">
-        <Ligne label="Budget Courses (montant maximum)" value={euros(g.budgetCents)} />
+        <Ligne label="Budget Courses (montant maximum)" value={centimes(g.budgetCents)} />
         <Ligne
           label="Mandat signé"
           value={
@@ -124,19 +125,19 @@ export default function GroceriesPanel({ bookingId }: { bookingId: string }) {
         {g.cancelled && (
           <Ligne
             label="Annulées"
-            value={`Le ${quand(g.cancelled.at)} par ${g.cancelled.by === "system" ? "la plateforme" : g.cancelled.by === "client" ? "le client" : "l’équipe"}${g.forfaitWaivedCents ? `, forfait de ${euros(g.forfaitWaivedCents)} retiré` : ""}`}
+            value={`Le ${quand(g.cancelled.at)} par ${g.cancelled.by === "system" ? "la plateforme" : g.cancelled.by === "client" ? "le client" : "l’équipe"}${g.forfaitWaivedCents ? `, forfait de ${centimes(g.forfaitWaivedCents)} retiré` : ""}`}
           />
         )}
         {g.capture && (
           <Ligne
             label="Prélèvement"
-            value={`${euros(g.capture.cents ?? 0)} le ${quand(g.capture.at)}, ${euros(g.capture.releasedCents ?? 0)} libérés${g.capture.safety ? " (capture de sécurité avant expiration)" : ""}${g.refundedCents ? `, ${euros(g.refundedCents)} remboursés` : ""}`}
+            value={`${centimes(g.capture.cents ?? 0)} le ${quand(g.capture.at)}, ${centimes(g.capture.releasedCents ?? 0)} libérés${g.capture.safety ? " (capture de sécurité avant expiration)" : ""}${g.refundedCents ? `, ${centimes(g.refundedCents)} remboursés` : ""}`}
           />
         )}
         {g.instantPayout?.chosen && (
           <Ligne
             label="Versement instantané"
-            value={`${g.instantPayout.status ?? "demandé"}, frais ${euros(g.instantPayout.feeCents ?? 0)} à la charge du chef`}
+            value={`${g.instantPayout.status ?? "demandé"}, frais ${centimes(g.instantPayout.feeCents ?? 0)} à la charge du chef`}
           />
         )}
       </dl>
@@ -144,7 +145,7 @@ export default function GroceriesPanel({ bookingId }: { bookingId: string }) {
       {g.receiptsSubmittedAt && (
         <div className="mt-4 border-t border-[rgba(0,35,75,0.08)] pt-4">
           <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-navy">
-            Tickets : {euros(g.receiptsTotalCents ?? 0)} · déposés le {quand(g.receiptsSubmittedAt)}
+            Tickets : {centimes(g.receiptsTotalCents ?? 0)} · déposés le {quand(g.receiptsSubmittedAt)}
             {g.receipts.map((r, i) => (
               <button
                 key={r.id}
@@ -179,7 +180,7 @@ export default function GroceriesPanel({ bookingId }: { bookingId: string }) {
                   )}
                 </span>
                 <span className="flex items-center gap-2">
-                  <span className="tabular-nums">{euros(line.amountCents)}</span>
+                  <span className="tabular-nums">{centimes(line.amountCents)}</span>
                   {line.contestedAt && !line.decision && (
                     <button type="button" onClick={() => setArbitrage(line)} className="btn btn-outline text-xs">
                       <Gavel className="h-3.5 w-3.5" aria-hidden /> Trancher
@@ -273,7 +274,7 @@ function Dispute({ dispute }: { dispute: GroceryDispute }) {
   return (
     <li className="rounded-xl bg-cream-soft px-3 py-2 text-[13px]">
       <p className="text-navy">
-        {euros(dispute.amountCents)} · ouverte le {quand(dispute.openedAt)} · {dispute.status === "open" ? "en cours à la banque" : dispute.status === "won" ? "gagnée" : dispute.status === "lost" ? "perdue" : dispute.status}
+        {centimes(dispute.amountCents)} · ouverte le {quand(dispute.openedAt)} · {dispute.status === "open" ? "en cours à la banque" : dispute.status === "won" ? "gagnée" : dispute.status === "lost" ? "perdue" : dispute.status}
         {dispute.fault && ` · fautif : ${dispute.fault === "chef" ? "batch cooker" : dispute.fault === "client" ? "client" : "plateforme"}`}
         {dispute.recoveryStatus === "recovered" && ` · récupérée (${dispute.recoveryReference ?? "—"})`}
       </p>
