@@ -43,6 +43,27 @@ export type OfferStatus =
 
 export type TimeSlot = "morning" | "afternoon" | "evening";
 
+/** Un plat de l'offre (sur-mesure, 15/11) : seul le batch cooker en ajoute. */
+export interface OfferDish {
+  id: string;
+  name: string;
+  description: string | null;
+  imageUrl: string | null;
+  /** Écrit en quelques mots pour la demande : pas de recette, jamais vérifié. */
+  express: boolean;
+  menu: { id: string; title: string } | null;
+  allergens: string[];
+  allergensNone: boolean;
+  allergensVerified: boolean;
+}
+
+/** Les plats face aux allergies du client : un avertissement, jamais un refus. */
+export interface OfferAllergy {
+  check: "verified" | "unverified";
+  reasons: string[];
+  conflicts: { mealId: string; allergens: string[] }[];
+}
+
 export interface QuoteOffer {
   id: string;
   status: OfferStatus;
@@ -59,6 +80,10 @@ export interface QuoteOffer {
   decidedAt: string | null;
   declineReason: string | null;
   createdAt: string;
+  /** Absent sur une API antérieure au 15/11. */
+  dishes?: OfferDish[];
+  /** `null` quand l'offre n'a pas de plat. */
+  allergy?: OfferAllergy | null;
 }
 
 export interface Quote {
