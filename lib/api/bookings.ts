@@ -44,7 +44,11 @@ export interface BookingMeal {
   mealId: string;
   name?: string | null;
   portions: number;
+  /** Recettes lot 3 : la version figée quand le menu a été écrit. */
   recipeVersion?: number | null;
+  /** Lot 3 : les allergènes du plat à ce moment-là. `null` : pas encore figés. */
+  allergensSnapshot?: string[] | null;
+  pinnedAt?: string | null;
 }
 
 export interface ShoppingItem {
@@ -87,6 +91,16 @@ export interface Booking {
    * donc sur sa propre ligne, jamais fondu dans le prix.
    */
   shoppingFeeCents?: number | null;
+  /** Recettes lot 4 : « Courses faites », et le total du ticket si le batch cooker l'a saisi. */
+  groceriesValidatedAt?: string | null;
+  groceriesAmountCents?: number | null;
+  /** Fiche seulement : quand chaque rappel de la liste est parti (dans l'application). */
+  shoppingReminders?: {
+    chefSendAt: string | null;
+    clientAnswerAt: string | null;
+    clientFrozenAt: string | null;
+    chefGroceriesAt: string | null;
+  };
   /** Ce que paie le client : prestation + courses. */
   amountTtc: number;
   amountAfterTax: number;
@@ -110,6 +124,9 @@ export interface Booking {
   allergyCheckReasons?: string[];
   /** Fiche seulement : les plats qui contiennent un allergène du client, à remplacer. */
   allergyConflicts?: { mealId: string; allergens: string[] }[];
+  /** Lot 3 : à 72 h du début, les plats ne changent plus, sauf par la console (tracé). */
+  menuFrozen?: boolean;
+  frozenSince?: string;
   shoppingList?: ShoppingList | null;
   photos?: { id: string; url: string; caption?: string | null }[] | null;
   reschedule?: {
@@ -416,5 +433,107 @@ export function useSetBookingSupplements() {
       qc.setQueryData(SUPPLEMENTS, s);
       qc.invalidateQueries({ queryKey: BOOKINGS });
     },
+  });
+}
+
+/* ── Conservation (Recettes lot 3) ──────────────────────────────────────────── */
+
+export interface EatBefore {
+  /** `YYYY-MM-DD` : celle du batch cooker si posée, sinon celle proposée. */
+  date: string | null;
+  proposed: string | null;
+  setByChef: boolean;
+  setAt: string | null;
+  fridgeDays: number | null;
+  fridgeAlert: boolean;
+}
+
+export interface ConservationSheet {
+  bookingId: string;
+  startsAt: string;
+  status: BookingStatus;
+  fridgeAlertDays: number;
+  dishes: { mealId: string; name: string; eatBefore: EatBefore }[];
+  /** Chaque date posée : qui (nom et rôle, pour la console), quand, quelle valeur. */
+  history?: {
+    mealId: string;
+    value: string | null;
+    changedAt: string;
+    changedBy: { id?: string | null; name?: string | null; role: "chef" | "admin" | null };
+  }[];
+}
+
+/** `GET /chef-missions/{id}/conservation` — la console la lit à tout moment, avec l'historique. */
+export function useBookingConservation(bookingId: string | undefined) {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: [...BOOKINGS, bookingId, "conservation"],
+    queryFn: () => apiFetch<ConservationSheet>(`/chef-missions/${bookingId}/conservation`),
+    enabled: !!bookingId,
+    retry: false,
+  });
+}
+
+export interface FridgeAlert {
+  days: number;
+  updatedAt: string | null;
+}
+
+const FRIDGE_ALERT = ["admin", "settings", "fridge-alert"] as const;
+
+/** `GET /admin/settings/fridge-alert` — 4 jours par défaut (BLK-31 encore ouvert). */
+export function useFridgeAlert() {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: FRIDGE_ALERT,
+    queryFn: () => apiFetch<FridgeAlert>("/admin/settings/fridge-alert"),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** `PUT /admin/settings/fridge-alert` — de 1 à 14 jours, tracé. */
+export function useSetFridgeAlert() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (days: number) =>
+      apiFetch<FridgeAlert>("/admin/settings/fridge-alert", { method: "PUT", body: { days } }),
+    onSuccess: (s) => {
+      qc.setQueryData(FRIDGE_ALERT, s);
+      qc.invalidateQueries({ queryKey: BOOKINGS });
+    },
+  });
+}
+
+/* ── Courses (Recettes lot 6, préparation) ──────────────────────────────────── */
+
+export interface GroceriesSetting {
+  /** Le plus qu'un client peut fixer comme Budget Courses, en centimes. */
+  budgetMaxCents: number;
+  /** Le forfait courses conseillé aux batch cookers, en centimes : un conseil, jamais un refus. */
+  recommendedShoppingFeeMinCents: number;
+  updatedAt: string | null;
+}
+
+const GROCERIES = ["admin", "settings", "groceries"] as const;
+
+/** `GET /admin/settings/groceries` — 100 € et 15 € par défaut. */
+export function useGroceriesSetting() {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: GROCERIES,
+    queryFn: () => apiFetch<GroceriesSetting>("/admin/settings/groceries"),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** `PUT /admin/settings/groceries` — les deux valeurs à chaque fois, tracé. */
+export function useSetGroceriesSetting() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Omit<GroceriesSetting, "updatedAt">) =>
+      apiFetch<GroceriesSetting>("/admin/settings/groceries", { method: "PUT", body }),
+    onSuccess: (s) => qc.setQueryData(GROCERIES, s),
   });
 }

@@ -260,14 +260,16 @@ export default function MealDrawer({
               </p>
             ) : meal.allergens.length === 0 && meal.customAllergens.length === 0 ? (
               <p className="text-[13px] text-[#8A6212]">
-                Non renseignés. Ni liste, ni mention «&nbsp;aucun&nbsp;» : la
-                fiche est muette sur un point réglementé.
+                Pas encore calculés : ils viennent des ingrédients reliés à la
+                liste commune, et aucun ne l&apos;est assez pour conclure.
               </p>
             ) : (
               <div className="flex flex-wrap gap-1.5">
                 {meal.allergens.map((a) => (
                   <span key={a} className="chip-danger">
                     {refLabel(allergens.data, a)}
+                    {meal.conditionalAllergens?.includes(a) && " (si l'ingrédient facultatif est utilisé)"}
+                    {meal.addedAllergens?.includes(a) && !meal.allergenSources?.[a]?.length && " (ajouté)"}
                   </span>
                 ))}
                 {meal.customAllergens.map((a) => (

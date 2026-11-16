@@ -10,7 +10,7 @@ import { adminErrorMessage } from "@/lib/api/errors";
 
 /**
  * Écrire ou modifier un plat, selon `?id=`. Le plat se lit dans la
- * bibliothèque déjà en cache : revenir d'une liste n'entraîne aucun appel.
+ * bibliothèque, relue à l'arrivée pour partir de la version courante.
  */
 export default function MealFormRoute({
   variant,
@@ -22,17 +22,21 @@ export default function MealFormRoute({
   backLabel: string;
 }) {
   const id = useSearchParams().get("id");
-  const meals = useMeals();
+  // Le formulaire fige la fiche qu'on lui donne : on la relit à l'arrivée, pour
+  // que sa version (`lockVersion`) soit celle d'aujourd'hui et non celle du cache.
+  const meals = useMeals({ refetchOnMount: "always" });
   const meal = id ? meals.data?.find((m) => m.id === id) : undefined;
 
   // Création : aucune raison d'attendre la bibliothèque.
   if (!id) return <MealForm variant={variant} backHref={backHref} />;
 
-  if (meals.isPending) {
+  if (meals.isPending || (meals.isFetching && !meals.isFetchedAfterMount && !meals.isError)) {
     return <FormSkeleton />;
   }
 
-  if (meals.isError) {
+  // Une relecture en arrière-plan qui échoue ne remplace pas une fiche ouverte : la
+  // version lue reste celle du formulaire, et l'API répond 409 si elle a vieilli.
+  if (meals.isError && !meals.data) {
     return (
       <section className="card p-6">
         <p className="flex items-start gap-2 text-sm text-danger">
