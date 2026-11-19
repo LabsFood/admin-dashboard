@@ -141,6 +141,32 @@ export interface Booking {
   contract?: import("./contract").BookingContract;
   /** CGV V1 : la rétractation, quand le client l'a exercée ou peut encore le faire. */
   withdrawal?: import("./contract").BookingWithdrawal | null;
+  /**
+   * CGV V1 (décision du 19/11) : la demande de réservation — moyen choisi, carte
+   * enregistrée, réponse du batch cooker sous 48 h, prélèvement après la session.
+   * `null` pour une réservation de l'ancien modèle (« le paiement confirme »).
+   */
+  request?: BookingRequest | null;
+}
+
+export type BookingRequestState =
+  | "awaiting_card"
+  | "awaiting_chef"
+  | "accepted"
+  | "refused"
+  | "expired";
+
+export interface BookingRequest {
+  paymentMethod: "cb" | "avance_immediate" | "cesu";
+  state: BookingRequestState | null;
+  card: { brand: string | null; last4: string } | null;
+  requestedAt: string | null;
+  acceptBy: string | null;
+  acceptedAt: string | null;
+  refusedAt: string | null;
+  refusalReason: string | null;
+  chargeAt: string | null;
+  chargedAt: string | null;
 }
 
 export interface PageMeta {
@@ -359,6 +385,23 @@ export const BOOKING_STATUSES = Object.keys(bookingStatusLabel) as BookingStatus
 
 export const bookingStatusText = (code?: string | null) =>
   code ? (bookingStatusLabel[code as BookingStatus] ?? code) : "Statut inconnu";
+
+const REQUEST_LABEL: Record<BookingRequestState, string> = {
+  awaiting_card: "Carte à enregistrer",
+  awaiting_chef: "En attente du batch cooker",
+  accepted: "Acceptée",
+  refused: "Refusée",
+  expired: "Sans réponse",
+};
+
+/** L'étiquette d'une réservation : l'état de sa demande tant qu'elle n'est pas acceptée. */
+export function bookingLabel(b: { status: string; request?: BookingRequest | null }): string {
+  const state = b.request?.state;
+  if (state && state !== "accepted" && (b.status === "pending" || b.status === "cancelled")) {
+    return REQUEST_LABEL[state];
+  }
+  return bookingStatusText(b.status);
+}
 
 /** Ce qui n'est pas encore de l'historique. */
 export const BOOKING_ACTIVE: BookingStatus[] = [

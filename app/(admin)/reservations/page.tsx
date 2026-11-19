@@ -27,7 +27,7 @@ import {
   bookingMealNames,
   bookingPortions,
   bookingStatusLabel,
-  bookingStatusText,
+  bookingLabel,
   isBookingOpen,
   useBookings,
   type Booking,
@@ -231,7 +231,7 @@ export default function ReservationsPage() {
 function BookingRow({ booking: b }: { booking: Booking }) {
   const plats = bookingMealNames(b);
   const portions = bookingPortions(b);
-  const impaye = b.status === "pending";
+  const impaye = b.status === "pending" && !b.request;
 
   return (
     <li>
@@ -260,7 +260,7 @@ function BookingRow({ booking: b }: { booking: Booking }) {
               {b.client?.name ?? "Client non nommé"}
             </span>
             <Badge tone={impaye ? "warning" : isBookingOpen(b) ? "info" : "neutral"} dot>
-              {bookingStatusText(b.status)}
+              {bookingLabel(b)}
             </Badge>
             {/* Un conflit d'allergie ouvert : signalé sans dire l'allergie. */}
             {b.allergyCheckReasons?.includes("ALLERGEN_CONFLICT") && (
