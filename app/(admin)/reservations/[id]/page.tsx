@@ -47,7 +47,11 @@ import {
 import { adminErrorMessage } from "@/lib/api/errors";
 import InfoPopover from "@/components/ui/InfoPopover";
 import GroceriesPanel from "@/components/admin/GroceriesPanel";
-import { ContractPanel, WithdrawalPanel } from "@/components/legal/ContractPanels";
+import {
+  ContractPanel,
+  RequestPanel,
+  WithdrawalPanel,
+} from "@/components/legal/ContractPanels";
 
 /** « lun. 23 nov. », lu comme un jour de calendrier. */
 const jour = (ymd: string) =>
@@ -542,6 +546,7 @@ export default function ReservationDetailPage({
         {/* ── Colonne de droite ─────────────────────────────────────────── */}
         <aside className="space-y-4">
           <WithdrawalPanel withdrawal={b.withdrawal} />
+          <RequestPanel request={b.request} />
           <ContractPanel contract={b.contract} />
 
           <section className="card p-5">

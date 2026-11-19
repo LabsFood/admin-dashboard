@@ -1,5 +1,6 @@
 import InfoPopover from "@/components/ui/InfoPopover";
 import { euros, formatDateLong } from "@/lib/utils";
+import type { BookingRequest } from "@/lib/api/bookings";
 import type {
   BookingContract,
   BookingWithdrawal,
@@ -34,6 +35,62 @@ export function WithdrawalPanel({ withdrawal }: { withdrawal?: BookingWithdrawal
           {withdrawal.refundCents == null ? "à fixer" : euros(withdrawal.refundCents)} avant le{" "}
           {formatDateLong(deadline)}
         </div>
+      </dl>
+    </section>
+  );
+}
+
+const METHOD_LABEL: Record<BookingRequest["paymentMethod"], string> = {
+  cb: "Carte bancaire",
+  avance_immediate: "Avance immédiate URSSAF",
+  cesu: "CESU préfinancé",
+};
+
+const STATE_LABEL: Record<NonNullable<BookingRequest["state"]>, string> = {
+  awaiting_card: "Carte à enregistrer par le client",
+  awaiting_chef: "En attente du batch cooker",
+  accepted: "Acceptée",
+  refused: "Refusée par le batch cooker",
+  expired: "Sans réponse sous 48 h",
+};
+
+/** La demande de réservation (CGV V1 5.1, 5.2, 7.3). */
+export function RequestPanel({ request }: { request?: BookingRequest | null }) {
+  if (!request) return null;
+  const line = (label: string, at: string | null) =>
+    at ? (
+      <div>
+        {label} : {formatDateLong(at)}
+      </div>
+    ) : null;
+  return (
+    <section className="card p-5">
+      <h3 className="mb-2 font-display text-base font-bold text-navy">
+        Demande
+        <InfoPopover label="Comment ça marche ?">
+          Le client choisit son moyen et enregistre une carte à la réservation, sans
+          rien payer. Le batch cooker accepte sous 48 h, ce qui conclut le contrat. Le
+          prix est prélevé automatiquement après la session (dès l&apos;acceptation pour
+          une carte réservée moins de 48 h avant) ; un seul essai. Si la carte est
+          refusée, le client a 48 h pour régler (CGV 7.5).
+        </InfoPopover>
+      </h3>
+      <dl className="space-y-1 text-sm text-ink-mid">
+        <div className="font-semibold text-navy">
+          {request.state ? STATE_LABEL[request.state] : "—"}
+        </div>
+        <div>Moyen choisi : {METHOD_LABEL[request.paymentMethod]}</div>
+        <div>
+          Carte :{" "}
+          {request.card ? `${request.card.brand ?? ""} •••• ${request.card.last4}` : "non enregistrée"}
+        </div>
+        {line("Envoyée au batch cooker", request.requestedAt)}
+        {request.state === "awaiting_chef" && line("Réponse attendue avant", request.acceptBy)}
+        {line("Acceptée", request.acceptedAt)}
+        {line("Refusée", request.refusedAt)}
+        {request.refusalReason && <div>Motif : {request.refusalReason}</div>}
+        {!request.chargedAt && line("Prélèvement prévu", request.chargeAt)}
+        {line("Prélèvement lancé", request.chargedAt)}
       </dl>
     </section>
   );
