@@ -56,10 +56,10 @@ const CODE_MESSAGES: Record<string, string> = {
   URSSAF_NOT_SIMULATED:
     "La passerelle URSSAF n'est pas en mode simulé sur ce serveur.",
   URSSAF_ALREADY_TRANSMITTED:
-    "Cette demande est déjà notée comme saisie sur Unipros. Rechargez la liste.",
+    "Cette demande est déjà notée comme saisie en manuel. Rechargez la liste.",
   URSSAF_REQUEST_SETTLED: "Cette demande a déjà reçu sa réponse. Rechargez la liste.",
   URSSAF_REFERENCE_REQUIRED:
-    "Indiquez la référence qu'Unipros a donnée à la demande avant de la marquer payée.",
+    "Indiquez la référence donnée à la demande avant de la marquer payée.",
   URSSAF_DOSSIER_MISSING: "Ce client n'a pas encore rempli son dossier URSSAF.",
   KYC_STORAGE_UNAVAILABLE:
     "Le dossier ne peut pas être lu pour l'instant (stockage ou clé de chiffrement indisponible).",

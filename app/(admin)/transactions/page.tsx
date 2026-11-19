@@ -589,7 +589,7 @@ function VoletUrssaf() {
       <Entete
         Icon={Banknote}
         titre="Avance immédiate"
-        texte="L'accès à l'API de l'URSSAF n'est pas encore ouvert. En mode manuel, Lab's Food saisit chaque rattachement et chaque demande sur l'espace Unipros, puis note ici la référence et la réponse. En mode simulé (jamais en production), la console répond à la place de l'URSSAF."
+        texte="L'accès à l'API de l'URSSAF n'est pas encore ouvert. En mode manuel, Lab's Food saisit chaque rattachement et chaque demande, puis note ici la référence et la réponse. En mode simulé (jamais en production), la console répond à la place de l'URSSAF."
       />
 
       {!ouvert && (
@@ -681,7 +681,7 @@ function VoletUrssaf() {
           vide={{
             Icon: Banknote,
             title: "Aucune demande de paiement",
-            text: "Les demandes d'avance immédiate apparaîtront ici, à saisir sur Unipros en mode manuel.",
+            text: "Les demandes d'avance immédiate apparaîtront ici, à saisir en mode manuel.",
           }}
         >
           <ul className="space-y-3">
@@ -754,7 +754,7 @@ function VoletUrssaf() {
                   <div className="flex shrink-0 items-center gap-2">
                     <Badge tone={p.paidAt ? "success" : enAttente ? "warning" : "danger"}>
                       {aSaisirSurUnipros
-                        ? "À saisir sur Unipros"
+                        ? "À saisir manuellement"
                         : (URSSAF_PAYMENT_STATUS[p.status] ?? p.status)}
                     </Badge>
                     {p.paidAt && p.status === "succeeded" && !p.reprise && (
@@ -827,7 +827,7 @@ function VoletUrssaf() {
         open={aRefuserLien !== null}
         onClose={() => setARefuserLien(null)}
         title="Refuser le rattachement ?"
-        lead="Notez le motif donné par Unipros ou l'URSSAF. Le client pourra refaire sa demande, et payer autrement en attendant."
+        lead="Notez le motif. Le client pourra refaire sa demande, et payer autrement en attendant."
         placeholder="Motif du refus : compte bancaire non vérifié, identité incohérente…"
         confirmLabel="Refuser le rattachement"
         minLength={5}
@@ -850,13 +850,13 @@ function VoletUrssaf() {
       <ReasonDialog
         open={aSaisir !== null}
         onClose={() => setASaisir(null)}
-        title="Noter la saisie sur Unipros"
+        title="Noter la saisie"
         lead={
           aSaisir
-            ? `Saisissez la demande de ${centimes(aSaisir.amountCents)} sur l'espace Unipros (NOVA du batch cooker : ${aSaisir.booking.chefNovaCode ?? "non renseigné"}), puis recopiez ici la référence qu'Unipros lui a donnée. Une demande ne se note qu'une fois.`
+            ? `Saisissez la demande de ${centimes(aSaisir.amountCents)} sur l'espace de la coopérative (NOVA du batch cooker : ${aSaisir.booking.chefNovaCode ?? "non renseigné"}), puis recopiez ici la référence qu'Unipros lui a donnée. Une demande ne se note qu'une fois.`
             : ""
         }
-        placeholder="Référence Unipros de la demande"
+        placeholder="Référence Coopérative de la demande"
         confirmLabel="Noter la saisie"
         minLength={3}
         maxLength={100}

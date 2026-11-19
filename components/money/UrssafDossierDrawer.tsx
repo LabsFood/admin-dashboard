@@ -8,7 +8,7 @@ import { adminErrorMessage } from "@/lib/api/errors";
 import { useUrssafDossier, type UrssafDossier } from "@/lib/api/money";
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Le dossier URSSAF d'un client, à recopier sur l'espace Unipros.
+   Le dossier URSSAF d'un client, à recopier.
 
    C'est le seul écran de la console qui montre un IBAN en clair. L'API trace
    chaque ouverture (`urssaf.dossier_revealed`) ; la console ne le garde pas en
@@ -40,7 +40,7 @@ export default function UrssafDossierDrawer({
       <div className="space-y-5 p-5">
         <p className="flex items-start gap-2 text-sm leading-relaxed text-ink-mid">
           <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-navy" />
-          À recopier sur l&apos;espace Unipros pour rattacher ce client
+          À recopier sur l&apos;espace de la coopérative pour rattacher ce client
           {chefName ? ` à ${chefName}` : ""}. Cette lecture est tracée.
         </p>
 

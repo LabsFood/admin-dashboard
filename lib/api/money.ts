@@ -20,7 +20,7 @@ import { ApiError, useApiFetch } from "./client";
    - **Avance immédiate** : rattachements et demandes de paiement URSSAF. Tant
      que l'accès API n'existe pas, deux modes : `simulated` (la console répond
      à la place de l'URSSAF, jamais en production) et `manual` (l'admin saisit
-     la demande sur l'espace Unipros et recopie ici la référence et la
+     la demande et recopie ici la référence et la
      réponse). Hors de ces deux modes, l'API refuse les réponses.
    - **Factures clients** : la facture A, au nom du batch cooker, une par
      paiement par carte. Émise au paiement ; celles des paiements antérieurs
@@ -305,9 +305,9 @@ export interface UrssafPayment {
   debitedCents: number;
   /** `SIM-…` en mode simulé ; `null` en mode manuel (rien n'est envoyé). */
   urssafReference: string | null;
-  /** Mode manuel : la référence que l'espace Unipros a donnée à la demande. */
+  /** Mode manuel : la référence que l'espace a donnée à la demande. */
   externalReference: string | null;
-  /** Mode manuel : `null` tant que la demande n'est pas saisie sur Unipros. */
+  /** Mode manuel : `null` tant que la demande n'est pas saisie en manuel. */
   transmittedAt: string | null;
   failureReason?: string | null;
   createdAt: string;
@@ -387,7 +387,7 @@ export function useUrssafPayments() {
 
 /**
  * Noter la réponse de l'URSSAF : à sa place (simulé) ou telle que l'espace
- * Unipros l'affiche (manuel).
+ * de la coopérative l'affiche (manuel).
  *
  * L'API refuse ces routes (`403 URSSAF_NOT_MANUAL_OR_SIMULATED`) hors de ces
  * deux modes : c'est voulu, et l'écran doit le dire plutôt que d'afficher
@@ -449,7 +449,7 @@ export function useSetUrssafOutcome() {
 }
 
 /**
- * Mode manuel : la demande est saisie sur l'espace Unipros. Une seule fois :
+ * Mode manuel : la demande est saisie sur l'espace de la coopérative. Une seule fois :
  * une seconde saisie répond `409 URSSAF_ALREADY_TRANSMITTED`, ce qui évite
  * qu'un autre admin la saisisse à nouveau.
  */
@@ -509,7 +509,7 @@ export interface RevealedDossier {
 }
 
 /**
- * Le dossier complet, IBAN compris, pour le saisir sur l'espace Unipros.
+ * Le dossier complet, IBAN compris, pour le saisir sur l'espace de la coopérative.
  * Chaque lecture est tracée côté API (`urssaf.dossier_revealed`) : on ne lit
  * qu'à l'ouverture du tiroir, et rien n'est gardé en cache après fermeture.
  */
