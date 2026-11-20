@@ -1,3 +1,31 @@
+## [1.3.0](https://github.com/LabsFood/admin-dashboard/compare/v1.2.0...v1.3.0) (2026-11-20)
+
+### Features
+
+* **argent:** avance immédiate par Unipros et prélèvement manuel des commissions ([#57](https://github.com/LabsFood/admin-dashboard/issues/57)) ([7612639](https://github.com/LabsFood/admin-dashboard/commit/7612639df26b995956098dad14a9df481aadd082)), closes [LF-BackEnd#92](https://github.com/LabsFood/LF-BackEnd/issues/92)
+* **batchcookers:** modifier les zones depuis la fiche d'un batch cooker avec candidature ([1f49865](https://github.com/LabsFood/admin-dashboard/commit/1f4986537708c40646acde297910c9453a738203))
+* **candidatures:** ouvrir une candidature pour un batch cooker ([8cf0e90](https://github.com/LabsFood/admin-dashboard/commit/8cf0e902b444020028b280fd30693ee849fc485c))
+* **demandes:** show the dishes of a custom request's offer ([#58](https://github.com/LabsFood/admin-dashboard/issues/58)) ([d63f860](https://github.com/LabsFood/admin-dashboard/commit/d63f8606ab6886d84f932c5de0850cef9c9aee9a))
+* **legal:** CGV V1 blocks in the console (withdrawal, contract, chef identity) ([f0914a6](https://github.com/LabsFood/admin-dashboard/commit/f0914a6867312a42c7f4f57b0457c9bec4d82f30))
+* **photos:** resize and convert photos to WebP before upload ([9a40a02](https://github.com/LabsFood/admin-dashboard/commit/9a40a0202ca28f6f29a600a99e723e070bb45b65))
+* **recettes:** groceries step and list reminders on a booking ([#53](https://github.com/LabsFood/admin-dashboard/issues/53)) ([861a1a4](https://github.com/LabsFood/admin-dashboard/commit/861a1a4ba2e1a7c843d8a78e4c95bb44d0b8d8d5))
+* **recettes:** lot 6 groundwork — grocery amounts setting and « Forfait courses » ([#54](https://github.com/LabsFood/admin-dashboard/issues/54)) ([d473b57](https://github.com/LabsFood/admin-dashboard/commit/d473b5792d7a04a035a0f58d5e37a06acd25c2e4))
+* **recettes:** lot 6, the groceries in the console ([#61](https://github.com/LabsFood/admin-dashboard/issues/61)) ([98c0bbd](https://github.com/LabsFood/admin-dashboard/commit/98c0bbd887ef611e32a1b9249503e80cacc7c61c))
+* **recettes:** recipe foundation V4 (lot 2b) and frozen menu (lot 3) ([#52](https://github.com/LabsFood/admin-dashboard/issues/52)) ([1d11577](https://github.com/LabsFood/admin-dashboard/commit/1d11577aa84b1efa29ecd1b7e7ad5ba8a5ca7ff0))
+* **reservations:** show the CGV V1 booking request — method, card, chef answer, charge date ([#63](https://github.com/LabsFood/admin-dashboard/issues/63)) ([08813f1](https://github.com/LabsFood/admin-dashboard/commit/08813f15bee051bb8d82e96b58be6d14625a82ee))
+* **ui:** squelettes de chargement, guidelines UI/UX et passe anti-slop sur la console ([#56](https://github.com/LabsFood/admin-dashboard/issues/56)) ([4452b12](https://github.com/LabsFood/admin-dashboard/commit/4452b128c606bb028fc43b281e8b60949be0c57a)), closes [#5F6B7A](https://github.com/LabsFood/admin-dashboard/issues/5F6B7A)
+* **zones:** villes précises dans l'éditeur de zones, et leurs noms sur la fiche ([10eb284](https://github.com/LabsFood/admin-dashboard/commit/10eb284069529c0368ca349dac29d80eb2f3985f))
+
+### Bug Fixes
+
+* **clients:** la carte d'un compte sans profil reprend le squelette d'une fiche client ([8eeffcf](https://github.com/LabsFood/admin-dashboard/commit/8eeffcfbe71348c093c94a5c1030b21aa10b6bbe))
+* **clients:** un compte sans profil se supprime depuis la liste ([911206a](https://github.com/LabsFood/admin-dashboard/commit/911206a3e64578a5fd32a6b87c0f734c4caa5dba))
+* **posthog:** relay /ingest assets through eu.i.posthog.com ([2164b82](https://github.com/LabsFood/admin-dashboard/commit/2164b82b044dc564c7cf390a227e83bbe275c40a))
+* **recettes:** « facultatif » badge on optional shopping lines ([#60](https://github.com/LabsFood/admin-dashboard/issues/60)) ([889c94c](https://github.com/LabsFood/admin-dashboard/commit/889c94cc13d476f2d910eb46a5b63486bf6b983f))
+* **recettes:** courses panel shows cent amounts in euros ([1979a7f](https://github.com/LabsFood/admin-dashboard/commit/1979a7fea620e8ff6d33b4729dfee35d738c12b7))
+* **sentry:** ignore malformed router state header errors from scanners ([6485474](https://github.com/LabsFood/admin-dashboard/commit/6485474635c8d1822b32b300620f5bb4dab19cf8))
+* update references from Unipros to cooperative in various components ([04980db](https://github.com/LabsFood/admin-dashboard/commit/04980db161042c8fe99d335e2fd154e33696b579))
+
 ## [1.2.0](https://github.com/LabsFood/admin-dashboard/compare/v1.1.0...v1.2.0) (2026-11-10)
 
 ### Features
