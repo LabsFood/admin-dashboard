@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApiFetch } from "./client";
 import { adminErrorMessage } from "./errors";
+import { AVATAR_MAX_SIDE, PHOTO_MAX_SIDE, optimizePhoto } from "./optimize-photo";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    L'envoi d'une photo, partout pareil.
@@ -18,13 +19,20 @@ import { adminErrorMessage } from "./errors";
 
    Rien n'est enregistré avant l'étape 3. JPEG, PNG ou WebP, 5 Mo au plus.
 
+   Avant l'étape 1, la photo est allégée dans le navigateur (`optimize-photo.ts`) :
+   on accepte donc jusqu'à 20 Mo au départ, et c'est le fichier allégé
+   qui doit tenir dans les 5 Mo de l'API.
+
    Le même trio sert aux plats et aux menus Lab's Food. Un plat adopté par un
    batch cooker montre la même photo : la supprimer ici ne retire le fichier
    que si plus aucune copie ne s'en sert.
    ───────────────────────────────────────────────────────────────────────────── */
 
 export const PHOTO_MIME = ["image/jpeg", "image/png", "image/webp"];
-export const PHOTO_MAX_MB = 5;
+/** Le fichier choisi, avant allègement. */
+export const PHOTO_MAX_MB = 20;
+/** Ce que l'API accepte (`MAX_PHOTO_BYTES`), après allègement. */
+const API_MAX_BYTES = 5 * 1024 * 1024;
 
 /** Ce que l'API refuse, dit avant de tenter l'envoi. */
 export function checkPhoto(file: File): string | null {
@@ -57,6 +65,17 @@ export class PhotoError extends Error {
   }
 }
 
+/** Vérifie la photo choisie, puis l'allège ; refuse si elle reste trop lourde. */
+async function preparePhoto(file: File, maxSide: number): Promise<File> {
+  const probleme = checkPhoto(file);
+  if (probleme) throw new PhotoError("ticket", probleme);
+  const allegee = await optimizePhoto(file, maxSide);
+  if (allegee.size > API_MAX_BYTES) {
+    throw new PhotoError("ticket", "Image trop lourde, même compressée. La limite est de 5 Mo.");
+  }
+  return allegee;
+}
+
 /** Le refus de l'API ou du stockage, dit à l'admin qui vient de cliquer. */
 export function photoMessage(error: unknown): string {
   if (error instanceof PhotoError) return error.message;
@@ -70,10 +89,9 @@ export function photoMessage(error: unknown): string {
 async function uploadPhoto<T>(
   apiFetch: ReturnType<typeof useApiFetch>,
   base: string,
-  file: File,
+  choisie: File,
 ): Promise<T> {
-  const probleme = checkPhoto(file);
-  if (probleme) throw new PhotoError("ticket", probleme);
+  const file = await preparePhoto(choisie, PHOTO_MAX_SIDE);
 
   let ticket: PhotoTicket;
   try {
@@ -188,9 +206,8 @@ export function useUploadAvatar() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: async (file: File) => {
-      const probleme = checkPhoto(file);
-      if (probleme) throw new PhotoError("ticket", probleme);
+    mutationFn: async (choisie: File) => {
+      const file = await preparePhoto(choisie, AVATAR_MAX_SIDE);
 
       let ticket: PhotoTicket;
       try {
