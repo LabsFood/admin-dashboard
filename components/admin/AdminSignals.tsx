@@ -1,5 +1,6 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
@@ -57,7 +58,7 @@ function useAdminPaletteItems(actif: boolean): {
       group: "Aller à",
       href: n.href,
       Icon: n.Icon,
-      keywords: `${n.eyebrow} ${n.subtitle}`,
+      keywords: `${n.eyebrow ?? ""} ${n.subtitle}`,
     }));
 
     for (const c of candidatures.data?.data ?? []) {
@@ -266,7 +267,7 @@ export function AdminAlertBell() {
       >
         <Bell className="h-4 w-4" aria-hidden />
         {!loading && n > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 font-mono text-[9px] font-bold text-white">
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 tabular-nums text-[9px] font-bold text-white">
             {n > 9 ? "9+" : n}
           </span>
         )}
@@ -278,7 +279,7 @@ export function AdminAlertBell() {
         eyebrow="Console"
         title="À traiter"
         footer={
-          <p className="text-[11px] leading-relaxed text-ink-soft">
+          <p className="text-xs leading-relaxed text-ink-soft">
             Ces files sont comptées à chaque ouverture, depuis les candidatures
             et la file de relecture. Le journal des notifications — qui a fait
             quoi, et quand — attend son endpoint côté API.
@@ -286,11 +287,11 @@ export function AdminAlertBell() {
         }
       >
         {loading ? (
-          <div className="space-y-2">
+          <SkeletonGroup className="space-y-2">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="h-20 animate-pulse rounded-md bg-paper" />
+              <Skeleton key={i} className="h-20 rounded-md" />
             ))}
-          </div>
+          </SkeletonGroup>
         ) : enPanne ? (
           <p className="flex items-start gap-2 rounded-md bg-danger-soft p-3.5 text-[13px] leading-relaxed text-danger">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />

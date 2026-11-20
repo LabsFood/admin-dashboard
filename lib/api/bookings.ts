@@ -44,7 +44,11 @@ export interface BookingMeal {
   mealId: string;
   name?: string | null;
   portions: number;
+  /** Recettes lot 3 : la version figée quand le menu a été écrit. */
   recipeVersion?: number | null;
+  /** Lot 3 : les allergènes du plat à ce moment-là. `null` : pas encore figés. */
+  allergensSnapshot?: string[] | null;
+  pinnedAt?: string | null;
 }
 
 export interface ShoppingItem {
@@ -87,6 +91,16 @@ export interface Booking {
    * donc sur sa propre ligne, jamais fondu dans le prix.
    */
   shoppingFeeCents?: number | null;
+  /** Recettes lot 4 : « Courses faites », et le total du ticket si le batch cooker l'a saisi. */
+  groceriesValidatedAt?: string | null;
+  groceriesAmountCents?: number | null;
+  /** Fiche seulement : quand chaque rappel de la liste est parti (dans l'application). */
+  shoppingReminders?: {
+    chefSendAt: string | null;
+    clientAnswerAt: string | null;
+    clientFrozenAt: string | null;
+    chefGroceriesAt: string | null;
+  };
   /** Ce que paie le client : prestation + courses. */
   amountTtc: number;
   amountAfterTax: number;
@@ -110,6 +124,9 @@ export interface Booking {
   allergyCheckReasons?: string[];
   /** Fiche seulement : les plats qui contiennent un allergène du client, à remplacer. */
   allergyConflicts?: { mealId: string; allergens: string[] }[];
+  /** Lot 3 : à 72 h du début, les plats ne changent plus, sauf par la console (tracé). */
+  menuFrozen?: boolean;
+  frozenSince?: string;
   shoppingList?: ShoppingList | null;
   photos?: { id: string; url: string; caption?: string | null }[] | null;
   reschedule?: {
@@ -120,6 +137,36 @@ export interface Booking {
     status: string;
     expiresAt: string | null;
   } | null;
+  /** CGV V1 : les cases cochées et la conclusion du contrat. */
+  contract?: import("./contract").BookingContract;
+  /** CGV V1 : la rétractation, quand le client l'a exercée ou peut encore le faire. */
+  withdrawal?: import("./contract").BookingWithdrawal | null;
+  /**
+   * CGV V1 (décision du 19/11) : la demande de réservation — moyen choisi, carte
+   * enregistrée, réponse du batch cooker sous 48 h, prélèvement après la session.
+   * `null` pour une réservation de l'ancien modèle (« le paiement confirme »).
+   */
+  request?: BookingRequest | null;
+}
+
+export type BookingRequestState =
+  | "awaiting_card"
+  | "awaiting_chef"
+  | "accepted"
+  | "refused"
+  | "expired";
+
+export interface BookingRequest {
+  paymentMethod: "cb" | "avance_immediate" | "cesu";
+  state: BookingRequestState | null;
+  card: { brand: string | null; last4: string } | null;
+  requestedAt: string | null;
+  acceptBy: string | null;
+  acceptedAt: string | null;
+  refusedAt: string | null;
+  refusalReason: string | null;
+  chargeAt: string | null;
+  chargedAt: string | null;
 }
 
 export interface PageMeta {
@@ -267,6 +314,8 @@ export interface MissionLine {
   /** Réponse du client : il l'a déjà. Rendue seulement si elle porte sur la dernière liste envoyée. */
   alreadyHave?: boolean;
   comment?: string | null;
+  /** Facultative dans toutes les recettes qui la demandent (décision du 16/11). */
+  optional?: true;
 }
 
 /** L'échange autour de la liste (Recettes §10.7), calculé par l'API. */
@@ -336,6 +385,23 @@ export const BOOKING_STATUSES = Object.keys(bookingStatusLabel) as BookingStatus
 
 export const bookingStatusText = (code?: string | null) =>
   code ? (bookingStatusLabel[code as BookingStatus] ?? code) : "Statut inconnu";
+
+const REQUEST_LABEL: Record<BookingRequestState, string> = {
+  awaiting_card: "Carte à enregistrer",
+  awaiting_chef: "En attente du batch cooker",
+  accepted: "Acceptée",
+  refused: "Refusée",
+  expired: "Sans réponse",
+};
+
+/** L'étiquette d'une réservation : l'état de sa demande tant qu'elle n'est pas acceptée. */
+export function bookingLabel(b: { status: string; request?: BookingRequest | null }): string {
+  const state = b.request?.state;
+  if (state && state !== "accepted" && (b.status === "pending" || b.status === "cancelled")) {
+    return REQUEST_LABEL[state];
+  }
+  return bookingStatusText(b.status);
+}
 
 /** Ce qui n'est pas encore de l'historique. */
 export const BOOKING_ACTIVE: BookingStatus[] = [
@@ -412,5 +478,114 @@ export function useSetBookingSupplements() {
       qc.setQueryData(SUPPLEMENTS, s);
       qc.invalidateQueries({ queryKey: BOOKINGS });
     },
+  });
+}
+
+/* ── Conservation (Recettes lot 3) ──────────────────────────────────────────── */
+
+export interface EatBefore {
+  /** `YYYY-MM-DD` : celle du batch cooker si posée, sinon celle proposée. */
+  date: string | null;
+  proposed: string | null;
+  setByChef: boolean;
+  setAt: string | null;
+  fridgeDays: number | null;
+  fridgeAlert: boolean;
+}
+
+export interface ConservationSheet {
+  bookingId: string;
+  startsAt: string;
+  status: BookingStatus;
+  fridgeAlertDays: number;
+  dishes: { mealId: string; name: string; eatBefore: EatBefore }[];
+  /** Chaque date posée : qui (nom et rôle, pour la console), quand, quelle valeur. */
+  history?: {
+    mealId: string;
+    value: string | null;
+    changedAt: string;
+    changedBy: { id?: string | null; name?: string | null; role: "chef" | "admin" | null };
+  }[];
+}
+
+/** `GET /chef-missions/{id}/conservation` — la console la lit à tout moment, avec l'historique. */
+export function useBookingConservation(bookingId: string | undefined) {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: [...BOOKINGS, bookingId, "conservation"],
+    queryFn: () => apiFetch<ConservationSheet>(`/chef-missions/${bookingId}/conservation`),
+    enabled: !!bookingId,
+    retry: false,
+  });
+}
+
+export interface FridgeAlert {
+  days: number;
+  updatedAt: string | null;
+}
+
+const FRIDGE_ALERT = ["admin", "settings", "fridge-alert"] as const;
+
+/** `GET /admin/settings/fridge-alert` — 4 jours par défaut (BLK-31 encore ouvert). */
+export function useFridgeAlert() {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: FRIDGE_ALERT,
+    queryFn: () => apiFetch<FridgeAlert>("/admin/settings/fridge-alert"),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** `PUT /admin/settings/fridge-alert` — de 1 à 14 jours, tracé. */
+export function useSetFridgeAlert() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (days: number) =>
+      apiFetch<FridgeAlert>("/admin/settings/fridge-alert", { method: "PUT", body: { days } }),
+    onSuccess: (s) => {
+      qc.setQueryData(FRIDGE_ALERT, s);
+      qc.invalidateQueries({ queryKey: BOOKINGS });
+    },
+  });
+}
+
+/* ── Courses (Recettes lot 6) ───────────────────────────────────────────────── */
+
+export interface GroceriesSetting {
+  /** Le Budget Courses, le même pour tous (décision du 16/11) : l'empreinte, en centimes. */
+  budgetMaxCents: number;
+  /** Le forfait courses conseillé aux batch cookers, en centimes : un conseil, jamais un refus. */
+  recommendedShoppingFeeMinCents: number;
+  /** Le délai minimum entre le message avant les courses et son heure limite. */
+  minCancelNoticeMinutes: number;
+  /** « Le silence vaut confirmation » : éteint tant que le juridique ne l'a pas validé. */
+  silenceConfirms: boolean;
+  /** Les frais du versement instantané, à la charge du batch cooker. */
+  instantPayoutFeeBps: number;
+  instantPayoutFeeMinCents: number;
+  updatedAt: string | null;
+}
+
+const GROCERIES = ["admin", "settings", "groceries"] as const;
+
+/** `GET /admin/settings/groceries` — 100 € et 15 € par défaut. */
+export function useGroceriesSetting() {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: GROCERIES,
+    queryFn: () => apiFetch<GroceriesSetting>("/admin/settings/groceries"),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** `PUT /admin/settings/groceries` — toutes les valeurs à chaque fois, tracé. */
+export function useSetGroceriesSetting() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Omit<GroceriesSetting, "updatedAt">) =>
+      apiFetch<GroceriesSetting>("/admin/settings/groceries", { method: "PUT", body }),
+    onSuccess: (s) => qc.setQueryData(GROCERIES, s),
   });
 }

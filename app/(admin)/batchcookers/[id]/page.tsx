@@ -1,11 +1,13 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ArrowLeft,
+  Banknote,
   CalendarRange,
   Check,
   ClipboardList,
@@ -25,6 +27,7 @@ import {
 import Badge from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
 import WriteToUserButton from "@/components/admin/WriteToUserButton";
+import ChefTransactions from "@/components/money/ChefTransactions";
 import { cn, euros, formatDate } from "@/lib/utils";
 import { countryLabel } from "@/lib/countries";
 import { moderatedLabel, moderatedTone } from "@/lib/catalog-labels";
@@ -57,6 +60,7 @@ import {
   type ChefTier,
 } from "@/lib/api/chefs";
 import InfoPopover from "@/components/ui/InfoPopover";
+import { ChefLegalPanel } from "@/components/legal/ContractPanels";
 import TierRules from "@/components/admin/TierRules";
 import { ApiError } from "@/lib/api/client";
 import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
@@ -80,7 +84,7 @@ import { adminErrorMessage } from "@/lib/api/errors";
    après coup, en disant ce que ce détour coûte.
    ───────────────────────────────────────────────────────────────────────────── */
 
-type Onglet = "profil" | "plats" | "menus" | "vitrine" | "prestations";
+type Onglet = "profil" | "plats" | "menus" | "vitrine" | "prestations" | "transactions";
 
 const WORK_STATUS_LABEL: Record<string, string> = {
   "eu-citizen": "Ressortissant français ou de l'Union européenne",
@@ -121,10 +125,14 @@ export default function BatchCookerPage({
 
   if (chef.isPending || (introuvable && (ancienLien.isPending || cible))) {
     return (
-      <div className="space-y-4">
-        <div className="h-32 animate-pulse rounded-lg bg-paper" />
-        <div className="h-96 animate-pulse rounded-lg bg-paper" />
-      </div>
+      <SkeletonGroup className="space-y-4">
+        <div className="card h-32 p-4">
+          <Skeleton className="h-full rounded-[10px]" />
+        </div>
+        <div className="card h-96 p-4">
+          <Skeleton className="h-full rounded-[10px]" />
+        </div>
+      </SkeletonGroup>
     );
   }
 
@@ -183,9 +191,9 @@ export default function BatchCookerPage({
                   </span>
                 )}
                 <span>{c.email}</span>
-                {c.phone && <span className="font-mono">{c.phone}</span>}
+                {c.phone && <span className="tabular-nums">{c.phone}</span>}
               </p>
-              <p className="mt-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-soft">
+              <p className="mt-1.5 font-mono text-xs uppercase tracking-[0.14em] text-ink-soft">
                 {c.application?.reference ?? "Sans candidature"}
               </p>
               {c.regions.length > 0 && (
@@ -208,7 +216,7 @@ export default function BatchCookerPage({
                 <FileText className="h-3 w-3" /> Le dossier et ses pièces
               </Link>
             ) : (
-              <span className="text-[11px] text-ink-soft">Compte sans candidature</span>
+              <span className="text-xs text-ink-soft">Compte sans candidature</span>
             )}
             <WriteToUserButton userId={c.userId} />
           </div>
@@ -256,7 +264,7 @@ export default function BatchCookerPage({
             <p className="mb-1 text-[13px] font-semibold text-navy">
               Fermer ce compte
             </p>
-            <p className="mb-3 max-w-prose text-[11px] leading-relaxed text-ink-soft">
+            <p className="mb-3 max-w-prose text-xs leading-relaxed text-ink-soft">
               Définitif : le compte Clerk est supprimé et la personne ne peut plus
               se connecter. L&apos;API refuse tant qu&apos;une réservation est
               ouverte.
@@ -284,6 +292,7 @@ export default function BatchCookerPage({
             { id: "menus", Icon: LayoutList, label: "Ses menus" },
             { id: "vitrine", Icon: CalendarRange, label: "Sa vitrine" },
             { id: "prestations", Icon: ClipboardList, label: "Ses prestations" },
+            { id: "transactions", Icon: Banknote, label: "Ses transactions" },
           ] as const
         ).map(({ id: tid, Icon, label }) => (
           <button
@@ -305,9 +314,13 @@ export default function BatchCookerPage({
 
       {onglet === "profil" &&
         (app.data ? (
-          <Profil app={app.data} />
+          <Profil app={app.data} chef={c} />
         ) : c.application && app.isPending ? (
-          <div className="h-64 animate-pulse rounded-lg bg-paper" />
+          <SkeletonGroup>
+            <div className="card h-64 p-4">
+              <Skeleton className="h-full rounded-[10px]" />
+            </div>
+          </SkeletonGroup>
         ) : (
           <ProfilSansCandidature chef={c} />
         ))}
@@ -315,6 +328,9 @@ export default function BatchCookerPage({
       {onglet === "menus" && <Contenu chefProfileId={c.id} genre="menu" />}
       {onglet === "vitrine" && <Vitrine chefProfileId={c.id} />}
       {onglet === "prestations" && <Prestations chefProfileId={c.id} />}
+      {onglet === "transactions" && <ChefTransactions chefProfileId={c.id} />}
+
+      <ChefLegalPanel identity={c.legalIdentity} />
 
       <ChefAgendaEtArgent
         chefProfileId={c.id}
@@ -346,7 +362,7 @@ function Compteur({ label, valeur }: { label: string; valeur: number }) {
   return (
     <div className="rounded-lg bg-cream-soft px-3 py-2.5">
       <dd className="font-display text-xl font-bold text-navy">{valeur}</dd>
-      <dt className="text-[11px] text-ink-soft">{label}</dt>
+      <dt className="text-xs text-ink-soft">{label}</dt>
     </div>
   );
 }
@@ -386,7 +402,7 @@ function ProfilSansCandidature({ chef }: { chef: AdminChefDetail }) {
               <li key={zone.regionCode}>
                 <strong>{zone.regionLabel}</strong>
                 {zone.scope === "cities" && zone.cities.length > 0
-                  ? ` : ${zone.cities.join(", ")}`
+                  ? ` : ${zone.cities.map((c) => c.name).join(", ")}`
                   : " : toute la région"}
               </li>
             ))}
@@ -450,7 +466,7 @@ function MiseEnLigne({
               </>
             )}
           </p>
-          <p className="mt-0.5 max-w-prose text-[11px] leading-relaxed text-ink-soft">
+          <p className="mt-0.5 max-w-prose text-xs leading-relaxed text-ink-soft">
             {etat === undefined
               ? "Tant qu'elle n'est pas en ligne, aucun client ne le voit ni ne peut le réserver. Les deux boutons sont sans danger à répéter."
               : etat
@@ -512,7 +528,13 @@ function MiseEnLigne({
 
 /* ── Profil ────────────────────────────────────────────────────────────────── */
 
-function Profil({ app }: { app: NonNullable<ReturnType<typeof useChefApplication>["data"]> }) {
+function Profil({
+  app,
+  chef,
+}: {
+  app: NonNullable<ReturnType<typeof useChefApplication>["data"]>;
+  chef: AdminChefDetail;
+}) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Bloc titre="Identité">
@@ -569,20 +591,22 @@ function Profil({ app }: { app: NonNullable<ReturnType<typeof useChefApplication
       </Bloc>
 
       <Bloc titre="Zones d'intervention">
-        {(app.interventionZones?.length ?? 0) === 0 ? (
+        {/* La fiche donne les zones en vigueur, rangées par ordre alphabétique :
+            celles de la candidature, puis celles que le batch cooker ou l'équipe a réglées. */}
+        {chef.zones.length === 0 ? (
           <p className="text-sm text-ink-soft">Aucune zone renseignée.</p>
         ) : (
           <ul className="space-y-2.5">
-            {app.interventionZones.map((z, i) => (
-              <li key={z.regionCode ?? i} className="flex items-start gap-2.5">
+            {chef.zones.map((z) => (
+              <li key={z.regionCode} className="flex items-start gap-2.5">
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-terra" />
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-navy">
-                    {z.regionLabel ?? z.regionCode}
+                    {z.regionLabel}
                   </span>
-                  <span className="block text-[13px] leading-relaxed text-ink-mid">
-                    {z.scope === "cities" && z.cities?.length
-                      ? z.cities.map((c) => c.name).join(", ")
+                  <span className="block text-[13px] leading-relaxed text-ink-mid tabular-nums">
+                    {z.scope === "cities" && z.cities.length > 0
+                      ? z.cities.map((v) => v.name).join(", ")
                       : "Toute la région"}
                   </span>
                 </span>
@@ -590,6 +614,7 @@ function Profil({ app }: { app: NonNullable<ReturnType<typeof useChefApplication
             ))}
           </ul>
         )}
+        <ZonesEditor chefProfileId={chef.id} zones={chef.zones} verifie={chef.isVerified} />
       </Bloc>
     </div>
   );
@@ -623,11 +648,13 @@ function Contenu({
 
   if (q.isPending) {
     return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <SkeletonGroup className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="card h-48 animate-pulse" />
+          <div key={i} className="card h-48 p-4">
+            <Skeleton className="h-full rounded-[10px]" />
+          </div>
         ))}
-      </div>
+      </SkeletonGroup>
     );
   }
 
@@ -677,7 +704,7 @@ function Contenu({
                   {moderatedLabel[it.status]}
                 </Badge>
               </div>
-              <p className="mt-1 font-mono text-[11px] text-ink-soft">
+              <p className="mt-1 text-xs text-ink-soft">
                 {[
                   countryLabel(it.country),
                   it.prepMinutes ? `${it.prepMinutes} min` : null,
@@ -712,7 +739,13 @@ function Vitrine({ chefProfileId }: { chefProfileId: string }) {
   const semaines = q.data ?? [];
 
   if (q.isPending) {
-    return <div className="card h-48 animate-pulse" />;
+    return (
+      <SkeletonGroup>
+        <div className="card h-48 p-4">
+          <Skeleton className="h-full rounded-[10px]" />
+        </div>
+      </SkeletonGroup>
+    );
   }
 
   if (q.isError) {
@@ -748,7 +781,7 @@ function Vitrine({ chefProfileId }: { chefProfileId: string }) {
       <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {semaines.map((s, i) => (
           <li key={s.weekStart ?? i} className="card p-4">
-            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-terra">
+            <p className="text-xs uppercase tracking-[0.16em] text-terra-ink tabular-nums">
               {s.weekStart ? formatDate(s.weekStart) : `Semaine ${i + 1}`}
             </p>
             {s.menu ? (
@@ -757,7 +790,7 @@ function Vitrine({ chefProfileId }: { chefProfileId: string }) {
                   {s.menu.title}
                 </p>
                 {s.menu.status && (
-                  <p className="mt-1 text-[11px] text-ink-soft">{s.menu.status}</p>
+                  <p className="mt-1 text-xs text-ink-soft">{s.menu.status}</p>
                 )}
               </>
             ) : (
@@ -787,11 +820,13 @@ function Prestations({ chefProfileId }: { chefProfileId: string }) {
 
   if (q.isPending) {
     return (
-      <div className="space-y-3">
+      <SkeletonGroup className="space-y-3">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="card h-20 animate-pulse" />
+          <div key={i} className="card h-20 p-4">
+            <Skeleton className="h-full rounded-[10px]" />
+          </div>
         ))}
-      </div>
+      </SkeletonGroup>
     );
   }
 
@@ -846,7 +881,7 @@ function Prestations({ chefProfileId }: { chefProfileId: string }) {
                 </span>
                 {b.status && <Badge tone="navy">{bookingStatusText(b.status)}</Badge>}
               </p>
-              <p className="mt-0.5 font-mono text-[11px] text-ink-soft">
+              <p className="mt-0.5 tabular-nums text-xs text-ink-soft">
                 {[
                   b.startsAt ? formatDate(b.startsAt) : null,
                   b.timeSlot,
@@ -859,7 +894,7 @@ function Prestations({ chefProfileId }: { chefProfileId: string }) {
               </p>
             </div>
             {b.priceCents != null && (
-              <p className="font-display text-base font-bold text-navy">
+              <p className="font-display text-base font-bold text-navy tabular-nums">
                 {euros(Math.round(b.priceCents / 100))}
               </p>
             )}
@@ -901,7 +936,7 @@ function LienConnexion({ userId, email }: { userId: string; email: string | null
             <Mail className="h-3.5 w-3.5 text-ink-soft" aria-hidden /> Lien de
             connexion
           </p>
-          <p className="mt-0.5 max-w-prose text-[11px] leading-relaxed text-ink-soft">
+          <p className="mt-0.5 max-w-prose text-xs leading-relaxed text-ink-soft">
             Son compte s&apos;ouvre par un lien reçu par email, jamais par un mot
             de passe. S&apos;il ne l&apos;a pas reçu, il ne peut rien faire seul.
           </p>
@@ -998,7 +1033,7 @@ function StatutsSap({
         <ShieldCheck className="h-3.5 w-3.5 text-ink-soft" aria-hidden /> Affiliation
         CESU et avance immédiate
       </p>
-      <p className="mt-0.5 max-w-prose text-[11px] leading-relaxed text-ink-soft">
+      <p className="mt-0.5 max-w-prose text-xs leading-relaxed text-ink-soft">
         Notez ici ce que le CRCESU et l&apos;URSSAF ont répondu. Ces deux statuts
         décident de ce qu&apos;un client peut utiliser pour le payer, et son
         espace les affiche sans pouvoir les changer.
@@ -1067,7 +1102,7 @@ function StatutsSap({
           {adminErrorMessage(save.error)}
         </p>
       )}
-      <p className="mt-2 max-w-prose text-[11px] leading-relaxed text-ink-soft">
+      <p className="mt-2 max-w-prose text-xs leading-relaxed text-ink-soft">
         Ces deux statuts ne disent pas si le batch cooker <em>accepte</em> le
         CESU — ça, c&apos;est son choix, dans son espace Rémunération. Ils
         disent si le CRCESU et l&apos;URSSAF l&apos;ont habilité. Les deux

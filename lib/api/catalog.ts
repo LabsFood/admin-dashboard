@@ -1,8 +1,9 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useApiFetch } from "./client";
+import { ApiError, useApiFetch } from "./client";
 import type { PageMeta } from "./types";
+import { displayQuantity } from "@/lib/recipe-fields";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Le catalogue Lab's Food, côté console.
@@ -24,7 +25,15 @@ import type { PageMeta } from "./types";
 export type MealStatus = "draft" | "published" | "archived";
 export type Continent = "africa" | "americas" | "asia" | "europe" | "middle_east";
 export type Difficulty = "easy" | "medium" | "hard";
-export type DishCategory = "starter" | "main" | "side" | "dessert";
+/** Les 7 types de `GET /referentials/dish-categories`. */
+export type DishCategory =
+  | "main"
+  | "starter"
+  | "soup"
+  | "side"
+  | "dessert"
+  | "breakfast"
+  | "sauce";
 export type MenuPeriod = "week" | "month";
 
 export interface Ingredient {
@@ -40,9 +49,18 @@ export interface Ingredient {
   fixedQuantity?: boolean;
   /** L'entrée de la liste commune (§4.10) : régimes et saisons s'en calculent. */
   catalogIngredientId?: string | null;
+  /** Facultatif : ses allergènes ne sont que conditionnels. */
+  optional?: boolean;
+  precision?: string | null;
+  preparation?: string | null;
+  group?: string | null;
+  hiddenFromClient?: boolean;
+  rawText?: string | null;
 }
 
-/** Une entrée de la liste commune d'ingrédients (§4.10). */
+export type CatalogIngredientStatus = "active" | "pending" | "inactive" | "merged";
+
+/** Une entrée de la liste commune d'ingrédients (§4.10), ou l'ingrédient privé d'un batch cooker. */
 export interface CatalogIngredient {
   id: string;
   name: string;
@@ -52,8 +70,31 @@ export interface CatalogIngredient {
   diets: string[];
   /** Mois 1 à 12 ; vide : pas de saison. */
   seasonMonths: number[];
+  /** Code de `GET /referentials/aisles` ; `null` : à compléter. */
+  aisle?: string | null;
+  /** Les 14 codes, dans l'ordre de l'annexe. */
+  allergens?: string[];
+  /** Déclaré sans aucun des 14 allergènes. */
+  allergensNone?: boolean;
+  isBasic?: boolean;
+  status?: CatalogIngredientStatus;
+  /**
+   * `null` : entrée commune ; sinon l'ingrédient privé de ce batch cooker.
+   * Absent de `GET /ingredients?search=`, qui dit `private` à la place.
+   */
+  chefProfileId?: string | null;
+  /** `GET /ingredients?search=` : vrai pour l'entrée privée d'un batch cooker. */
+  private?: boolean;
+  /** Le batch cooker d'une entrée privée (nom affichable) ; `null` : entrée commune. */
+  chef?: { id: string; displayName: string } | null;
+  mergedIntoId?: string | null;
+  reviewedAt?: string | null;
+  reviewedByUserId?: string | null;
+  createdByUserId?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  /** Un report de cette entrée n'a pas abouti : à relancer. */
+  carryPending?: boolean;
 }
 
 export interface CatalogIngredientInput {
@@ -61,6 +102,66 @@ export interface CatalogIngredientInput {
   aliases?: string[];
   diets?: string[];
   seasonMonths?: number[];
+  aisle?: string;
+  allergens?: string[];
+  allergensNone?: boolean;
+  isBasic?: boolean;
+  /** Seulement sur une entrée commune active ou inactive (sinon 422). */
+  status?: "active" | "inactive";
+}
+
+/** « À compléter » : sans rayon, ou ni allergènes ni « aucun ». */
+export const isIncomplete = (i: CatalogIngredient) =>
+  !i.aisle || ((i.allergens?.length ?? 0) === 0 && !i.allergensNone);
+
+/** Le bilan d'un report dans les recettes (§7.3). */
+export interface Propagation {
+  dishes: number;
+  reverified: number;
+  chefs: number;
+  skipped: number;
+  failed: number;
+}
+
+/** `GET /admin/ingredients/{id}/impact` */
+export interface IngredientImpact {
+  dishes: number;
+  chefs: number;
+  verifiedDishes: number;
+}
+
+/** Réponse de `PATCH`, `validate` et `merge`. */
+/** Le client a cessé d'attendre : le serveur, lui, continue peut-être. */
+export const isTimeout = (e: unknown) =>
+  e instanceof ApiError && e.status === 0 && /à temps/.test(e.message);
+
+export const TIMEOUT_HINT =
+  "L'opération continue peut-être côté serveur : vérifiez la liste, puis relancez le report si besoin.";
+
+export interface IngredientWrite {
+  ingredient: CatalogIngredient;
+  propagation: Propagation | null;
+}
+
+export interface ImportReport {
+  created: number;
+  updated: number;
+  unchanged: number;
+  errors: { line: number; message: string }[];
+  /** Les entrées mises à jour par un import confirmé (vide en simulation). */
+  updatedIds?: string[];
+  propagation: Propagation | null;
+}
+
+export interface IngredientFilters {
+  search: string;
+  status: string;
+  aisle: string;
+  incomplete: boolean;
+  /** `""` : tous ; `"yes"` : relus ; `"no"` : pas encore. */
+  reviewed: "" | "yes" | "no";
+  /** Seulement les entrées dont le report est à relancer. */
+  carryPending?: boolean;
 }
 
 /** Une étape (§4.5) : sans type, la fiche n'est pas « Prête ». */
@@ -101,6 +202,10 @@ export interface Storage {
   method?: string | null;
   days?: number | null;
   container?: string | null;
+  /** Absent ou `null` : pas encore répondu (anciennes recettes). */
+  freezable?: boolean | null;
+  freezerMonths?: number | null;
+  thawing?: string | null;
 }
 
 /** `MealResponseDto` — un plat de la maison. */
@@ -123,7 +228,16 @@ export interface Meal {
   prepTime: number;
   cookTime: number | null;
   dietaryTags: string[];
+  /** Calculés d'après les lignes, plus `addedAllergens`. */
   allergens: string[];
+  /** Ceux que seules des lignes facultatives apportent (déjà dans `allergens`). */
+  conditionalAllergens?: string[];
+  /** Ajoutés à la main. */
+  addedAllergens?: string[];
+  /** Pour chaque allergène, les ingrédients qui l'apportent, si l'API les rend. */
+  allergenSources?: Record<string, string[]>;
+  /** Version de la fiche, renvoyée à l'enregistrement pour détecter un conflit entre onglets. */
+  lockVersion?: number;
   allergensNone: boolean;
   customDiets: string[];
   customAllergens: string[];
@@ -167,8 +281,8 @@ export interface MealInput {
   description?: string | null;
   dietaryTags?: string[];
   customDiets?: string[];
-  allergens?: string[];
-  allergensNone?: boolean;
+  /** Les 14 codes ajoutés à la main ; le reste se calcule des lignes. */
+  addedAllergens?: string[];
   customAllergens?: string[];
   ingredients?: Ingredient[];
   category?: DishCategory | null;
@@ -188,6 +302,8 @@ export interface MealInput {
   seasonsOverride?: number[];
   isFeatured?: boolean;
   status?: MealStatus;
+  /** La version lue : l'API refuse (409 RECIPE_CONFLICT) si la fiche a changé depuis. */
+  lockVersion?: number;
 }
 
 /** Un menu Lab's Food : un assemblage ordonné de plats de la maison. */
@@ -278,10 +394,24 @@ export function ingredientLines(raw: unknown): string[] {
     const o = v as Record<string, unknown>;
     const name = typeof o.name === "string" ? o.name.trim() : "";
     if (!name) return null;
-    const qty = o.qty == null || o.qty === "" ? "" : String(o.qty);
+    // Les 14 codes d'unité s'écrivent comme l'API : « 1,5 kg », « selon le goût ».
     const unit = typeof o.unit === "string" ? o.unit : "";
-    const amount = [qty, unit].filter(Boolean).join(" ");
-    return amount ? `${name} — ${amount}` : name;
+    const n = o.qty == null || o.qty === "" ? null : Number(o.qty);
+    const amount =
+      unit === "to_taste" || (n !== null && Number.isFinite(n))
+        ? displayQuantity(n !== null && Number.isFinite(n) ? n : null, unit)
+        : unit
+          ? displayQuantity(null, unit)
+          : "";
+    const detail = [
+      typeof o.precision === "string" && o.precision.trim() ? o.precision.trim() : null,
+      typeof o.preparation === "string" && o.preparation.trim() ? o.preparation.trim() : null,
+      o.optional === true ? "facultatif" : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
+    const label = detail ? `${name} (${detail})` : name;
+    return amount ? `${label} — ${amount}` : label;
   };
 
   if (Array.isArray(raw)) {
@@ -314,10 +444,14 @@ const WEEKS = ["admin", "menu-weeks"] as const;
  * palette de recherche s'en sert pour ne charger ses sources qu'à l'ouverture,
  * tout en partageant le cache des écrans.
  */
-export function useMeals({ enabled }: { enabled?: boolean } = {}) {
+export function useMeals({
+  enabled,
+  refetchOnMount,
+}: { enabled?: boolean; refetchOnMount?: "always" } = {}) {
   const apiFetch = useApiFetch();
   return useQuery({
     queryKey: MEALS,
+    refetchOnMount,
     queryFn: async () => unwrapList<Meal>(await apiFetch<unknown>("/admin/meals"), "meals"),
     enabled: enabled ?? true,
   });
@@ -554,6 +688,13 @@ export function currentIsoWeek(): { year: number; week: number } {
 const INGREDIENTS = ["admin", "ingredients"] as const;
 
 /**
+ * Les écritures qui reportent dans les recettes (une transaction par plat,
+ * des e-mails en ligne) peuvent durer des minutes : on n'abandonne pas à
+ * 15 s, sinon l'admin ne verrait jamais le bilan ni le moyen de relancer.
+ */
+const LONG_WRITE_MS = 10 * 60 * 1000;
+
+/**
  * BLK-33 : faut-il rappeler à l'admin de construire ou de relire la liste ?
  * `empty` (première liste à faire), `never_reviewed`, `new_season` (une saison a
  * commencé — 1er mars, juin, septembre, décembre — depuis la dernière relecture).
@@ -566,20 +707,26 @@ export interface IngredientSeasonReview {
   reason: "empty" | "never_reviewed" | "new_season" | null;
 }
 
-/** `GET /admin/ingredients` — par nom, cinquante par page, et le rappel de saison. */
-export function useCatalogIngredients(search: string, page: number) {
+/** `GET /admin/ingredients` — par nom, cinquante par page, filtres compris, rappel de saison en plus. */
+export function useCatalogIngredients(filters: IngredientFilters, page: number, enabled = true) {
   const apiFetch = useApiFetch();
-  const q = search.trim();
+  const qs = new URLSearchParams({ limit: "50", page: String(page) });
+  const q = filters.search.trim();
+  if (q) qs.set("search", q);
+  if (filters.status) qs.set("status", filters.status);
+  if (filters.aisle) qs.set("aisle", filters.aisle);
+  if (filters.incomplete) qs.set("incomplete", "true");
+  if (filters.reviewed) qs.set("reviewed", filters.reviewed === "yes" ? "true" : "false");
+  if (filters.carryPending) qs.set("carryPending", "true");
   return useQuery({
-    queryKey: [...INGREDIENTS, q, page],
+    enabled,
+    queryKey: [...INGREDIENTS, qs.toString()],
     queryFn: () =>
       apiFetch<{
         data: CatalogIngredient[];
         meta: PageMeta;
         seasonReview?: IngredientSeasonReview;
-      }>(
-        `/admin/ingredients?limit=50&page=${page}${q ? `&search=${encodeURIComponent(q)}` : ""}`,
-      ),
+      }>(`/admin/ingredients?${qs.toString()}`),
   });
 }
 
@@ -612,30 +759,118 @@ export function useIngredientSearch(term: string) {
   });
 }
 
-/** `POST /admin/ingredients` — 409 si le nom existe déjà, quelle que soit la casse. */
-export function useCreateCatalogIngredient() {
-  const apiFetch = useApiFetch();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: CatalogIngredientInput) =>
-      apiFetch<CatalogIngredient>("/admin/ingredients", { method: "POST", body }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: INGREDIENTS }),
-  });
+/** Une entrée de la liste dont le nom est déjà pris : `409 INGREDIENT_ALREADY_LISTED`. */
+export function alreadyListed(error: unknown): { id: string; name: string } | null {
+  if (!(error instanceof ApiError) || error.status !== 409) return null;
+  const b = error.body as { code?: string; ingredient?: { id?: string; name?: string } } | null;
+  if (b?.code !== "INGREDIENT_ALREADY_LISTED" || !b.ingredient?.id) return null;
+  return { id: b.ingredient.id, name: b.ingredient.name ?? "" };
 }
 
-/**
- * `PATCH /admin/ingredients/{id}` — les plats qui relient l'ingrédient sont
- * reclassés par l'API.
- */
-export function useUpdateCatalogIngredient() {
+function useIngredientMutation<TInput, TOut>(
+  run: (apiFetch: ReturnType<typeof useApiFetch>, input: TInput) => Promise<TOut>,
+) {
   const apiFetch = useApiFetch();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: CatalogIngredientInput }) =>
-      apiFetch<CatalogIngredient>(`/admin/ingredients/${id}`, { method: "PATCH", body: patch }),
+    mutationFn: (input: TInput) => run(apiFetch, input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: INGREDIENTS });
       qc.invalidateQueries({ queryKey: ["ingredients"] });
+      // Le report réécrit des recettes Lab's Food : leurs allergènes ont pu changer.
+      qc.invalidateQueries({ queryKey: MEALS });
     },
   });
+}
+
+/** `POST /admin/ingredients` — 409 si le nom existe déjà, quelle que soit la casse. Rend l'entrée, sans report. */
+export function useCreateCatalogIngredient() {
+  return useIngredientMutation<CatalogIngredientInput, CatalogIngredient>((apiFetch, body) =>
+    apiFetch<CatalogIngredient>("/admin/ingredients", { method: "POST", body }),
+  );
+}
+
+/**
+ * `PATCH /admin/ingredients/{id}` — les recettes qui relient l'ingrédient sont
+ * reclassées par l'API ; `propagation` en donne le bilan (`null` : rien à reporter).
+ */
+export function useUpdateCatalogIngredient() {
+  return useIngredientMutation<{ id: string; patch: CatalogIngredientInput }, IngredientWrite>(
+    (apiFetch, { id, patch }) =>
+      apiFetch<IngredientWrite>(`/admin/ingredients/${id}`, { method: "PATCH", body: patch, timeoutMs: LONG_WRITE_MS }),
+  );
+}
+
+/** `GET /admin/ingredients/{id}/impact` — à lire avant d'enregistrer allergènes, régimes ou mois. */
+export function useIngredientImpact() {
+  const apiFetch = useApiFetch();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<IngredientImpact>(`/admin/ingredients/${id}/impact`),
+  });
+}
+
+/** Une recette qui relie l'ingrédient (`GET /admin/ingredients/{id}/dishes`). */
+export interface IngredientDish {
+  id: string;
+  name: string;
+  /** `null` : une recette Lab's Food. */
+  chef: { id: string; displayName: string } | null;
+  status: string;
+  allergensVerifiedAt: string | null;
+}
+
+/** `GET /admin/ingredients/{id}/dishes` — les 200 premières, `total` donne le compte entier. */
+export function useIngredientDishes(id: string, enabled: boolean) {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: [...INGREDIENTS, "dishes", id],
+    enabled,
+    queryFn: () => apiFetch<{ data: IngredientDish[]; total: number }>(`/admin/ingredients/${id}/dishes`),
+  });
+}
+
+/** `POST /admin/ingredients/{id}/review` */
+export function useReviewIngredient() {
+  return useIngredientMutation<string, CatalogIngredient>((apiFetch, id) =>
+    apiFetch<CatalogIngredient>(`/admin/ingredients/${id}/review`, { method: "POST" }),
+  );
+}
+
+/** `POST /admin/ingredients/{id}/validate` — 409 `INGREDIENT_ALREADY_LISTED` : fusionner à la place. */
+export function useValidateIngredient() {
+  return useIngredientMutation<string, IngredientWrite>((apiFetch, id) =>
+    apiFetch<IngredientWrite>(`/admin/ingredients/${id}/validate`, { method: "POST", timeoutMs: LONG_WRITE_MS }),
+  );
+}
+
+/** `POST /admin/ingredients/{id}/merge` — la cible : une entrée commune active. */
+export function useMergeIngredient() {
+  return useIngredientMutation<{ id: string; intoId: string }, IngredientWrite>(
+    (apiFetch, { id, intoId }) =>
+      apiFetch<IngredientWrite>(`/admin/ingredients/${id}/merge`, {
+        method: "POST",
+        body: { intoId },
+        timeoutMs: LONG_WRITE_MS,
+      }),
+  );
+}
+
+/** `POST /admin/ingredients/{id}/propagate` — rejoue le report ; idempotent. */
+export function usePropagateIngredient() {
+  return useIngredientMutation<string, Propagation>((apiFetch, id) =>
+    apiFetch<Propagation>(`/admin/ingredients/${id}/propagate`, { method: "POST", timeoutMs: LONG_WRITE_MS }),
+  );
+}
+
+/** `POST /admin/ingredients/import` — sans `confirm`, simule seulement. */
+export function useImportIngredients() {
+  return useIngredientMutation<{ csv: string; confirm?: boolean }, ImportReport>(
+    (apiFetch, body) =>
+      apiFetch<ImportReport>("/admin/ingredients/import", {
+        method: "POST",
+        body,
+        // Seule la confirmation écrit longtemps ; la simulation reste courte.
+        timeoutMs: body.confirm ? LONG_WRITE_MS : undefined,
+      }),
+  );
 }

@@ -77,19 +77,19 @@ export default function QuoteChefAssignment({ quote }: { quote: Quote }) {
         </select>
       </label>
       {quote.activeOffer && (
-        <p className="mt-1.5 text-[11px] leading-relaxed text-ink-soft">
+        <p className="mt-1.5 text-xs leading-relaxed text-ink-soft">
           Une offre attend la réponse du client : changer de batch cooker la retire.
         </p>
       )}
       {chefs.isError && (
-        <p className="mt-1.5 text-[11px] text-danger">
+        <p className="mt-1.5 text-xs text-danger">
           La liste des batch cookers n&apos;a pas pu être chargée.
         </p>
       )}
       {assigned && (
         <Link
           href={`/batchcookers/${assigned.chefProfileId}`}
-          className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-terra hover:underline"
+          className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-terra-ink hover:underline"
         >
           Voir la fiche de {assigned.displayName}
           <ArrowUpRight className="h-3 w-3" aria-hidden />

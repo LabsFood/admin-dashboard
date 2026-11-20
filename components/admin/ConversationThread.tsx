@@ -1,5 +1,6 @@
 "use client";
 
+import { ThreadSkeleton } from "@/components/admin/InboxSkeleton";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -147,7 +148,7 @@ export default function ConversationThread({
           <button
             onClick={onBack}
             aria-label="Retour aux conversations"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-cream-soft text-navy lg:hidden"
+            className="hit flex h-9 w-9 items-center justify-center rounded-full bg-cream-soft text-navy lg:hidden"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
@@ -162,7 +163,7 @@ export default function ConversationThread({
             <p className="truncate text-sm font-semibold text-navy">
               {conversationTitle(conversation)}
             </p>
-            <p className="truncate text-[11px] text-ink-soft">
+            <p className="truncate text-xs text-ink-soft">
               {isSupport
                 ? `Support · ${ROLE_LABEL[conversation.supportUser?.role ?? "client"]}` +
                   (conversation.supportUser?.email
@@ -218,7 +219,7 @@ export default function ConversationThread({
                 void messagesQuery.fetchNextPage();
               }}
               disabled={messagesQuery.isFetchingNextPage}
-              className="rounded-md bg-paper px-3 py-1 text-[11px] font-semibold text-ink-mid hover:text-navy disabled:opacity-60"
+              className="rounded-md bg-paper px-3 py-1 text-xs font-semibold text-ink-mid hover:text-navy disabled:opacity-60"
             >
               {messagesQuery.isFetchingNextPage
                 ? "Chargement…"
@@ -226,11 +227,7 @@ export default function ConversationThread({
             </button>
           </div>
         )}
-        {messagesQuery.isPending && (
-          <p className="flex items-center justify-center gap-2 py-8 text-sm text-ink-soft">
-            <Loader2 className="h-4 w-4 animate-spin" /> Chargement…
-          </p>
-        )}
+        {messagesQuery.isPending && <ThreadSkeleton className="bg-transparent p-0" />}
         {messagesQuery.isError && (
           <p role="alert" className="py-8 text-center text-sm text-ink-soft">
             La conversation n&apos;a pas pu être chargée.{" "}
@@ -273,14 +270,14 @@ export default function ConversationThread({
                 key={q}
                 type="button"
                 onClick={() => setDraft(q)}
-                className="rounded-md bg-cream-soft px-2.5 py-1 text-[11px] text-ink-mid transition-colors hover:bg-terra-pale/50 hover:text-terra-deep"
+                className="rounded-md bg-cream-soft px-2.5 py-1 text-xs text-ink-mid transition-colors hover:bg-terra-pale/50 hover:text-terra-deep"
               >
                 {q}
               </button>
             ))}
           </div>
         ) : (
-          <p className="mb-2 text-[11px] text-ink-soft">
+          <p className="mb-2 text-xs text-ink-soft">
             Votre message sera lu par le client et le batch cooker, signé
             «&nbsp;Lab&apos;s Food&nbsp;». L&apos;intervention est journalisée.
           </p>
@@ -385,7 +382,7 @@ function Bubble({
         {(showSender || fromTeam) && (
           <p
             className={cn(
-              "mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-soft",
+              "mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-ink-soft",
               fromTeam && "text-right",
             )}
           >
@@ -414,7 +411,7 @@ function Bubble({
           />
           <span
             className={cn(
-              "mt-1 flex items-center gap-1.5 text-[10px]",
+              "mt-1 flex items-center gap-1.5 text-xs",
               fromTeam ? "text-white/45" : "text-ink-soft",
             )}
           >

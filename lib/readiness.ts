@@ -13,6 +13,10 @@ const CHAMP: Record<string, string> = {
   "recipe.ingredients": "au moins un ingrédient",
   "recipe.steps": "au moins une étape",
   "recipe.storage": "la conservation : où, et combien de jours",
+  "recipe.storage.freezable": "si la recette se congèle (oui ou non)",
+  "recipe.storage.freezerMonths": "combien de mois elle se congèle",
+  "recipe.storage.thawing": "comment la décongeler",
+  "recipe.reheating.note": "le conseil de réchauffage",
   "recipe.reheating": "un mode de réchauffage",
   description: "une description courte",
 };
@@ -30,10 +34,16 @@ export function problemText(p: { code: string; field: string }): string {
       return `l'ingrédient n° ${(i ?? 0) + 1}, encore à vérifier`;
     case "STEP_TYPE_MISSING":
       return `le type de l'étape ${(i ?? 0) + 1}`;
+    case "INGREDIENT_NOT_LINKED":
+      return `l'ingrédient n° ${(i ?? 0) + 1}, à relier à la liste commune`;
+    case "INGREDIENT_INCOMPLETE":
+      return `l'ingrédient n° ${(i ?? 0) + 1}, dont la fiche commune est à compléter`;
     case "ALLERGENS_REQUIRED":
-      return "les allergènes, ou la mention « aucun »";
+      return "tous les ingrédients reliés à la liste commune, pour que les allergènes soient calculés";
     case "ALLERGENS_UNVERIFIED":
       return "la confirmation des allergènes";
+    case "DECLARED_DIET_NOT_ALLOWED":
+      return "un régime déclaré que les ingrédients ne permettent pas";
     case "PHOTO_MISSING":
       return "une vraie photo du plat";
     default:

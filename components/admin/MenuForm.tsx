@@ -1,9 +1,9 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
 import posthog from "posthog-js";
 import {
   AlertTriangle,
@@ -255,17 +255,14 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
         <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Retour aux menus
       </Link>
 
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      <div
         className="relative overflow-hidden rounded-3xl bg-teal p-6 text-white lg:p-7"
       >
         <div
           aria-hidden
           className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 rounded-full bg-terra/25 blur-3xl"
         />
-        <p className="relative font-mono text-[10px] uppercase tracking-[0.2em] text-terra-soft">
+        <p className="relative text-xs uppercase tracking-[0.2em] text-terra-soft">
           Composition
         </p>
         <h2 className="relative mt-1.5 font-display text-2xl font-bold lg:text-3xl">
@@ -280,7 +277,7 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
             ? "Un assemblage de plats de la maison, qu'un batch cooker peut adopter tel quel."
             : "Ce que les clients verront à l'ardoise, du lundi au dimanche."}
         </p>
-      </motion.div>
+      </div>
 
       {!isEdit && (
         <div
@@ -319,7 +316,7 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
             <div className="hairline flex flex-col gap-3 border-b bg-cream-soft px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="font-display text-base font-bold text-navy">
                 Plats disponibles
-                <span className="ml-2 font-mono text-xs font-normal text-ink-soft">
+                <span className="ml-2 tabular-nums text-xs font-normal text-ink-soft">
                   {picked.length} retenu{picked.length > 1 ? "s" : ""}
                 </span>
               </h3>
@@ -339,11 +336,11 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
             </div>
 
             {meals.isPending ? (
-              <div className="space-y-2 p-5">
+              <SkeletonGroup className="space-y-2 p-5">
                 {[0, 1, 2, 3].map((i) => (
-                  <div key={i} className="h-14 animate-pulse rounded-xl bg-cream-soft" />
+                  <Skeleton key={i} className="h-14 rounded-xl" />
                 ))}
-              </div>
+              </SkeletonGroup>
             ) : meals.isError ? (
               <p className="flex items-start gap-2 p-5 text-sm text-danger">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
@@ -372,7 +369,7 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
                       onClick={() => setPlace(null)}
                       aria-pressed={place === null}
                       className={cn(
-                        "rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                        "rounded-md px-2.5 py-1 text-xs font-semibold transition-colors",
                         place === null
                           ? "bg-navy text-white"
                           : "bg-cream-soft text-ink-mid hover:bg-cream-deep",
@@ -387,7 +384,7 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
                         onClick={() => setPlace(c.code)}
                         aria-pressed={place === c.code}
                         className={cn(
-                          "rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                          "rounded-md px-2.5 py-1 text-xs font-semibold transition-colors",
                           place === c.code
                             ? "bg-navy text-white"
                             : "bg-cream-soft text-ink-mid hover:bg-cream-deep",
@@ -453,13 +450,13 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
                                   </Badge>
                                 )}
                                 {m.isFeatured && (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-terra-deep">
+                                  <span className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.06em] text-terra-deep">
                                     <Flame className="h-3 w-3" aria-hidden /> Vedette
                                   </span>
                                 )}
                               </p>
 
-                              <p className="mt-0.5 font-mono text-[11px] text-ink-soft">
+                              <p className="mt-0.5 text-xs text-ink-soft">
                                 {[
                                   countryLabel(m.country) || "Origine à renseigner",
                                   `${m.portions ?? "?"} portions`,
@@ -537,7 +534,7 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
                   <li key={m.id} className="flex items-center gap-2.5 rounded-xl bg-cream-soft p-2.5">
                     <span
                       aria-hidden
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-xs bg-paper font-mono text-[10px] font-semibold text-navy"
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-xs bg-paper tabular-nums text-xs font-semibold text-navy"
                     >
                       {i + 1}
                     </span>
@@ -558,7 +555,7 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
                     )}
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-navy">{m.name}</p>
-                      <p className="truncate font-mono text-[10px] text-ink-soft">
+                      <p className="truncate text-xs text-ink-soft">
                         {[
                           m.category ? refLabel(categories.data, m.category) : null,
                           countryLabel(m.country) || null,
@@ -575,7 +572,7 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
                           onClick={() => move(i, -1)}
                           disabled={i === 0}
                           aria-label={`Monter ${m.name}`}
-                          className="flex h-7 w-7 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-paper hover:text-navy disabled:opacity-30"
+                          className="hit flex h-7 w-7 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-paper hover:text-navy disabled:opacity-30"
                         >
                           <ArrowUp className="h-3.5 w-3.5" />
                         </button>
@@ -584,7 +581,7 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
                           onClick={() => move(i, 1)}
                           disabled={i === pickedMeals.length - 1}
                           aria-label={`Descendre ${m.name}`}
-                          className="flex h-7 w-7 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-paper hover:text-navy disabled:opacity-30"
+                          className="hit flex h-7 w-7 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-paper hover:text-navy disabled:opacity-30"
                         >
                           <ArrowDown className="h-3.5 w-3.5" />
                         </button>
@@ -594,7 +591,7 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
                       type="button"
                       onClick={() => toggle(m.id)}
                       aria-label={`Retirer ${m.name}`}
-                      className="flex h-7 w-7 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-danger-soft hover:text-danger"
+                      className="hit flex h-7 w-7 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-danger-soft hover:text-danger"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -612,7 +609,7 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
               <h3 className="font-display text-base font-bold text-navy">Le menu</h3>
               <label className="block">
                 <span className="field-label">
-                  Titre<span className="text-terra"> *</span>
+                  Titre<span className="text-terra-ink"> *</span>
                 </span>
                 <input
                   value={title}
@@ -674,7 +671,7 @@ export default function MenuForm({ menu }: { menu?: LabsFoodMenu }) {
                     <ShoppingBasket className="h-3.5 w-3.5" aria-hidden />
                     Courses faites par le batch cooker
                   </span>
-                  <span className="mt-0.5 block text-[11px] leading-relaxed text-ink-soft">
+                  <span className="mt-0.5 block text-xs leading-relaxed text-ink-soft">
                     Décoché, les courses restent à la charge du client.
                   </span>
                 </span>
@@ -945,7 +942,7 @@ function CoverField({ menu }: { menu?: LabsFoodMenu }) {
             Retirer
           </button>
         )}
-        <span className="text-[11px] text-ink-soft">
+        <span className="text-xs text-ink-soft">
           JPG, PNG ou WebP, {PHOTO_MAX_MB} Mo au plus
         </span>
       </div>

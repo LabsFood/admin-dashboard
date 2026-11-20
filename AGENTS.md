@@ -62,6 +62,14 @@ Pistes restantes : brancher les avis, supprimer les pages Kossam et le reste de
 
 Pas de state manager global ni de lib de formulaires.
 
+## Guidelines UI/UX
+
+Toute modification d'ecran suit [`docs/ui-ux-guidelines.md`](docs/ui-ux-guidelines.md) :
+budget de mouvement (console = quasi nul), lois d'UX, interdits anti-slop, contraste
+et rayons, etats de chargement (squelettes, `DataTable`/`StatCard`), tokens et
+checklist de revue. La palette de la console est volontairement distincte de celle
+du site public : ne pas melanger les valeurs.
+
 ## Demarrage local
 
 ```bash

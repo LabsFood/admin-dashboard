@@ -297,6 +297,59 @@ export function useDecideDocument(id: string) {
   );
 }
 
+/**
+ * Corps de `POST /admin/chef-applications` : la fiche de candidature sans le bloc
+ * `consent` (un admin ne peut pas accepter les CGU à la place de quelqu'un).
+ */
+export interface OpenApplicationInput {
+  identity: { firstName: string; lastName: string; email: string; phone: string };
+  address: { street: string; postcode: string; city: string };
+  interventionZones: {
+    regionCode: string;
+    regionLabel: string;
+    scope: "region";
+    cities: [];
+  }[];
+  workAuthorization: {
+    status: "eu-citizen" | "residence-permit" | "renewal-pending" | "other";
+    details?: string;
+  };
+  company: {
+    legalForm: "micro" | "other-company" | "not-registered";
+    siret?: string;
+    sap: { path: "type-a" | "type-b"; declarationNumber?: string };
+  };
+}
+
+/** Réponse : la candidature ouverte et l'état du lien de connexion envoyé par email. */
+export interface OpenedApplication {
+  id: string;
+  reference: string;
+  invitation: { delivered: boolean; expiresAt: string };
+}
+
+/**
+ * `POST /admin/chef-applications` — ouvre la candidature d'un batch cooker : crée son
+ * compte (non vérifié, inactif) et lui envoie son lien de connexion. Le dossier suit
+ * ensuite le parcours habituel (pièces, revue, approbation).
+ */
+export function useOpenChefApplication() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: OpenApplicationInput) =>
+      apiFetch<OpenedApplication>("/admin/chef-applications", {
+        method: "POST",
+        body: input,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chef-applications"] });
+      qc.invalidateQueries({ queryKey: ["users"] });
+    },
+  });
+}
+
 /** `POST /admin/chef-applications/{id}/request-changes` */
 export function useRequestChanges(id: string) {
   return useApplicationMutation<{ message: string; documentTypes: string[] }>(
@@ -619,6 +672,7 @@ export function useDeleteUser() {
       qc.invalidateQueries({ queryKey: ["admin", "chefs"] });
       qc.invalidateQueries({ queryKey: ["chef-applications"] });
       qc.invalidateQueries({ queryKey: ["admin", "clients"] });
+      qc.invalidateQueries({ queryKey: ["clients"] });
       qc.invalidateQueries({ queryKey: ["admin", "users"] });
     },
   });
@@ -732,6 +786,45 @@ export function useSetReheatModes() {
       qc.setQueryData(REHEAT_MODES_SETTING, data);
       // `useReheatModes` (referentials.ts) range la liste sous cette clé.
       qc.invalidateQueries({ queryKey: ["referentials", "modes"] });
+    },
+  });
+}
+
+/* ── Rayons (module Recettes §5.4) ─────────────────────────────────────────── */
+
+export interface AisleSetting {
+  aisles: { code: string; label: string }[];
+  updatedAt: string | null;
+}
+
+const AISLES_SETTING = ["admin", "settings", "aisles"] as const;
+
+/** `GET /admin/settings/aisles` */
+export function useAisleSetting() {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: AISLES_SETTING,
+    queryFn: () => apiFetch<AisleSetting>("/admin/settings/aisles"),
+  });
+}
+
+/**
+ * `PUT /admin/settings/aisles` — la liste entière (1 à 30 rayons), chaque code
+ * une fois. L'ordre de la liste est l'ordre du parcours en magasin.
+ */
+export function useSetAisles() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (aisles: { code: string; label: string }[]) =>
+      apiFetch<AisleSetting>("/admin/settings/aisles", {
+        method: "PUT",
+        body: { aisles },
+      }),
+    onSuccess: (data) => {
+      qc.setQueryData(AISLES_SETTING, data);
+      // `useAisles` (referentials.ts) range la liste sous cette clé.
+      qc.invalidateQueries({ queryKey: ["referentials", "aisles"] });
     },
   });
 }

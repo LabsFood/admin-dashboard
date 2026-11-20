@@ -1,14 +1,17 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { useState } from "react";
-import { motion } from "framer-motion";
 import {
   AlertTriangle,
   Bell,
   Building2,
   Check,
   CreditCard,
+  ArrowDown,
+  ArrowUp,
   Flame,
+  ShoppingBasket,
   Tags,
   Layers2,
   Loader2,
@@ -20,13 +23,21 @@ import InfoPopover from "@/components/ui/InfoPopover";
 import TierRules from "@/components/admin/TierRules";
 import { useAuth } from "@/lib/auth";
 import {
+  useAisleSetting,
   useChefTierNames,
   useRecipeProfileSetting,
   useReheatModeSetting,
+  useSetAisles,
   useSetChefTierNames,
   useSetRecipeProfiles,
   useSetReheatModes,
 } from "@/lib/api/admin";
+import {
+  useFridgeAlert,
+  useGroceriesSetting,
+  useSetFridgeAlert,
+  useSetGroceriesSetting,
+} from "@/lib/api/bookings";
 import { CHEF_TIERS, type ChefTier } from "@/lib/api/chefs";
 import { adminErrorMessage } from "@/lib/api/errors";
 
@@ -48,7 +59,7 @@ export default function ParametresPage() {
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
       {/* Profil admin */}
-      <Section title="Mon compte" eyebrow="Identité" Icon={UserCircle2}>
+      <Section title="Mon compte" Icon={UserCircle2}>
         <Field label="Nom complet">
           <input defaultValue={user?.name} className="input-base" />
         </Field>
@@ -91,7 +102,7 @@ export default function ParametresPage() {
       </Section>
 
       {/* Notifications */}
-      <Section title="Notifications" eyebrow="Alertes" Icon={Bell}>
+      <Section title="Notifications" Icon={Bell}>
         {[
           {
             key: "newReservation",
@@ -191,9 +202,261 @@ export default function ParametresPage() {
       </div>
 
       <div className="lg:col-span-2">
+        <RayonsCourses />
+      </div>
+
+      <div className="lg:col-span-2">
         <ProfilsRecette />
       </div>
+
+      <AlerteConservation />
+
+      <MontantsCourses />
     </div>
+  );
+}
+
+/**
+ * Les courses (Recettes lot 6) : `/admin/settings/groceries`. Le Budget Courses
+ * (le même pour tous, montant de l'empreinte), le forfait conseillé, le délai
+ * minimum avant l'heure limite d'annulation, « le silence vaut confirmation »
+ * (éteint tant que le juridique ne l'a pas validé) et les frais du versement
+ * instantané, à la charge du batch cooker.
+ */
+function MontantsCourses() {
+  const reglage = useGroceriesSetting();
+  const save = useSetGroceriesSetting();
+  type Brouillon = {
+    budget: string;
+    forfait: string;
+    delai: string;
+    silence: boolean;
+    fraisPct: string;
+    fraisMin: string;
+  };
+  const [brouillon, setBrouillon] = useState<Brouillon | null>(null);
+  const d = reglage.data;
+  const valeurs: Brouillon =
+    brouillon ??
+    (d
+      ? {
+          budget: String(d.budgetMaxCents / 100),
+          forfait: String(d.recommendedShoppingFeeMinCents / 100),
+          delai: String(d.minCancelNoticeMinutes),
+          silence: d.silenceConfirms,
+          fraisPct: String(d.instantPayoutFeeBps / 100),
+          fraisMin: String(d.instantPayoutFeeMinCents / 100),
+        }
+      : { budget: "", forfait: "", delai: "", silence: false, fraisPct: "", fraisMin: "" });
+  const num = (t: string) => Number(t.replace(",", "."));
+  const budget = Math.round(num(valeurs.budget) * 100);
+  const forfait = Math.round(num(valeurs.forfait) * 100);
+  const delai = Math.round(num(valeurs.delai));
+  const fraisBps = Math.round(num(valeurs.fraisPct) * 100);
+  const fraisMin = Math.round(num(valeurs.fraisMin) * 100);
+  const valide =
+    budget >= 1_000 &&
+    budget <= 100_000 &&
+    forfait >= 0 &&
+    forfait <= 20_000 &&
+    delai >= 30 &&
+    delai <= 1_440 &&
+    fraisBps >= 0 &&
+    fraisBps <= 1_000 &&
+    fraisMin >= 0 &&
+    fraisMin <= 1_000;
+  const champ = (cle: keyof Brouillon) => ({
+    value: valeurs[cle] as string,
+    onChange: (e: { target: { value: string } }) => setBrouillon({ ...valeurs, [cle]: e.target.value }),
+    inputMode: "decimal" as const,
+    className: "input-base",
+  });
+
+  return (
+    <Section title="Courses" eyebrow="Recettes" Icon={ShoppingBasket}>
+      <p className="flex items-center gap-1 text-xs text-ink-mid">
+        Le Budget Courses, le forfait conseillé et les règles du paiement des courses.
+        <InfoPopover label="À quoi servent ces réglages ?">
+          Le Budget Courses est le même pour tous les clients : c&apos;est le montant de
+          l&apos;empreinte posée 48 h avant la séance et le maximum du mandat. Le forfait
+          conseillé s&apos;affiche au batch cooker ; un forfait plus bas reste accepté. Le
+          délai minimum sépare le message avant les courses de son heure limite
+          d&apos;annulation. Une réservation garde le Budget en vigueur quand la carte a
+          été enregistrée.
+        </InfoPopover>
+      </p>
+
+      {reglage.isPending ? (
+        <Skeleton className="h-10 rounded-xl" />
+      ) : reglage.isError ? (
+        <p role="alert" className="flex items-start gap-1.5 text-[12px] text-danger">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          {adminErrorMessage(reglage.error)}
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="field-label">Budget Courses, en euros (10 à 1 000)</span>
+            <input id="groceries-budget-max" {...champ("budget")} />
+          </label>
+          <label className="block">
+            <span className="field-label">Forfait courses conseillé, en euros (0 à 200)</span>
+            <input id="groceries-fee-min" {...champ("forfait")} />
+          </label>
+          <label className="block">
+            <span className="field-label">Délai minimum avant l&apos;heure limite, en minutes (30 à 1 440)</span>
+            <input id="groceries-min-notice" {...champ("delai")} />
+          </label>
+          <label className="flex items-start gap-2 self-end pb-2">
+            <input
+              type="checkbox"
+              checked={valeurs.silence}
+              onChange={(e) => setBrouillon({ ...valeurs, silence: e.target.checked })}
+              className="mt-0.5 h-4 w-4"
+            />
+            <span className="text-[13px] text-ink">
+              Le silence vaut confirmation
+              <InfoPopover label="Que change le silence ?">
+                Éteint : le client doit cliquer « Confirmer les courses ». Allumé : sans
+                annulation avant l&apos;heure limite, les courses sont confirmées, à condition
+                que Brevo ait confirmé la remise de l&apos;e-mail. À n&apos;allumer qu&apos;après
+                validation de la clause (article 8) par le juridique.
+              </InfoPopover>
+            </span>
+          </label>
+          <label className="block">
+            <span className="field-label">Versement instantané : frais en % (0 à 10)</span>
+            <input id="groceries-instant-pct" {...champ("fraisPct")} />
+          </label>
+          <label className="block">
+            <span className="field-label">Versement instantané : frais minimum, en euros (0 à 10)</span>
+            <input id="groceries-instant-min" {...champ("fraisMin")} />
+          </label>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() =>
+            save.mutate(
+              {
+                budgetMaxCents: budget,
+                recommendedShoppingFeeMinCents: forfait,
+                minCancelNoticeMinutes: delai,
+                silenceConfirms: valeurs.silence,
+                instantPayoutFeeBps: fraisBps,
+                instantPayoutFeeMinCents: fraisMin,
+              },
+              { onSuccess: () => setBrouillon(null) },
+            )
+          }
+          disabled={brouillon === null || !valide || save.isPending}
+          className="btn btn-primary"
+        >
+          {save.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          ) : (
+            <Save className="h-4 w-4" aria-hidden />
+          )}
+          Enregistrer les réglages
+        </button>
+        {brouillon !== null && !valide && (
+          <span role="alert" className="text-[12px] text-danger">
+            Budget 10 à 1 000 €, forfait 0 à 200 €, délai 30 à 1 440 min, frais 0 à 10 % et 0 à 10 €.
+          </span>
+        )}
+        {save.isSuccess && brouillon === null && (
+          <span className="flex items-center gap-1.5 text-[12px] text-success">
+            <Check className="h-3.5 w-3.5" aria-hidden /> Réglages enregistrés.
+          </span>
+        )}
+        {save.isError && (
+          <span role="alert" className="text-[12px] text-danger">
+            {adminErrorMessage(save.error)}
+          </span>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+/**
+ * Le seuil de l'alerte « au frais » (Recettes lot 3, LF-0271) :
+ * `/admin/settings/fridge-alert`. Au-delà, la date « à manger avant » d'un plat
+ * affiche une alerte, sans rien bloquer. 4 jours par défaut ; la valeur attend
+ * la confirmation du référent hygiène (BLK-31).
+ */
+function AlerteConservation() {
+  const seuil = useFridgeAlert();
+  const save = useSetFridgeAlert();
+  const [brouillon, setBrouillon] = useState<string | null>(null);
+  const valeur = brouillon ?? (seuil.data ? String(seuil.data.days) : "");
+  const jours = Number(valeur);
+  const valide = Number.isInteger(jours) && jours >= 1 && jours <= 14;
+
+  return (
+    <Section title="Alerte de conservation" eyebrow="Recettes" Icon={Flame}>
+      <p className="flex items-center gap-1 text-xs text-ink-mid">
+        Nombre de jours au réfrigérateur au-delà duquel une alerte s&apos;affiche.
+        <InfoPopover label="À quoi sert ce seuil ?">
+          Chaque plat d&apos;une prestation a une date « à manger avant ». Si elle
+          dépasse ce nombre de jours après la prestation, le batch cooker et le client
+          voient une alerte. Rien n&apos;est bloqué. La valeur de 4 jours vient du
+          cahier des charges et reste à confirmer avec un référent hygiène.
+        </InfoPopover>
+      </p>
+
+      {seuil.isPending ? (
+        <Skeleton className="h-10 rounded-xl" />
+      ) : seuil.isError ? (
+        <p role="alert" className="flex items-start gap-1.5 text-[12px] text-danger">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          {adminErrorMessage(seuil.error)}
+        </p>
+      ) : (
+        <label className="block max-w-[12rem]">
+          <span className="field-label">Jours au frais (1 à 14)</span>
+          <input
+            id="fridge-alert-days"
+            type="number"
+            min={1}
+            max={14}
+            step={1}
+            value={valeur}
+            onChange={(e) => setBrouillon(e.target.value)}
+            aria-invalid={!valide}
+            className="input-base"
+          />
+        </label>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => save.mutate(jours, { onSuccess: () => setBrouillon(null) })}
+          disabled={brouillon === null || !valide || save.isPending}
+          className="btn btn-primary"
+        >
+          {save.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          ) : (
+            <Save className="h-4 w-4" aria-hidden />
+          )}
+          Enregistrer le seuil
+        </button>
+        {save.isSuccess && brouillon === null && (
+          <span className="flex items-center gap-1.5 text-[12px] text-success">
+            <Check className="h-3.5 w-3.5" aria-hidden /> Seuil enregistré.
+          </span>
+        )}
+        {save.isError && (
+          <span role="alert" className="text-[12px] text-danger">
+            {adminErrorMessage(save.error)}
+          </span>
+        )}
+      </div>
+    </Section>
   );
 }
 
@@ -223,7 +486,9 @@ function PaliersBatchCookers() {
       </p>
 
       {noms.isPending ? (
-        <div className="h-24 animate-pulse rounded-xl bg-cream-soft" />
+        <SkeletonGroup>
+          <Skeleton className="h-24 rounded-xl" />
+        </SkeletonGroup>
       ) : noms.isError || !valeurs ? (
         <p role="alert" className="flex items-start gap-1.5 text-[12px] text-danger">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -315,6 +580,33 @@ function ModesRechauffage() {
   );
 }
 
+/**
+ * Les rayons des listes de courses (§5.4) : `/admin/settings/aisles`.
+ * L'ordre de la liste est l'ordre de la liste de courses, celui du parcours en
+ * magasin : on le règle avec les flèches.
+ */
+function RayonsCourses() {
+  const liste = useAisleSetting();
+  const save = useSetAisles();
+  return (
+    <ListeReglable
+      title="Rayons des courses"
+      Icon={ShoppingBasket}
+      intro="L'ordre de cette liste est l'ordre des listes de courses : celui du parcours en magasin. 30 rayons au plus."
+      popoverLabel="Que change cette liste ?"
+      popover="Renommer un rayon change son libellé partout. Changer l'ordre change l'ordre des listes de courses. En retirer un ne touche pas les ingrédients qui le portent : ils le gardent, et leur rayon s'affiche tel quel dans les listes jusqu'à ce que vous le remplaciez dans la liste commune."
+      placeholder="Nouveau rayon (ex. Produits bio)"
+      itemLabel="rayon"
+      max={30}
+      reorderable
+      items={liste.data?.aisles}
+      isPending={liste.isPending}
+      error={liste.isError ? liste.error : null}
+      save={save}
+    />
+  );
+}
+
 /** Les profils d'une recette (§4.8) : `/admin/settings/recipe-profiles`. */
 function ProfilsRecette() {
   const liste = useRecipeProfileSetting();
@@ -343,6 +635,9 @@ function ListeReglable({
   popoverLabel,
   popover,
   placeholder,
+  itemLabel = "mode",
+  max,
+  reorderable = false,
   items,
   isPending,
   error,
@@ -354,6 +649,12 @@ function ListeReglable({
   popoverLabel: string;
   popover: string;
   placeholder: string;
+  /** Le nom d'un élément, pour les libellés d'accessibilité. */
+  itemLabel?: string;
+  /** Nombre maximal d'éléments que l'API accepte. */
+  max?: number;
+  /** Flèches pour changer l'ordre : l'ordre de la liste compte. */
+  reorderable?: boolean;
   items: { code: string; label: string }[] | undefined;
   isPending: boolean;
   error: unknown;
@@ -374,13 +675,26 @@ function ListeReglable({
   const incomplet = !modes || modes.length === 0 || modes.some((m) => !m.label.trim());
   const liste = { isPending, isError: error != null, error };
 
-  function ajouter() {
+  const plein = max != null && (modes?.length ?? 0) >= max;
+
+  function deplacer(i: number, by: -1 | 1) {
     if (!modes) return;
+    const suivant = [...modes];
+    [suivant[i], suivant[i + by]] = [suivant[i + by], suivant[i]];
+    setBrouillon(suivant);
+  }
+
+  function ajouter() {
+    if (!modes || plein) return;
     const label = nouveau.trim();
     const base = codeDe(label);
     if (!label || !base) return;
     let code = base;
-    for (let n = 2; modes.some((m) => m.code === code); n++) code = `${base}-${n}`;
+    // L'API borne le code à 40 caractères : le suffixe se compte dedans.
+    for (let n = 2; modes.some((m) => m.code === code); n++) {
+      const suffixe = `-${n}`;
+      code = `${base.slice(0, 40 - suffixe.length).replace(/-$/, "")}${suffixe}`;
+    }
     setBrouillon([...modes, { code, label }]);
     setNouveau("");
   }
@@ -393,7 +707,9 @@ function ListeReglable({
       </p>
 
       {liste.isPending ? (
-        <div className="h-24 animate-pulse rounded-xl bg-cream-soft" />
+        <SkeletonGroup>
+          <Skeleton className="h-24 rounded-xl" />
+        </SkeletonGroup>
       ) : liste.isError || !modes ? (
         <p role="alert" className="flex items-start gap-1.5 text-[12px] text-danger">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -409,13 +725,35 @@ function ListeReglable({
                 onChange={(e) =>
                   setBrouillon(modes.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))
                 }
-                aria-label={`Libellé du mode ${m.code}`}
+                aria-label={`Libellé du ${itemLabel} ${m.code}`}
                 aria-invalid={!m.label.trim()}
                 className="input-base flex-1"
               />
-              <span className="w-32 shrink-0 truncate font-mono text-[11px] text-ink-soft">
+              <span className="w-32 shrink-0 truncate font-mono text-xs text-ink-soft">
                 {m.code}
               </span>
+              {reorderable && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => deplacer(i, -1)}
+                    disabled={i === 0}
+                    aria-label={`Monter le ${itemLabel} ${m.code}`}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-ink-soft hover:bg-cream-soft disabled:opacity-30"
+                  >
+                    <ArrowUp className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deplacer(i, 1)}
+                    disabled={i === modes.length - 1}
+                    aria-label={`Descendre le ${itemLabel} ${m.code}`}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-ink-soft hover:bg-cream-soft disabled:opacity-30"
+                  >
+                    <ArrowDown className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 onClick={() => setBrouillon(modes.filter((_, j) => j !== i))}
@@ -438,13 +776,24 @@ function ListeReglable({
                 }
               }}
               placeholder={placeholder}
+              disabled={plein}
               className="input-base flex-1"
             />
-            <button type="button" onClick={ajouter} className="btn btn-sm btn-outline">
+            <button
+              type="button"
+              onClick={ajouter}
+              disabled={plein}
+              className="btn btn-sm btn-outline"
+            >
               Ajouter
             </button>
           </li>
         </ul>
+      )}
+      {plein && (
+        <p className="text-[12px] text-ink-soft">
+          La liste est pleine ({max} {itemLabel}s au plus).
+        </p>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
@@ -485,22 +834,21 @@ function Section({
   children,
 }: {
   title: string;
-  eyebrow: string;
+  eyebrow?: string;
   Icon: typeof Bell;
   children: React.ReactNode;
 }) {
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+    <section
       className="card p-6"
     >
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-soft">
-            {eyebrow}
-          </p>
+          {eyebrow && (
+            <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">
+              {eyebrow}
+            </p>
+          )}
           <h3 className="mt-0.5 font-display text-lg font-bold text-navy">
             {title}
           </h3>
@@ -510,7 +858,7 @@ function Section({
         </span>
       </div>
       <div className="space-y-3">{children}</div>
-    </motion.section>
+    </section>
   );
 }
 
@@ -523,7 +871,7 @@ function Field({
 }) {
   return (
     <div>
-      <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-soft">
+      <p className="mb-1.5 text-xs uppercase tracking-[0.14em] text-ink-soft">
         {label}
       </p>
       {children}
@@ -558,7 +906,7 @@ function Toggle({
   return (
     <button
       onClick={() => onChange(!on)}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+      className={`hit relative h-6 w-11 shrink-0 rounded-full transition-colors ${
         on ? "bg-terra" : "bg-cream-deep"
       }`}
     >

@@ -25,6 +25,7 @@ import Badge from "@/components/ui/Badge";
 import { DataTable, TablePagination } from "@/components/ui/DataTable";
 import Drawer from "@/components/ui/Drawer";
 import EmptyState from "@/components/ui/EmptyState";
+import { SkeletonRows } from "@/components/ui/Skeleton";
 import UserForm from "@/components/admin/UserForm";
 import RoleEditor from "@/components/admin/RoleEditor";
 import WriteToUserButton from "@/components/admin/WriteToUserButton";
@@ -66,14 +67,14 @@ const COLUMNS = [
             {r.href ? (
               <Link
                 href={r.href}
-                className="block truncate font-semibold text-navy hover:text-terra"
+                className="block truncate font-semibold text-navy hover:text-terra-ink"
               >
                 {r.name}
               </Link>
             ) : (
               <span className="block truncate font-semibold text-navy">{r.name}</span>
             )}
-            <span className="text-[11px] text-ink-soft">Créé {timeAgo(r.createdAt)}</span>
+            <span className="text-xs text-ink-soft tabular-nums">Créé {timeAgo(r.createdAt)}</span>
           </div>
         </div>
       );
@@ -82,7 +83,7 @@ const COLUMNS = [
   column.accessor("email", {
     header: "Email",
     cell: (c) => (
-      <span className="font-mono text-[12px] text-ink-mid">{c.getValue()}</span>
+      <span className="text-[12px] text-ink-mid">{c.getValue()}</span>
     ),
     meta: { cellClass: "max-w-[16rem] truncate" },
   }),
@@ -268,11 +269,7 @@ export default function UtilisateursPage() {
         </p>
 
         {isPending ? (
-          <div className="space-y-px">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-14 animate-pulse bg-cream-soft" />
-            ))}
-          </div>
+          <SkeletonRows count={4} />
         ) : isError ? (
           <div className="bg-paper py-10">
             <EmptyState
@@ -394,19 +391,19 @@ function UserCard({ row }: { row: UserRow }) {
           {row.href ? (
             <Link
               href={row.href}
-              className="block truncate font-semibold text-navy hover:text-terra"
+              className="block truncate font-semibold text-navy hover:text-terra-ink"
             >
               {row.name}
             </Link>
           ) : (
             <p className="truncate font-semibold text-navy">{row.name}</p>
           )}
-          <p className="truncate font-mono text-[11px] text-ink-soft">{row.email}</p>
+          <p className="truncate text-xs text-ink-soft">{row.email}</p>
         </div>
         <Badge tone={roleTone[row.role]}>{roleLabel[row.role]}</Badge>
       </div>
 
-      <div className="mt-3 flex items-center gap-3 text-[11px] text-ink-soft">
+      <div className="mt-3 flex items-center gap-3 text-xs text-ink-soft">
         <span>Créé {timeAgo(row.createdAt)}</span>
         {row.role !== "admin" && (
           <WriteToUserButton userId={row.userId} className="ml-auto" />
@@ -427,7 +424,7 @@ function Avatar({ name, size = "md" }: { name: string; size?: "md" | "lg" }) {
       aria-hidden
       className={cn(
         "flex shrink-0 items-center justify-center bg-navy font-bold text-white",
-        size === "lg" ? "h-11 w-11 text-sm" : "h-9 w-9 text-[11px]",
+        size === "lg" ? "h-11 w-11 text-sm" : "h-9 w-9 text-xs",
       )}
     >
       {initials(name)}

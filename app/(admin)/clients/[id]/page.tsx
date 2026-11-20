@@ -1,9 +1,9 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { motion } from "framer-motion";
 import {
   ArrowLeft,
   Ban,
@@ -19,7 +19,7 @@ import {
   Plus,
   RotateCw,
   ShieldCheck,
-  Sparkles,
+  StickyNote,
   Trash2,
   Wallet,
   X,
@@ -68,10 +68,14 @@ export default function ClientDetailPage() {
 
   if (isPending) {
     return (
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
-        <div className="card h-80 animate-pulse bg-cream-soft" />
-        <div className="card h-80 animate-pulse bg-cream-soft" />
-      </div>
+      <SkeletonGroup className="grid grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
+        <div className="card h-80 p-4">
+          <Skeleton className="h-full rounded-[10px]" />
+        </div>
+        <div className="card h-80 p-4">
+          <Skeleton className="h-full rounded-[10px]" />
+        </div>
+      </SkeletonGroup>
     );
   }
 
@@ -132,10 +136,7 @@ function ClientDetail({ id, client }: { id: string; client: ClientView }) {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
         {/* Colonne gauche : identité */}
         <aside className="space-y-4">
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          <div
             className="relative overflow-hidden rounded-3xl bg-navy p-6 text-white"
           >
             <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-terra/25 blur-3xl" />
@@ -168,7 +169,7 @@ function ClientDetail({ id, client }: { id: string; client: ClientView }) {
                 </p>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           <div className="grid grid-cols-3 gap-3">
             <KpiBox
@@ -228,7 +229,7 @@ function ClientDetail({ id, client }: { id: string; client: ClientView }) {
             <h4 className="mb-3 flex items-center justify-between font-display text-base font-bold text-navy">
               Actions
               {update.isPending && (
-                <span className="font-mono text-[10px] font-normal uppercase tracking-wide text-ink-soft">
+                <span className="text-xs font-normal uppercase tracking-wide text-ink-soft">
                   Enregistrement…
                 </span>
               )}
@@ -315,8 +316,8 @@ function ClientDetail({ id, client }: { id: string; client: ClientView }) {
         <div className="space-y-6">
           {/* Notes internes (kitchenNotes) */}
           <section className="rounded-3xl border border-terra/30 bg-terra-pale/30 p-5">
-            <p className="mb-1.5 flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-terra-deep">
-              <Sparkles className="h-3.5 w-3.5" /> Note cuisine
+            <p className="mb-1.5 flex items-center gap-1.5 text-xs uppercase tracking-[0.14em] text-terra-deep">
+              <StickyNote className="h-3.5 w-3.5" /> Note cuisine
             </p>
             <p className="text-sm text-navy">
               {client.kitchenNotes?.trim() || "Aucune note pour ce client."}
@@ -389,7 +390,7 @@ function KpiBox({
       <p className="mt-1.5 font-display text-base font-bold text-navy">
         {value}
       </p>
-      <p className="text-[10px] uppercase tracking-wide text-ink-soft">
+      <p className="text-xs uppercase tracking-wide text-ink-soft">
         {label}
       </p>
     </div>
@@ -408,7 +409,7 @@ function AllergyBlock({ client }: { client: ClientView }) {
   const items = [...client.allergies.map(label), ...client.customAllergies];
   return (
     <div className="mb-3">
-      <p className="mb-1 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+      <p className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-ink-soft">
         Allergies
         <InfoPopover label="Qui renseigne les allergies ?">
           Ce sont des données de santé : seul le client les déclare, avec son consentement,
@@ -430,14 +431,14 @@ function AllergyBlock({ client }: { client: ClientView }) {
               {items.map((it) => (
                 <span
                   key={it}
-                  className="rounded-full bg-danger-soft px-2.5 py-0.5 text-[11px] font-medium text-danger"
+                  className="rounded-full bg-danger-soft px-2.5 py-0.5 text-xs font-medium text-danger"
                 >
                   {it}
                 </span>
               ))}
             </div>
           )}
-          <p className="mt-1 text-[11px] text-ink-soft">
+          <p className="mt-1 text-xs text-ink-soft">
             Déclarées le {jour(client.allergiesDeclaredAt)}
             {client.healthConsentAt && ` · consentement du ${jour(client.healthConsentAt)}`}
           </p>
@@ -459,7 +460,7 @@ function PrefBlock({
   if (items.length === 0) return null;
   return (
     <div className="mb-2.5">
-      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-soft">
         {title}
       </p>
       <div className="flex flex-wrap gap-1.5">
@@ -468,8 +469,8 @@ function PrefBlock({
             key={it}
             className={
               tone === "teal"
-                ? "rounded-full bg-teal-pale px-2.5 py-0.5 text-[11px] font-medium text-teal"
-                : "rounded-full bg-danger-soft px-2.5 py-0.5 text-[11px] font-medium text-danger"
+                ? "rounded-full bg-teal-pale px-2.5 py-0.5 text-xs font-medium text-teal"
+                : "rounded-full bg-danger-soft px-2.5 py-0.5 text-xs font-medium text-danger"
             }
           >
             {it}
@@ -577,7 +578,7 @@ function TagsField({
 
   return (
     <div>
-      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-soft">
         {title}
       </p>
       <div className="flex flex-wrap gap-1.5">
@@ -585,7 +586,7 @@ function TagsField({
           <span
             key={it}
             className={cn(
-              "inline-flex items-center gap-1 rounded-full py-0.5 pl-2.5 pr-1.5 text-[11px] font-medium",
+              "inline-flex items-center gap-1 rounded-full py-0.5 pl-2.5 pr-1.5 text-xs font-medium",
               tone === "teal" ? "bg-teal-pale text-teal" : "bg-danger-soft text-danger",
             )}
           >
@@ -607,7 +608,7 @@ function TagsField({
               key={s}
               type="button"
               onClick={() => add(s)}
-              className="inline-flex items-center gap-1 rounded-full border border-dashed border-[rgba(0,35,75,0.2)] px-2.5 py-0.5 text-[11px] text-ink-mid hover:border-navy/40 hover:text-navy"
+              className="inline-flex items-center gap-1 rounded-full border border-dashed border-[rgba(0,35,75,0.2)] px-2.5 py-0.5 text-xs text-ink-mid hover:border-navy/40 hover:text-navy"
             >
               <Plus className="h-3 w-3" aria-hidden /> {s}
             </button>

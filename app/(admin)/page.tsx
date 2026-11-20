@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
 import {
   AlertTriangle,
   ArrowRight,
@@ -10,12 +9,13 @@ import {
   Info,
   RotateCw,
   ShieldCheck,
-  Sparkles,
+  MessageSquareText,
   UtensilsCrossed,
   Wallet,
 } from "lucide-react";
 import StatCard from "@/components/ui/StatCard";
 import Badge from "@/components/ui/Badge";
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { useAuth } from "@/lib/auth";
 import { cn, euros, formatDate, formatDateLong } from "@/lib/utils";
 import {
@@ -89,7 +89,7 @@ export default function OverviewPage() {
   const decisions = [
     aAttribuer.length > 0 && {
       href: "/demandes",
-      Icon: Sparkles,
+      Icon: MessageSquareText,
       label: `${aAttribuer.length} demande${aAttribuer.length > 1 ? "s" : ""} sans batch cooker`,
       hint: "Un client attend un prix.",
     },
@@ -105,15 +105,12 @@ export default function OverviewPage() {
       label: `${aRelire} publication${aRelire > 1 ? "s" : ""} à relire`,
       hint: "En ligne sans avoir été vérifiée.",
     },
-  ].filter(Boolean) as { href: string; Icon: typeof Sparkles; label: string; hint: string }[];
+  ].filter(Boolean) as { href: string; Icon: typeof MessageSquareText; label: string; hint: string }[];
 
   return (
     <div className="space-y-6">
       {/* ── Ce qui attend une décision ──────────────────────────────────── */}
-      <motion.section
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+      <section
         className="relative overflow-hidden rounded-3xl bg-navy p-6 text-white lg:p-8"
       >
         <div
@@ -130,7 +127,7 @@ export default function OverviewPage() {
             <h2 className="font-display text-3xl font-bold leading-tight lg:text-4xl">
               Bonjour {user?.name?.split(" ")[0] ?? "vous"}
             </h2>
-            <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/65">
+            <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/65 tabular-nums">
               {decisions.length === 0
                 ? "Rien n'attend de décision ce matin. Les chiffres plus bas sont des cumuls depuis l'ouverture."
                 : "Ce qui attend une décision, avant les chiffres."}
@@ -163,14 +160,19 @@ export default function OverviewPage() {
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-            <p className="text-[11px] uppercase tracking-[0.12em] text-white/50">
+            <p className="text-xs uppercase tracking-[0.12em] text-white/50">
               Prochaine prestation
             </p>
             {bookings.isPending ? (
-              <div className="mt-3 h-10 animate-pulse rounded-lg bg-white/10" />
+              /* Même hauteur que date + détail + bouton, sur fond navy (donc teinte claire). */
+              <SkeletonGroup className="mt-2">
+                <Skeleton className="h-6 w-4/5 rounded-lg bg-white/10" />
+                <Skeleton className="mt-1 h-4 w-3/5 rounded-lg bg-white/10" />
+                <Skeleton className="mt-4 h-8 w-36 rounded-md bg-white/10" />
+              </SkeletonGroup>
             ) : prochaine ? (
               <>
-                <p className="mt-2 font-display text-lg font-bold leading-snug">
+                <p className="mt-2 font-display text-lg font-bold leading-snug tabular-nums">
                   {formatDateLong(prochaine.startsAt!)}
                 </p>
                 <p className="mt-1 text-xs text-white/60">
@@ -192,7 +194,7 @@ export default function OverviewPage() {
                 </Link>
               </>
             ) : (
-              <p className="mt-2 text-sm leading-relaxed text-white/60">
+              <p className="mt-2 text-sm leading-relaxed text-white/60 tabular-nums">
                 {aVenir.length > 0
                   ? "Des prestations sont en cours, mais aucune ne porte de date dans la réponse de l'API."
                   : "Aucune prestation à venir dans la base."}
@@ -200,7 +202,7 @@ export default function OverviewPage() {
             )}
           </div>
         </div>
-      </motion.section>
+      </section>
 
       {/* ── Les totaux ──────────────────────────────────────────────────── */}
       {figures.isError ? (
@@ -227,12 +229,11 @@ export default function OverviewPage() {
             <StatCard
               Icon={Wallet}
               label="Chiffre d'affaires"
+              loading={figures.isPending}
               value={
-                figures.isPending
-                  ? "…"
-                  : f?.revenueTtcCents != null
-                    ? euros(Math.round(f.revenueTtcCents / 100))
-                    : "—"
+                f?.revenueTtcCents != null
+                  ? euros(Math.round(f.revenueTtcCents / 100))
+                  : "—"
               }
               sub={
                 f?.revenueAfterTaxCents != null
@@ -240,31 +241,30 @@ export default function OverviewPage() {
                   : undefined
               }
               tone="terra"
-              delay={0}
             />
             <StatCard
               Icon={CalendarRange}
               label="Réservations"
-              value={figures.isPending ? "…" : (f?.sessionsTotal ?? 0)}
+              loading={figures.isPending}
+              value={f?.sessionsTotal ?? 0}
               sub={`${aVenir.length} encore en cours`}
               tone="navy"
-              delay={0.05}
             />
             <StatCard
-              Icon={Sparkles}
+              Icon={MessageSquareText}
               label="Demandes sur-mesure"
-              value={quotes.isPending ? "…" : (quotes.data?.length ?? 0)}
+              loading={quotes.isPending}
+              value={quotes.data?.length ?? 0}
               sub={`${aAttribuer.length} sans batch cooker`}
               tone="teal"
-              delay={0.1}
             />
             <StatCard
               Icon={ChefHat}
               label="Candidatures en attente"
-              value={candidatures.isPending ? "…" : enAttente}
+              loading={candidatures.isPending}
+              value={enAttente}
               sub="réponse sous 48 h ouvrées"
               tone="success"
-              delay={0.15}
             />
           </section>
 
@@ -313,18 +313,19 @@ export default function OverviewPage() {
                 </div>
                 <Link
                   href="/menus"
-                  className="shrink-0 text-xs font-semibold text-terra hover:underline"
+                  className="shrink-0 text-xs font-semibold text-terra-ink hover:underline"
                 >
                   Le catalogue
                 </Link>
               </div>
 
               {figures.isPending || meals.isPending ? (
-                <div className="space-y-3">
+                /* Une ligne de plat fait h-10 (vignette) : 5 lignes, comme le vrai top. */
+                <SkeletonGroup className="space-y-3">
                   {[0, 1, 2, 3, 4].map((i) => (
-                    <div key={i} className="h-9 animate-pulse rounded-lg bg-cream-soft" />
+                    <Skeleton key={i} className="h-10 rounded-lg" />
                   ))}
-                </div>
+                </SkeletonGroup>
               ) : (f?.topMeals.length ?? 0) === 0 ? (
                 <p className="text-sm text-ink-soft">
                   Aucun plat n&apos;a encore été commandé.
@@ -356,15 +357,13 @@ export default function OverviewPage() {
                             <span className="truncate text-sm font-semibold text-navy">
                               {plat?.name ?? "Plat retiré du catalogue"}
                             </span>
-                            <span className="shrink-0 font-mono text-[11px] text-ink-soft">
+                            <span className="shrink-0 tabular-nums text-xs text-ink-soft">
                               {m.count} portions
                             </span>
                           </div>
                           <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-cream-deep">
-                            <motion.div
-                              initial={{ width: 0 }}
-                              animate={{ width: `${(m.count / max) * 100}%` }}
-                              transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+                            <div
+                              style={{ width: `${(m.count / max) * 100}%` }}
                               className="h-full rounded-full bg-teal"
                             />
                           </div>
@@ -384,18 +383,18 @@ export default function OverviewPage() {
                 </h3>
                 <Link
                   href="/demandes"
-                  className="text-xs font-semibold text-terra hover:underline"
+                  className="text-xs font-semibold text-terra-ink hover:underline"
                 >
                   Voir
                 </Link>
               </div>
 
               {quotes.isPending ? (
-                <div className="space-y-2">
+                <SkeletonGroup className="space-y-2.5">
                   {[0, 1, 2].map((i) => (
-                    <div key={i} className="h-16 animate-pulse rounded-xl bg-cream-soft" />
+                    <Skeleton key={i} className="h-16 rounded-xl" />
                   ))}
-                </div>
+                </SkeletonGroup>
               ) : recentes.length === 0 ? (
                 <p className="text-sm text-ink-soft">
                   Aucune demande sur-mesure pour l&apos;instant.
@@ -414,7 +413,7 @@ export default function OverviewPage() {
                             {quoteStatusLabel[d.status]}
                           </Badge>
                         </div>
-                        <p className="mt-1 text-[11px] text-ink-soft">
+                        <p className="mt-1 text-xs text-ink-soft">
                           {[
                             d.client?.name ?? d.client?.email,
                             `${d.persons} pers.`,
@@ -484,10 +483,7 @@ function Repartition({
   const total = lignes.reduce((n, l) => n + l.valeur, 0);
 
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+    <section
       className="card p-6"
     >
       <div className="mb-4 flex items-start justify-between gap-3">
@@ -498,7 +494,7 @@ function Repartition({
         {lien && (
           <Link
             href={lien.href}
-            className="shrink-0 text-xs font-semibold text-terra hover:underline"
+            className="shrink-0 text-xs font-semibold text-terra-ink hover:underline"
           >
             {lien.label}
           </Link>
@@ -506,11 +502,12 @@ function Repartition({
       </div>
 
       {pending ? (
-        <div className="space-y-3">
+        /* Une ligne de répartition = libellé + barre = h-7. */
+        <SkeletonGroup className="space-y-3">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-7 animate-pulse rounded-lg bg-cream-soft" />
+            <Skeleton key={i} className="h-7 rounded-lg" />
           ))}
-        </div>
+        </SkeletonGroup>
       ) : lignes.length === 0 ? (
         <p className="text-sm text-ink-soft">{vide}</p>
       ) : (
@@ -521,15 +518,13 @@ function Repartition({
               <li key={l.cle}>
                 <div className="mb-1 flex items-baseline justify-between text-xs">
                   <span className="font-semibold text-navy">{l.nom}</span>
-                  <span className="font-mono text-ink-soft">
+                  <span className="tabular-nums text-ink-soft">
                     {l.valeur} · {pct} %
                   </span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-cream-deep">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${pct}%` }}
-                    transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+                  <div
+                    style={{ width: `${pct}%` }}
                     className={cn(
                       "h-full rounded-full",
                       teinte === "terra" ? "bg-terra" : "bg-teal",
@@ -541,6 +536,6 @@ function Repartition({
           })}
         </ul>
       )}
-    </motion.section>
+    </section>
   );
 }

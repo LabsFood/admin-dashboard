@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   CalendarRange,
-  Sparkles,
+  MessageSquareText,
   MessageCircle,
   Users,
   type LucideIcon,
@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 const ITEMS: { href: string; label: string; Icon: LucideIcon }[] = [
   { href: "/", label: "Accueil", Icon: LayoutDashboard },
   { href: "/reservations", label: "Sessions", Icon: CalendarRange },
-  { href: "/demandes", label: "Devis", Icon: Sparkles },
+  { href: "/demandes", label: "Devis", Icon: MessageSquareText },
   { href: "/messagerie", label: "Messages", Icon: MessageCircle },
   { href: "/clients", label: "Clients", Icon: Users },
 ];
@@ -33,7 +33,7 @@ export default function MobileNav() {
               <Link
                 href={href}
                 className={cn(
-                  "flex flex-col items-center gap-0.5 rounded-xl py-1.5 text-[10px] font-medium transition-colors",
+                  "flex flex-col items-center gap-0.5 rounded-xl py-1.5 text-xs font-medium transition-colors",
                   active ? "text-terra-soft" : "text-white/55",
                 )}
               >

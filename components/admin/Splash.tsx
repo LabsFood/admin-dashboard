@@ -85,7 +85,7 @@ export default function Splash({ label }: { label: string }) {
         <p className="mt-5 font-display text-2xl font-bold tracking-tight text-navy">
           Lab&apos;s Food
         </p>
-        <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.24em] text-ink-soft">
+        <p className="mt-1 text-xs uppercase tracking-[0.24em] text-ink-soft">
           Console admin
         </p>
 
@@ -102,7 +102,7 @@ export default function Splash({ label }: { label: string }) {
           />
         </div>
 
-        <p className="mt-4 font-mono text-[11px] uppercase tracking-[0.18em] text-ink-soft">
+        <p className="mt-4 text-xs uppercase tracking-[0.18em] text-ink-soft">
           {label}
         </p>
       </motion.div>

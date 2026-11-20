@@ -1,5 +1,6 @@
 "use client";
 
+import { SkeletonRows } from "@/components/ui/Skeleton";
 import { useState } from "react";
 import Link from "next/link";
 import {
@@ -63,6 +64,9 @@ export default function MenuDrawer({
     (menu?.dishIds ?? [])
       .map((id) => (meals.data ?? []).find((m) => m.id === id))
       .filter((m): m is NonNullable<typeof m> => m !== undefined);
+
+  // Plats non dépliés et bibliothèque pas encore là : on n'affiche pas « Aucun plat » à tort.
+  const chargePlats = !menu?.dishes && meals.isPending;
 
   const missing = menu?.dishes
     ? 0
@@ -192,7 +196,7 @@ export default function MenuDrawer({
               <ShoppingBasket className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-[11px] uppercase tracking-wide text-ink-soft">
+              <p className="text-xs uppercase tracking-wide text-ink-soft">
                 Courses
               </p>
               <p className="text-sm font-semibold text-navy">
@@ -204,11 +208,18 @@ export default function MenuDrawer({
           </div>
 
           <div>
-            <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-soft">
               <UtensilsCrossed className="h-3.5 w-3.5" aria-hidden /> Plats (
               {dishes.length})
             </p>
-            {dishes.length === 0 ? (
+            {chargePlats ? (
+              /* Une ligne de plat fait 60 px (vignette 40 + p-2.5) ; autant de lignes que d'ids. */
+              <SkeletonRows
+                count={menu?.dishIds?.length || 3}
+                rowClassName="h-[60px] rounded-xl"
+                className="space-y-2"
+              />
+            ) : dishes.length === 0 ? (
               <p className="rounded-xl bg-cream-soft px-3.5 py-3 text-[13px] text-ink-soft">
                 Aucun plat. Un menu vide ne peut pas être adopté.
               </p>
@@ -221,7 +232,7 @@ export default function MenuDrawer({
                   >
                     <span
                       aria-hidden
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-xs bg-cream-deep font-mono text-[10px] font-semibold text-navy"
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-xs bg-cream-deep tabular-nums text-xs font-semibold text-navy"
                     >
                       {i + 1}
                     </span>
@@ -240,7 +251,7 @@ export default function MenuDrawer({
                     )}
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-navy">{m.name}</p>
-                      <p className="font-mono text-[10px] text-ink-soft">
+                      <p className="text-xs text-ink-soft">
                         {countryLabel(m.country) || "—"}
                       </p>
                     </div>
@@ -262,7 +273,7 @@ export default function MenuDrawer({
           </div>
 
           <div>
-            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-soft">
               Statut de publication
             </p>
             <div className="mb-3 flex items-center gap-2">

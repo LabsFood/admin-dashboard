@@ -42,7 +42,7 @@ export default function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.06em]",
+        "inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold uppercase tracking-[0.06em]",
         t.text,
         className,
       )}

@@ -44,10 +44,13 @@ const DIETS: RefItem[] = [
 ];
 
 const CATEGORIES: RefItem[] = [
+  { code: "main", label: "Plat complet" },
   { code: "starter", label: "Entrée" },
-  { code: "main", label: "Plat" },
+  { code: "soup", label: "Soupe" },
   { code: "side", label: "Accompagnement" },
   { code: "dessert", label: "Dessert" },
+  { code: "breakfast", label: "Petit-déjeuner ou goûter" },
+  { code: "sauce", label: "Sauce ou base" },
 ];
 
 function useReferential(path: string, key: string, fallback: RefItem[]) {
@@ -65,6 +68,9 @@ function useReferential(path: string, key: string, fallback: RefItem[]) {
     },
     staleTime: 3_600_000,
     initialData: fallback,
+    // Sans cela, TanStack tient `initialData` pour déjà chargé et ne demande
+    // jamais la liste réglée dans Paramètres pendant l'heure.
+    initialDataUpdatedAt: 0,
   });
 }
 
@@ -155,4 +161,54 @@ export const DECLARED_DIETS: RefItem[] = [
 /** Le libellé d'un code, ou le code lui-même quand il sort de la liste. */
 export function refLabel(items: RefItem[], code: string): string {
   return items.find((i) => i.code === code)?.label ?? code;
+}
+
+/** Une commune d'une région, telle que `interventionZones[].cities` l'attend. */
+export interface RegionCommune {
+  name: string;
+  insee: string;
+  department: string;
+}
+
+/**
+ * `GET /referentials/regions/{code}/communes` — toutes les communes d'une
+ * région, par ordre alphabétique (arrivée le 10/11). Plusieurs milliers pour
+ * les plus grandes : ne la demander qu'à l'ouverture d'une région.
+ */
+export function useRegionCommunes(regionCode: string, enabled = true) {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: ["referentials", "communes", regionCode],
+    queryFn: async () =>
+      (
+        await apiFetch<{ communes: RegionCommune[] }>(
+          `/referentials/regions/${regionCode}/communes`,
+        )
+      ).communes ?? [],
+    enabled,
+    staleTime: Infinity,
+    retry: 1,
+  });
+}
+
+/** Les rayons par défaut, dans l'ordre du magasin (repli si l'API ne répond pas). */
+const AISLES: RefItem[] = [
+  ["fruits-legumes", "Fruits et légumes"],
+  ["boulangerie", "Boulangerie"],
+  ["boucherie", "Boucherie"],
+  ["poissonnerie", "Poissonnerie"],
+  ["cremerie", "Crèmerie"],
+  ["fromages", "Fromages"],
+  ["epicerie-salee", "Épicerie salée"],
+  ["conserves", "Conserves"],
+  ["epices", "Épices"],
+  ["epicerie-sucree", "Épicerie sucrée"],
+  ["boissons", "Boissons"],
+  ["non-alimentaire", "Non alimentaire"],
+  ["surgeles", "Surgelés"],
+].map(([code, label]) => ({ code, label }));
+
+/** `GET /referentials/aisles` (§5.4) : la liste réglée dans Paramètres, dans l'ordre du magasin. */
+export function useAisles() {
+  return useReferential("/referentials/aisles", "aisles", AISLES);
 }

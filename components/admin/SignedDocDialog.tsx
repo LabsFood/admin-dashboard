@@ -103,7 +103,7 @@ export default function SignedDocDialog({
                 rel="noreferrer"
                 title="Ouvrir dans un onglet"
                 aria-label="Ouvrir dans un onglet"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-cream-deep hover:text-navy"
+                className="hit flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-cream-deep hover:text-navy"
               >
                 <ExternalLink className="h-4 w-4" />
               </a>
@@ -112,7 +112,7 @@ export default function SignedDocDialog({
                 download={name}
                 title="Télécharger"
                 aria-label="Télécharger"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-cream-deep hover:text-navy"
+                className="hit flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-cream-deep hover:text-navy"
               >
                 <Download className="h-4 w-4" />
               </a>
@@ -124,7 +124,7 @@ export default function SignedDocDialog({
             onClick={onClose}
             aria-label="Fermer"
             title="Fermer (Échap)"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[rgba(0,35,75,0.12)] text-ink-mid transition-colors hover:border-navy hover:bg-cream-deep hover:text-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terra"
+            className="hit flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[rgba(0,35,75,0.12)] text-ink-mid transition-colors hover:border-navy hover:bg-cream-deep hover:text-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terra"
           >
             <X className="h-4 w-4" />
           </button>

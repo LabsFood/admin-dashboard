@@ -20,6 +20,8 @@
   --color-terra-deep: #B8542F;
   --color-terra-soft: #E8895F;
   --color-terra-pale: #F4D4C2;
+  /* Terra pour du TEXTE : 5,2:1 sur crème. --color-terra reste pour les fonds. */
+  --color-terra-ink: #A24A28;
 
   /* ── Teal (accent secondaire) ── */
   --color-teal: #193C40;
@@ -36,7 +38,7 @@
   /* ── Encre / texte ── */
   --color-ink: #0F1F2E;
   --color-ink-mid: #3A4A5A;
-  --color-ink-soft: #7B8794;
+  --color-ink-soft: #5F6B7A; /* ≥ 4,5:1 sur crème et sur blanc (l'ancien #7B8794 : 3,6:1) */
 
   /* ── Statuts ── */
   --color-success: #2F9E6E;
@@ -67,14 +69,14 @@
   --radius-4xl: 14px;
 
   /* ── Animations ── */
-  --animate-fade-up: fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  --animate-fade-in: fade-in 0.4s ease forwards;
+  --animate-fade-up: fade-up 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-fade-in: fade-in 0.18s ease forwards;
 }
 
 @keyframes fade-up {
   from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(8px);
   }
 
   to {
@@ -165,16 +167,17 @@ button:disabled {
   font-family: var(--font-mono);
 }
 
+/* Sans, 12 px : un repère de section se lit, il ne se code pas. */
 .eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  font-family: var(--font-mono);
-  font-size: 0.66rem;
-  font-weight: 500;
-  letter-spacing: 0.22em;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--color-terra);
+  color: var(--color-terra-ink);
 }
 
 /* ─── Composants utilitaires ───────────────────────────────────────
@@ -250,7 +253,7 @@ button:disabled {
   .field-label {
     display: block;
     margin-bottom: 0.4rem;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -295,13 +298,14 @@ button:disabled {
     font-size: 0.74rem;
   }
 
+  /* Blanc sur terra : 3,5:1. Sur terra-deep : 4,8:1. */
   .btn-primary {
-    background: var(--color-terra);
+    background: var(--color-terra-deep);
     color: #fff;
   }
 
   .btn-primary:hover:not(:disabled) {
-    background: var(--color-terra-deep);
+    background: var(--color-terra-ink);
   }
 
   .btn-navy {
@@ -346,7 +350,7 @@ button:disabled {
     gap: 0.25rem;
     padding: 0.1rem 0.5rem;
     border-radius: 999px;
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     font-weight: 500;
     line-height: 1.5;
   }
@@ -376,7 +380,7 @@ button:disabled {
 
   .table thead th {
     padding: 0.55rem 0.9rem;
-    font-size: 0.68rem;
+    font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -387,6 +391,7 @@ button:disabled {
   }
 
   .table tbody td {
+    font-variant-numeric: tabular-nums;
     padding: 0.7rem 0.9rem;
     border-bottom: 1px solid rgba(0, 35, 75, 0.07);
     vertical-align: middle;
@@ -459,4 +464,40 @@ button:disabled {
    formulaire (champ mot de passe + bouton oeil) : on force l'alignement. */
 .cl-formFieldRow {
   width: 100% !important;
+}
+
+/* ─── Règles transverses UI/UX (voir docs/ui-ux-guidelines.md) ───────────── */
+
+h1, h2, h3 {
+  text-wrap: balance;
+}
+
+/* Fitts : la zone cliquable atteint 40 px sans grossir l'icône. Pour une
+   cible déjà plus grande, le décalage vaut 0. */
+.hit {
+  position: relative;
+}
+
+.hit::after {
+  content: "";
+  position: absolute;
+  inset: min(0px, calc((100% - 40px) / 2));
+}
+
+/* Texte terra lisible sur fond clair. */
+.text-terra-ink {
+  color: var(--color-terra-ink);
+}
+
+/* Mouvement réduit : plus aucune animation ni transition longue. Framer Motion
+   est couvert à part par `MotionConfig reducedMotion="user"`. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

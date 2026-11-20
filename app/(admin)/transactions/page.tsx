@@ -1,5 +1,6 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -18,12 +19,14 @@ import {
 } from "lucide-react";
 import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import FilterTabs from "@/components/ui/FilterTabs";
+import { GROCERY_STATUS, type GroceryStatus, useGroceryRuns } from "@/lib/api/groceries";
 import EmptyState from "@/components/ui/EmptyState";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import ReasonDialog from "@/components/ui/ReasonDialog";
 import InfoPopover from "@/components/ui/InfoPopover";
 import { useToast } from "@/components/ui/Toaster";
 import { adminErrorMessage } from "@/lib/api/errors";
+import UrssafDossierDrawer from "@/components/money/UrssafDossierDrawer";
 import {
   CESU_ISSUER,
   CESU_MEDIUM,
@@ -46,9 +49,16 @@ import {
   useForceSettleCesu,
   useRetryDebit,
   useRunDueCommissions,
+  URSSAF_PAYMENT_STATUS,
+  demandeManuelle,
+  useMarkUrssafTransmitted,
   useSetUrssafOutcome,
   useUrssafLinks,
   useUrssafPayments,
+  useUrssafReprise,
+  useCreditNoteRefunded,
+  type UrssafLink,
+  type UrssafPayment,
   type CesuPayment,
   type CesuSettlement,
   type CommissionInvoice,
@@ -70,7 +80,7 @@ import {
    consent, et l'attestation fiscale n'est pas un mouvement du tout.
    ───────────────────────────────────────────────────────────────────────────── */
 
-type Volet = "cesu" | "commissions" | "factures" | "urssaf" | "attestations";
+type Volet = "cesu" | "commissions" | "factures" | "urssaf" | "courses" | "attestations";
 
 const dateCourte = (iso?: string | null) =>
   iso ? new Date(iso).toLocaleDateString("fr-FR") : "—";
@@ -98,6 +108,7 @@ export default function TransactionsPage() {
           { id: "commissions", label: "Commissions" },
           { id: "factures", label: "Factures clients" },
           { id: "urssaf", label: "Avance immédiate" },
+          { id: "courses", label: "Courses" },
           { id: "attestations", label: "Attestations fiscales" },
         ]}
       />
@@ -106,6 +117,7 @@ export default function TransactionsPage() {
       {volet === "commissions" && <VoletCommissions />}
       {volet === "factures" && <VoletFacturesClients />}
       {volet === "urssaf" && <VoletUrssaf />}
+      {volet === "courses" && <VoletCourses />}
       {volet === "attestations" && <VoletAttestations />}
     </div>
   );
@@ -172,7 +184,7 @@ function VoletCesu() {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-display text-lg font-bold text-navy">
+                    <p className="font-display text-lg font-bold text-navy tabular-nums">
                       {centimes(p.amountTtc)}
                     </p>
                     <Badge tone={TON_CESU[p.settlementStatus]}>
@@ -327,7 +339,7 @@ function VoletCommissions() {
 
       {filtre === "issued" && factures.length > 0 && (
         <p className="text-sm text-ink-mid">
-          <span className="font-display text-lg font-bold text-navy">
+          <span className="font-display text-lg font-bold text-navy tabular-nums">
             {centimes(du)}
           </span>{" "}
           dus sur {factures.length} facture{factures.length > 1 ? "s" : ""}.
@@ -419,6 +431,7 @@ function VoletCommissions() {
 
 function Facture({ facture: f }: { facture: CommissionInvoice }) {
   const toast = useToast();
+  const rembourser = useCreditNoteRefunded();
   const relancer = useRetryDebit();
   const [ouvert, setOuvert] = useState(false);
 
@@ -433,13 +446,36 @@ function Facture({ facture: f }: { facture: CommissionInvoice }) {
             <p className="font-mono text-sm font-semibold text-navy">
               {f.invoiceNumber}
             </p>
-            <Badge tone={TON_FACTURE[f.status]}>{INVOICE_STATUS[f.status]}</Badge>
+            {f.kind === "credit_note" ? (
+              <>
+                <Badge tone="success">
+                  Avoir {f.appliedToInvoiceId ? "déduit" : f.refundedAt ? "remboursé" : "à déduire"}
+                </Badge>
+                {!f.appliedToInvoiceId && !f.refundedAt && (
+                  <button
+                    type="button"
+                    disabled={rembourser.isPending}
+                    onClick={() =>
+                      rembourser.mutate(f.id, {
+                        onSuccess: () => toast.info("Avoir marqué remboursé"),
+                        onError: (e) => toast.error("Impossible", adminErrorMessage(e)),
+                      })
+                    }
+                    className="btn btn-sm btn-outline"
+                  >
+                    Remboursé à la main
+                  </button>
+                )}
+              </>
+            ) : (
+              <Badge tone={TON_FACTURE[f.status]}>{INVOICE_STATUS[f.status]}</Badge>
+            )}
             {echoue && <Badge tone="danger">Prélèvement échoué</Badge>}
           </div>
           <p className="mt-1.5 text-sm text-ink-mid">
             <Link
               href={`/batchcookers/${f.chefProfileId}`}
-              className="font-semibold text-navy hover:text-terra"
+              className="font-semibold text-navy hover:text-terra-ink"
             >
               {f.chefDisplayName ?? "Batch cooker"}
             </Link>
@@ -455,10 +491,10 @@ function Facture({ facture: f }: { facture: CommissionInvoice }) {
         </div>
 
         <div className="shrink-0 text-right">
-          <p className="font-display text-lg font-bold text-navy">
+          <p className="font-display text-lg font-bold text-navy tabular-nums">
             {centimes(f.amountTtcCents)}
           </p>
-          <p className="text-[11px] text-ink-soft">
+          <p className="text-xs text-ink-soft tabular-nums">
             dont {centimes(f.amountVatCents)} de TVA
           </p>
           {echoue && (
@@ -537,23 +573,31 @@ function VoletUrssaf() {
   const paiements = useUrssafPayments();
   const decider = useDecideUrssafLink();
   const repondre = useSetUrssafOutcome();
+  const saisir = useMarkUrssafTransmitted();
 
-  const simule = !nonSimule(decider.error) && !nonSimule(repondre.error);
+  const [dossier, setDossier] = useState<UrssafLink | null>(null);
+  const [aRefuserLien, setARefuserLien] = useState<UrssafLink | null>(null);
+  const [aSaisir, setASaisir] = useState<UrssafPayment | null>(null);
+  const [aRefuser, setARefuser] = useState<UrssafPayment | null>(null);
+  const [aReprendre, setAReprendre] = useState<UrssafPayment | null>(null);
+  const reprise = useUrssafReprise();
+
+  const ouvert = !nonSimule(decider.error) && !nonSimule(repondre.error);
 
   return (
     <div className="space-y-5">
       <Entete
         Icon={Banknote}
         titre="Avance immédiate"
-        texte="Tant que l'accès à l'API de l'URSSAF n'existe pas, la console répond à sa place. Ces réponses simulent ce que l'URSSAF dira : elles engagent la prestation comme si c'était elle."
+        texte="L'accès à l'API de l'URSSAF n'est pas encore ouvert. En mode manuel, Lab's Food saisit chaque rattachement et chaque demande, puis note ici la référence et la réponse. En mode simulé (jamais en production), la console répond à la place de l'URSSAF."
       />
 
-      {!simule && (
+      {!ouvert && (
         <div className="card flex items-start gap-3 border-warning/30 bg-warning/5 p-4">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#8A6212]" />
           <p className="text-sm leading-relaxed text-[#8A6212]">
-            La passerelle URSSAF n&apos;est pas en mode simulé sur ce serveur :
-            l&apos;API refuse de répondre à sa place. Les listes restent
+            La passerelle URSSAF n&apos;est ni en mode manuel ni simulé sur ce
+            serveur : l&apos;API refuse de noter une réponse. Les listes restent
             consultables, les décisions non.
           </p>
         </div>
@@ -589,23 +633,20 @@ function VoletUrssaf() {
                     {LINK_STATUS[l.status]}
                   </Badge>
                   <button
-                    disabled={decider.isPending || !simule}
-                    onClick={() =>
-                      decider.mutate(
-                        { id: l.id, status: "refused", reason: "Refus simulé" },
-                        {
-                          onSuccess: () => toast.info("Rattachement refusé"),
-                          onError: (e) =>
-                            toast.error("Refus impossible", adminErrorMessage(e)),
-                        },
-                      )
-                    }
+                    onClick={() => setDossier(l)}
+                    className="btn btn-sm btn-outline"
+                  >
+                    <FileText className="h-3 w-3" /> Dossier
+                  </button>
+                  <button
+                    disabled={decider.isPending || !ouvert}
+                    onClick={() => setARefuserLien(l)}
                     className="btn btn-sm btn-outline disabled:opacity-40"
                   >
                     Refuser
                   </button>
                   <button
-                    disabled={decider.isPending || !simule}
+                    disabled={decider.isPending || !ouvert}
                     onClick={() =>
                       decider.mutate(
                         { id: l.id, status: "active" },
@@ -616,10 +657,7 @@ function VoletUrssaf() {
                               "Le client peut régler avec l'avance immédiate.",
                             ),
                           onError: (e) =>
-                            toast.error(
-                              "Rattachement impossible",
-                              adminErrorMessage(e),
-                            ),
+                            toast.error("Rattachement impossible", adminErrorMessage(e)),
                         },
                       )
                     }
@@ -643,93 +681,333 @@ function VoletUrssaf() {
           vide={{
             Icon: Banknote,
             title: "Aucune demande de paiement",
-            text: "Les demandes envoyées à l'URSSAF apparaîtront ici.",
+            text: "Les demandes d'avance immédiate apparaîtront ici, à saisir en mode manuel.",
           }}
         >
           <ul className="space-y-3">
-            {(paiements.data ?? []).map((p) => (
-              <li
-                key={p.paymentId}
-                className="card flex flex-wrap items-center justify-between gap-4 p-5"
-              >
-                <div className="min-w-0">
-                  <p className="font-semibold text-navy">
-                    {centimes(p.amountCents)}
-                    {p.debitedCents > 0 && p.debitedCents !== p.amountCents && (
-                      <span className="ml-2 text-sm font-normal text-ink-mid">
-                        dont {centimes(p.debitedCents)} prélevés
-                      </span>
+            {(paiements.data ?? []).map((p) => {
+              const manuel = demandeManuelle(p);
+              const enAttente = p.status === "pending";
+              const aSaisirSurUnipros = manuel && enAttente && !p.transmittedAt;
+              return (
+                <li
+                  key={p.paymentId}
+                  className="card flex flex-wrap items-center justify-between gap-4 p-5"
+                >
+                  <div className="min-w-0">
+                    <p className="font-semibold text-navy tabular-nums">
+                      {centimes(p.amountCents)}
+                      {p.debitedCents > 0 && p.debitedCents !== p.amountCents && (
+                        <span className="ml-2 text-sm font-normal text-ink-mid">
+                          dont {centimes(p.debitedCents)} prélevés au client
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-sm text-ink-mid">
+                      {p.booking.clientName} →{" "}
+                      <Link
+                        href={`/batchcookers/${p.booking.chefProfileId}`}
+                        className="hover:text-terra-ink"
+                      >
+                        {p.booking.chefName}
+                      </Link>{" "}
+                      ·{" "}
+                      <Link
+                        href={`/reservations/${p.booking.id}`}
+                        className="font-mono text-xs hover:text-terra-ink"
+                      >
+                        {p.booking.reference}
+                      </Link>
+                    </p>
+                    <p className="text-xs text-ink-soft">
+                      {manuel ? (
+                        <>
+                          NOVA{" "}
+                          <span className="font-mono">
+                            {p.booking.chefNovaCode ?? "non renseigné"}
+                          </span>
+                          {p.externalReference && (
+                            <>
+                              {" "}· Unipros{" "}
+                              <span className="font-mono">{p.externalReference}</span>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <span className="font-mono">{p.urssafReference}</span>
+                      )}{" "}
+                      · {dateCourte(p.createdAt)}
+                      {p.failureReason ? ` · ${p.failureReason}` : ""}
+                    </p>
+                    {p.lines && p.lines.length > 0 && (
+                      <p className="mt-0.5 text-xs text-ink-soft">
+                        {p.lines.map((l) => `${l.label} ${centimes(l.amountCents)}`).join(" · ")}
+                      </p>
                     )}
-                  </p>
-                  <p className="text-sm text-ink-mid">
-                    {p.booking.clientName} → {p.booking.chefName} ·{" "}
-                    <Link
-                      href={`/reservations/${p.booking.id}`}
-                      className="font-mono text-xs hover:text-terra"
-                    >
-                      {p.booking.reference}
-                    </Link>
-                  </p>
-                  <p className="text-xs text-ink-soft">
-                    {p.urssafReference} · {dateCourte(p.createdAt)}
-                    {p.failureReason ? ` · ${p.failureReason}` : ""}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <Badge tone={p.paidAt ? "success" : "warning"}>{p.status}</Badge>
-                  {!p.paidAt && (
-                    <>
+                    {p.reprise && (
+                      <p className="mt-0.5 text-xs text-danger">
+                        Reprise URSSAF (statut 120) le {dateCourte(p.reprise.at)}
+                        {p.reprise.reason ? ` : ${p.reprise.reason}` : ""}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Badge tone={p.paidAt ? "success" : enAttente ? "warning" : "danger"}>
+                      {aSaisirSurUnipros
+                        ? "À saisir manuellement"
+                        : (URSSAF_PAYMENT_STATUS[p.status] ?? p.status)}
+                    </Badge>
+                    {p.paidAt && p.status === "succeeded" && !p.reprise && (
                       <button
-                        disabled={repondre.isPending || !simule}
-                        onClick={() =>
-                          repondre.mutate(
-                            {
-                              id: p.paymentId,
-                              outcome: "refused",
-                              reason: "Refus simulé",
-                            },
-                            {
-                              onSuccess: () => toast.info("Paiement refusé"),
-                              onError: (e) =>
-                                toast.error("Refus impossible", adminErrorMessage(e)),
-                            },
-                          )
-                        }
+                        disabled={reprise.isPending}
+                        onClick={() => setAReprendre(p)}
                         className="btn btn-sm btn-outline disabled:opacity-40"
                       >
-                        Refuser
+                        Reprise URSSAF
                       </button>
+                    )}
+                    {aSaisirSurUnipros && (
                       <button
-                        disabled={repondre.isPending || !simule}
-                        onClick={() =>
-                          repondre.mutate(
-                            { id: p.paymentId, outcome: "paid" },
-                            {
-                              onSuccess: () =>
-                                toast.success(
-                                  "Paiement validé",
-                                  "La prestation est réglée et la commission devient due.",
-                                ),
-                              onError: (e) =>
-                                toast.error(
-                                  "Validation impossible",
-                                  adminErrorMessage(e),
-                                ),
-                            },
-                          )
-                        }
+                        disabled={saisir.isPending || !ouvert}
+                        onClick={() => setASaisir(p)}
                         className="btn btn-sm btn-navy disabled:opacity-40"
                       >
-                        Marquer payé
+                        Noter la saisie
                       </button>
-                    </>
-                  )}
-                </div>
-              </li>
-            ))}
+                    )}
+                    {enAttente && !aSaisirSurUnipros && (
+                      <>
+                        <button
+                          disabled={repondre.isPending || !ouvert}
+                          onClick={() => setARefuser(p)}
+                          className="btn btn-sm btn-outline disabled:opacity-40"
+                        >
+                          Refuser
+                        </button>
+                        <button
+                          disabled={repondre.isPending || !ouvert}
+                          onClick={() =>
+                            repondre.mutate(
+                              { id: p.paymentId, outcome: "paid" },
+                              {
+                                onSuccess: () =>
+                                  toast.success(
+                                    "Paiement validé",
+                                    manuel
+                                      ? "La prestation est réglée. La commission attend : prélevez-la depuis la fiche du batch cooker."
+                                      : "La prestation est réglée et la commission devient due.",
+                                  ),
+                                onError: (e) =>
+                                  toast.error("Validation impossible", adminErrorMessage(e)),
+                              },
+                            )
+                          }
+                          className="btn btn-sm btn-navy disabled:opacity-40"
+                        >
+                          Marquer payé
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </Corps>
       </section>
+
+      <UrssafDossierDrawer
+        linkId={dossier?.id ?? null}
+        clientName={dossier?.client.name}
+        chefName={dossier?.chefName}
+        onClose={() => setDossier(null)}
+      />
+
+      <ReasonDialog
+        open={aRefuserLien !== null}
+        onClose={() => setARefuserLien(null)}
+        title="Refuser le rattachement ?"
+        lead="Notez le motif. Le client pourra refaire sa demande, et payer autrement en attendant."
+        placeholder="Motif du refus : compte bancaire non vérifié, identité incohérente…"
+        confirmLabel="Refuser le rattachement"
+        minLength={5}
+        pending={decider.isPending}
+        error={decider.error ? adminErrorMessage(decider.error) : null}
+        onConfirm={(reason) =>
+          aRefuserLien &&
+          decider.mutate(
+            { id: aRefuserLien.id, status: "refused", reason },
+            {
+              onSuccess: () => {
+                setARefuserLien(null);
+                toast.info("Rattachement refusé");
+              },
+            },
+          )
+        }
+      />
+
+      <ReasonDialog
+        open={aSaisir !== null}
+        onClose={() => setASaisir(null)}
+        title="Noter la saisie"
+        lead={
+          aSaisir
+            ? `Saisissez la demande de ${centimes(aSaisir.amountCents)} sur l'espace de la coopérative (NOVA du batch cooker : ${aSaisir.booking.chefNovaCode ?? "non renseigné"}), puis recopiez ici la référence qu'Unipros lui a donnée. Une demande ne se note qu'une fois.`
+            : ""
+        }
+        placeholder="Référence Coopérative de la demande"
+        confirmLabel="Noter la saisie"
+        minLength={3}
+        maxLength={100}
+        pending={saisir.isPending}
+        error={saisir.error ? adminErrorMessage(saisir.error) : null}
+        onConfirm={(externalReference) =>
+          aSaisir &&
+          saisir.mutate(
+            { id: aSaisir.paymentId, externalReference },
+            {
+              onSuccess: () => {
+                setASaisir(null);
+                toast.success("Saisie notée", "La demande attend la réponse de l'URSSAF.");
+              },
+            },
+          )
+        }
+      />
+
+      <ReasonDialog
+        open={aReprendre !== null}
+        onClose={() => setAReprendre(null)}
+        title="L’URSSAF a repris cette prestation (statut 120) ?"
+        lead="Le paiement est marqué remboursé et la prestation redevient due. La commission revient au batch cooker : retirée si elle n’était pas facturée, sinon un avoir dans la suite des factures B, déduit de sa prochaine facture."
+        placeholder="Motif donné par Unipros : contestation du particulier…"
+        confirmLabel="Enregistrer la reprise"
+        minLength={5}
+        pending={reprise.isPending}
+        error={reprise.error ? adminErrorMessage(reprise.error) : null}
+        onConfirm={(reason) =>
+          aReprendre &&
+          reprise.mutate(
+            { id: aReprendre.paymentId, reason },
+            {
+              onSuccess: (r) => {
+                setAReprendre(null);
+                toast.info(
+                  "Reprise enregistrée",
+                  r.creditNote
+                    ? `Avoir ${r.creditNote.invoiceNumber} de ${centimes(r.creditNote.amountTtcCents)} émis au batch cooker.`
+                    : "La commission, pas encore facturée, est retirée.",
+                );
+              },
+            },
+          )
+        }
+      />
+
+      <ReasonDialog
+        open={aRefuser !== null}
+        onClose={() => setARefuser(null)}
+        title="Refuser la demande de paiement ?"
+        lead="La prestation redevient due : le client pourra payer par un autre moyen. Le motif est gardé sur le paiement."
+        placeholder="Motif : prélèvement rejeté, demande refusée par le client…"
+        confirmLabel="Refuser la demande"
+        minLength={5}
+        pending={repondre.isPending}
+        error={repondre.error ? adminErrorMessage(repondre.error) : null}
+        onConfirm={(reason) =>
+          aRefuser &&
+          repondre.mutate(
+            { id: aRefuser.paymentId, outcome: "refused", reason },
+            {
+              onSuccess: () => {
+                setARefuser(null);
+                toast.info("Paiement refusé");
+              },
+            },
+          )
+        }
+      />
+    </div>
+  );
+}
+
+/* ── Courses (Recettes lot 6) ──────────────────────────────────────────────── */
+
+/**
+ * Le motif « courses » : jamais facturé, jamais commissionné, payé par carte à
+ * part. Une ligne par prestation ; le détail (tickets, contestations, litiges)
+ * est sur la réservation.
+ */
+function VoletCourses() {
+  const [filtre, setFiltre] = useState<GroceryStatus | "all">("all");
+  const liste = useGroceryRuns(filtre === "all" ? undefined : filtre);
+  const lignes = liste.data ?? [];
+  return (
+    <div className="space-y-4">
+      <FilterTabs<GroceryStatus | "all">
+        value={filtre}
+        onChange={setFiltre}
+        options={[
+          { id: "all", label: "Toutes" },
+          { id: "hold_failed", label: "Empreinte refusée" },
+          { id: "awaiting_client", label: "En attente du client" },
+          { id: "receipts_submitted", label: "Tickets déposés" },
+          { id: "captured", label: "Prélevées" },
+          { id: "settled", label: "Soldées" },
+        ]}
+      />
+      <p className="text-xs text-ink-mid">
+        Motif « courses » : payé par carte à part, sans commission ni facture, hors crédit
+        d’impôt et hors déclarations DAC7.
+      </p>
+      {liste.isPending ? (
+        <Skeleton className="h-24 rounded-2xl" />
+      ) : liste.isError ? (
+        <p role="alert" className="text-[12px] text-danger">{adminErrorMessage(liste.error)}</p>
+      ) : lignes.length === 0 ? (
+        <p className="text-sm text-ink-soft">Aucunes courses ici.</p>
+      ) : (
+        <ul className="space-y-2">
+          {lignes.map((r) => (
+            <li key={r.id} className="card flex flex-wrap items-start justify-between gap-3 p-4">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-navy">
+                  <Link href={`/reservations/${r.booking.id}`} className="hover:text-terra-ink">
+                    {r.booking.reference ?? "Réservation"}
+                  </Link>
+                  {" · "}
+                  {r.booking.clientName} · {r.booking.chefName}
+                </p>
+                <p className="mt-0.5 text-xs text-ink-soft">
+                  Prestation le {dateCourte(r.booking.startsAt)} · Budget {centimes(r.budgetCents)}
+                  {r.holdPlacedAt ? ` · empreinte le ${dateHeure(r.holdPlacedAt)}` : ""}
+                  {r.holdFailureCode ? ` · refusée (${r.holdFailureCode})` : ""}
+                  {r.instantPayout ? " · versement instantané" : ""}
+                </p>
+                {(r.openContests > 0 || r.disputesToRecover > 0) && (
+                  <p className="mt-0.5 text-xs font-semibold text-danger">
+                    {r.openContests > 0 && `${r.openContests} ligne(s) à trancher`}
+                    {r.openContests > 0 && r.disputesToRecover > 0 && " · "}
+                    {r.disputesToRecover > 0 && `${r.disputesToRecover} contestation(s) bancaire(s) à traiter`}
+                  </p>
+                )}
+              </div>
+              <div className="shrink-0 text-right">
+                <Badge tone={r.status === "hold_failed" || r.status === "awaiting_client" ? "warning" : r.status === "settled" ? "success" : "neutral"}>
+                  {GROCERY_STATUS[r.status]}
+                </Badge>
+                <p className="mt-1 text-sm font-semibold text-navy tabular-nums">
+                  {r.capturedCents != null ? centimes(r.capturedCents) : r.receiptsTotalCents != null ? centimes(r.receiptsTotalCents) : "—"}
+                </p>
+                {r.refundedCents > 0 && (
+                  <p className="text-xs text-ink-soft">dont {centimes(r.refundedCents)} remboursés</p>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -787,18 +1065,18 @@ function VoletAttestations() {
                     <p className="font-semibold text-navy">
                       {c.clientName ?? c.clientEmail}
                     </p>
-                    <p className="text-xs text-ink-soft">
+                    <p className="text-xs text-ink-soft tabular-nums">
                       {c.clientEmail} · {c.paymentsCount} paiement
                       {c.paymentsCount > 1 ? "s" : ""}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <p className="font-display text-lg font-bold text-navy">
+                    <p className="font-display text-lg font-bold text-navy tabular-nums">
                       {centimes(c.platformAttestedAmountCents)}
                     </p>
-                    <p className="text-[11px] text-ink-soft">attestés par Lab&apos;s Food</p>
+                    <p className="text-xs text-ink-soft">attestés par Lab&apos;s Food</p>
                     {ecart > 0 && (
-                      <p className="mt-0.5 text-[11px] text-[#8A6212]">
+                      <p className="mt-0.5 text-xs text-[#8A6212] tabular-nums">
                         {centimes(ecart)} éligibles non attestés
                       </p>
                     )}
@@ -823,14 +1101,14 @@ function VoletAttestations() {
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <Link
                             href={`/batchcookers/${p.chefProfileId}`}
-                            className="font-semibold text-navy hover:text-terra"
+                            className="font-semibold text-navy hover:text-terra-ink"
                           >
                             {p.chefDisplayName}
                           </Link>
-                          <span className="text-ink-mid">
+                          <span className="text-ink-mid tabular-nums">
                             {centimes(p.platformAttestedAmountCents)}
                             {p.eligibleAmountCents !== p.platformAttestedAmountCents && (
-                              <span className="text-ink-soft">
+                              <span className="text-ink-soft tabular-nums">
                                 {" "}
                                 / {centimes(p.eligibleAmountCents)} éligibles
                               </span>
@@ -939,7 +1217,7 @@ function VoletFacturesClients() {
         {resultat && (
           <div className="rounded-xl bg-cream-soft px-4 py-3 text-sm text-ink-mid">
             <p>
-              <span className="font-semibold text-navy">
+              <span className="font-semibold text-navy tabular-nums">
                 {resultat.issued.length} facture{resultat.issued.length > 1 ? "s" : ""}{" "}
                 émise{resultat.issued.length > 1 ? "s" : ""}
               </span>
@@ -1045,11 +1323,13 @@ function Corps({
 }) {
   if (query.isPending) {
     return (
-      <div className="space-y-3">
+      <SkeletonGroup className="space-y-3">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="card h-24 animate-pulse bg-cream-soft" />
+          <div key={i} className="card h-24 p-4">
+            <Skeleton className="h-full rounded-[10px]" />
+          </div>
         ))}
-      </div>
+      </SkeletonGroup>
     );
   }
 

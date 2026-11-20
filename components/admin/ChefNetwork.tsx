@@ -1,8 +1,8 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import {
   AlertTriangle,
   ArrowRight,
@@ -101,7 +101,7 @@ export default function ChefNetwork() {
     <div className="space-y-5">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <p className="text-sm text-ink-mid">
+          <p className="text-sm text-ink-mid tabular-nums">
             {liste.isPending
               ? "Lecture du réseau…"
               : `${meta?.total ?? lignes.length} batch cooker${(meta?.total ?? 0) > 1 ? "s" : ""}${filtre ? " pour ces critères" : ""}`}
@@ -171,11 +171,13 @@ export default function ChefNetwork() {
       />
 
       {liste.isPending ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <SkeletonGroup className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="card h-44 animate-pulse" />
+            <div key={i} className="card h-44 p-4">
+              <Skeleton className="h-full rounded-[10px]" />
+            </div>
           ))}
-        </div>
+        </SkeletonGroup>
       ) : lignes.length === 0 ? (
         <div className="card">
           <EmptyState
@@ -198,15 +200,12 @@ export default function ChefNetwork() {
             liste.isPlaceholderData && "opacity-60",
           )}
         >
-          {lignes.map((chef, i) => (
-            <motion.div
+          {lignes.map((chef) => (
+            <div
               key={chef.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: Math.min(i * 0.04, 0.3), ease: [0.16, 1, 0.3, 1] }}
             >
               <ChefCard chef={chef} />
-            </motion.div>
+            </div>
           ))}
         </div>
       )}
@@ -261,7 +260,11 @@ function ChefCard({ chef }: { chef: AdminChef }) {
         </Badge>
       </div>
 
-      <p className="mt-3 truncate font-mono text-[11px] text-ink-soft">
+      {chef.legalIdentityComplete === false && (
+        <p className="mt-2 text-xs font-semibold text-terra-ink">Identité légale incomplète</p>
+      )}
+
+      <p className="mt-3 truncate font-mono text-xs text-ink-soft">
         {chef.application?.reference ?? "Sans candidature"} · {chef.email}
       </p>
 
@@ -295,7 +298,7 @@ function ChefCard({ chef }: { chef: AdminChef }) {
       </dl>
 
       <div className="hairline mt-auto flex items-center justify-between border-t pt-3">
-        <span className="text-[11px] text-ink-soft">
+        <span className="text-xs text-ink-soft tabular-nums">
           Inscrit le {formatDate(chef.createdAt)}
         </span>
         <ArrowRight className="h-4 w-4 text-terra" aria-hidden />
@@ -308,7 +311,7 @@ function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-lg bg-cream-soft px-1 py-1.5">
       <dd className="font-display text-base font-bold text-navy">{value}</dd>
-      <dt className="text-[10px] text-ink-soft">{label}</dt>
+      <dt className="text-xs text-ink-soft">{label}</dt>
     </div>
   );
 }

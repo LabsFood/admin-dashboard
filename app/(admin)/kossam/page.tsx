@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { ArrowRight, MapPin, Milk, Package, Search, Truck } from "lucide-react";
 import Badge from "@/components/ui/Badge";
 import FilterTabs from "@/components/ui/FilterTabs";
@@ -49,16 +48,13 @@ export default function KossamPage() {
   return (
     <div className="space-y-6">
       {/* Bandeau produit */}
-      <motion.section
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      <section
         className="relative overflow-hidden rounded-3xl bg-navy p-6 text-white lg:p-7"
       >
         <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-teal-soft/35 blur-3xl" />
         <div className="relative grid grid-cols-2 gap-4 lg:grid-cols-4">
           <div className="lg:col-span-1">
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-terra-soft">
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs uppercase tracking-[0.16em] text-terra-soft">
               <Milk className="h-3 w-3" /> Kossam
             </span>
             <p className="mt-3 font-display text-lg font-bold leading-tight">
@@ -71,7 +67,7 @@ export default function KossamPage() {
           <HeroStat label="Bouteilles" value={bottles} />
           <HeroStat label="À expédier" value={toShip} />
         </div>
-      </motion.section>
+      </section>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <FilterTabs<Filter>
@@ -105,7 +101,7 @@ export default function KossamPage() {
       </div>
 
       <div className="card overflow-hidden">
-        <div className="hidden grid-cols-[1.3fr_1.4fr_1fr_1fr_0.9fr_2.2rem] gap-4 border-b border-[rgba(0,35,75,0.07)] bg-cream-soft px-5 py-3 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-soft lg:grid">
+        <div className="hidden grid-cols-[1.3fr_1.4fr_1fr_1fr_0.9fr_2.2rem] gap-4 border-b border-[rgba(0,35,75,0.07)] bg-cream-soft px-5 py-3 text-xs uppercase tracking-[0.14em] text-ink-soft lg:grid">
           <span>Client / Réf.</span>
           <span>Articles</span>
           <span>Livraison</span>
@@ -123,12 +119,9 @@ export default function KossamPage() {
         )}
 
         <ul className="divide-y divide-[rgba(0,35,75,0.06)]">
-          {filtered.map((k, i) => (
-            <motion.li
+          {filtered.map((k) => (
+            <li
               key={k.id}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.3), ease: [0.16, 1, 0.3, 1] }}
             >
               <Link
                 href={`/kossam/${k.id}`}
@@ -138,7 +131,7 @@ export default function KossamPage() {
                 <p className="truncate text-sm font-semibold text-navy">
                   {k.customerName}
                 </p>
-                <p className="font-mono text-[11px] text-ink-soft">
+                <p className="font-mono text-xs text-ink-soft">
                   {k.reference}
                 </p>
               </div>
@@ -146,7 +139,7 @@ export default function KossamPage() {
                 {k.items.map((it) => (
                   <span
                     key={it.format}
-                    className="inline-flex items-center gap-1 rounded-full bg-cream-deep px-2.5 py-1 text-[11px] font-medium text-ink-mid"
+                    className="inline-flex items-center gap-1 rounded-full bg-cream-deep px-2.5 py-1 text-xs font-medium text-ink-mid"
                   >
                     <Milk className="h-3 w-3 text-teal" />
                     {it.qty} × {it.format}
@@ -157,14 +150,14 @@ export default function KossamPage() {
                 <MapPin className="h-3.5 w-3.5 text-terra" />
                 <span>
                   {k.deliveryZone}
-                  <span className="text-ink-soft">
+                  <span className="text-ink-soft tabular-nums">
                     {" "}
                     · {formatDate(k.deliveryDate)}
                   </span>
                 </span>
               </div>
               <div>
-                <p className="font-display text-sm font-bold text-navy">
+                <p className="font-display text-sm font-bold text-navy tabular-nums">
                   {euros(k.total)}
                 </p>
                 <Badge tone={paymentTone[k.paymentStatus]} className="mt-0.5">
@@ -176,7 +169,7 @@ export default function KossamPage() {
               </Badge>
                 <ArrowRight className="hidden h-4 w-4 text-ink-soft lg:block" />
               </Link>
-            </motion.li>
+            </li>
           ))}
         </ul>
       </div>
@@ -207,7 +200,7 @@ function HeroStat({
       >
         {value}
       </p>
-      <p className="mt-0.5 text-[10px] uppercase tracking-[0.1em] text-white/50">
+      <p className="mt-0.5 text-xs uppercase tracking-[0.1em] text-white/50">
         {label}
       </p>
     </div>

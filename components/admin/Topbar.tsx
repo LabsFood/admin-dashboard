@@ -44,7 +44,7 @@ export default function Topbar() {
           </button>
 
           <div className="min-w-0 flex-1">
-            <p className="eyebrow mb-0.5 hidden sm:flex">{meta.eyebrow}</p>
+            {meta.eyebrow && <p className="eyebrow mb-0.5 hidden sm:flex">{meta.eyebrow}</p>}
             <h1 className="truncate font-display text-xl font-bold leading-tight text-navy lg:text-2xl">
               {meta.title}
             </h1>
@@ -127,7 +127,7 @@ export default function Topbar() {
               <Logo variant="light" />
               <button
                 onClick={() => setDrawerOpen(false)}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10"
+                className="hit flex h-9 w-9 items-center justify-center rounded-full bg-white/10"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -135,7 +135,7 @@ export default function Topbar() {
             <nav className="flex-1 px-3 pb-6">
               {NAV_SECTIONS.map((section) => (
                 <div key={section.label} className="mb-4">
-                  <p className="px-3 pb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-white/35">
+                  <p className="px-3 pb-1.5 text-xs uppercase tracking-[0.18em] text-white/35">
                     {section.label}
                   </p>
                   <ul className="space-y-0.5">

@@ -187,13 +187,13 @@ export default function UserForm({
               </button>
             </div>
             {passwordTooShort && (
-              <p className="mt-1.5 text-[11px] text-danger">
+              <p className="mt-1.5 text-xs text-danger">
                 8 caractères minimum (politique Clerk).
               </p>
             )}
           </div>
         ) : (
-          <p className="mt-1.5 text-[11px] leading-relaxed text-ink-soft">
+          <p className="mt-1.5 text-xs leading-relaxed text-ink-soft">
             Sans mot de passe, le compte est créé « passwordless » : la personne
             se connecte via le lien envoyé par Clerk.
           </p>
@@ -246,9 +246,9 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-soft">
         {label}
-        {required && <span className="text-terra"> *</span>}
+        {required && <span className="text-terra-ink"> *</span>}
       </span>
       {children}
     </label>

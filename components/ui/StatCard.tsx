@@ -1,8 +1,8 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { ArrowDownRight, ArrowUpRight, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 type Tone = "terra" | "navy" | "teal" | "success";
 
@@ -20,7 +20,7 @@ export default function StatCard({
   sub,
   trend,
   tone = "terra",
-  delay = 0,
+  loading = false,
 }: {
   Icon: LucideIcon;
   label: string;
@@ -28,16 +28,13 @@ export default function StatCard({
   sub?: string;
   trend?: number;
   tone?: Tone;
-  delay?: number;
+  /** Chiffre en cours de chargement : un bloc à la hauteur du chiffre, pas un « … ». */
+  loading?: boolean;
 }) {
   const up = (trend ?? 0) >= 0;
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay, ease: [0.16, 1, 0.3, 1] }}
-      className="card p-5"
-    >
+    // Pas d'entrée animée : une console s'ouvre toute la journée (docs/ui-ux-guidelines.md, § 1).
+    <div className="card p-5">
       <div className="flex items-start justify-between">
         <div
           className={cn(
@@ -47,10 +44,10 @@ export default function StatCard({
         >
           <Icon className="h-[18px] w-[18px]" />
         </div>
-        {trend !== undefined && (
+        {!loading && trend !== undefined && (
           <span
             className={cn(
-              "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold",
+              "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums",
               up
                 ? "bg-success-soft text-success"
                 : "bg-danger-soft text-danger",
@@ -65,11 +62,16 @@ export default function StatCard({
           </span>
         )}
       </div>
-      <p className="mt-4 font-display text-3xl font-bold text-navy">{value}</p>
-      <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-soft">
+      {loading ? (
+        // Même hauteur que le chiffre (text-3xl = 36 px de ligne) : rien ne saute à l'arrivée.
+        <Skeleton className="mt-4 h-9 w-24" />
+      ) : (
+        <p className="mt-4 font-display text-3xl font-bold tabular-nums text-navy">{value}</p>
+      )}
+      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-ink-soft">
         {label}
       </p>
-      {sub && <p className="mt-0.5 text-xs text-ink-soft">{sub}</p>}
-    </motion.div>
+      {!loading && sub && <p className="mt-0.5 text-xs tabular-nums text-ink-soft">{sub}</p>}
+    </div>
   );
 }

@@ -1,8 +1,8 @@
 "use client";
 
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { use, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import posthog from "posthog-js";
 import {
   ArrowLeft,
@@ -17,7 +17,7 @@ import {
   RefreshCw,
   RotateCw,
   ShoppingBasket,
-  Sparkles,
+  ClipboardList,
   UserRound,
   Users,
   UtensilsCrossed,
@@ -27,7 +27,8 @@ import Badge from "@/components/ui/Badge";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toaster";
 import { cn, euros, formatDateLong } from "@/lib/utils";
-import { aisleLabel } from "@/lib/recipe-fields";
+import { aisleLabel, displayQuantity } from "@/lib/recipe-fields";
+import { useAisles, useAllergens } from "@/lib/api/referentials";
 import {
   BOOKING_STATUSES,
   bookingPortions,
@@ -37,6 +38,7 @@ import {
   isBookingOpen,
   money,
   useBooking,
+  useBookingConservation,
   useBookingShoppingList,
   useRegenerateShoppingList,
   useUpdateBooking,
@@ -44,6 +46,20 @@ import {
 } from "@/lib/api/bookings";
 import { adminErrorMessage } from "@/lib/api/errors";
 import InfoPopover from "@/components/ui/InfoPopover";
+import GroceriesPanel from "@/components/admin/GroceriesPanel";
+import {
+  ContractPanel,
+  RequestPanel,
+  WithdrawalPanel,
+} from "@/components/legal/ContractPanels";
+
+/** « lun. 23 nov. », lu comme un jour de calendrier. */
+const jour = (ymd: string) =>
+  new Date(`${ymd}T12:00:00Z`).toLocaleDateString("fr-FR", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Une réservation — `GET /admin/bookings/{id}`.
@@ -72,6 +88,9 @@ export default function ReservationDetailPage({
   const toast = useToast();
   const query = useBooking(id);
   const courses = useBookingShoppingList(id);
+  const conservation = useBookingConservation(id);
+  const allergens = useAllergens();
+  const aisles = useAisles();
   const regenerate = useRegenerateShoppingList();
   const update = useUpdateBooking();
   const [aRecalculer, setARecalculer] = useState(false);
@@ -79,10 +98,14 @@ export default function ReservationDetailPage({
 
   if (query.isPending) {
     return (
-      <div className="space-y-4">
-        <div className="h-36 animate-pulse rounded-3xl bg-paper" />
-        <div className="h-64 animate-pulse rounded-lg bg-paper" />
-      </div>
+      <SkeletonGroup className="space-y-4">
+        <div className="card h-36 p-4">
+          <Skeleton className="h-full rounded-[10px]" />
+        </div>
+        <div className="card h-64 p-4">
+          <Skeleton className="h-full rounded-[10px]" />
+        </div>
+      </SkeletonGroup>
     );
   }
 
@@ -127,10 +150,7 @@ export default function ReservationDetailPage({
       </Link>
 
       {/* ── L'essentiel ──────────────────────────────────────────────────── */}
-      <motion.section
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      <section
         className="relative overflow-hidden rounded-3xl bg-navy p-6 text-white lg:p-8"
       >
         <div
@@ -138,13 +158,13 @@ export default function ReservationDetailPage({
           className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-terra/25 blur-3xl"
         />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="min-w-0">
+          <div className="min-w-0 tabular-nums">
             {b.reference && (
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-terra-soft">
+              <p className="font-mono text-xs uppercase tracking-[0.2em] text-terra-soft">
                 {b.reference}
               </p>
             )}
-            <h2 className="mt-2 font-display text-3xl font-bold capitalize leading-tight lg:text-4xl">
+            <h2 className="mt-2 font-display text-3xl font-bold capitalize leading-tight lg:text-4xl tabular-nums">
               {b.startsAt ? formatDateLong(b.startsAt) : "Date à confirmer"}
             </h2>
             <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/65">
@@ -167,7 +187,7 @@ export default function ReservationDetailPage({
           </div>
           {b.amountTtc != null && (
             <div className="flex flex-col items-start lg:items-end">
-              <p className="font-display text-3xl font-bold text-terra-soft">
+              <p className="font-display text-3xl font-bold text-terra-soft tabular-nums">
                 {euros(Math.round(b.amountTtc / 100))}
               </p>
               <p className="text-xs text-white/60">
@@ -177,7 +197,7 @@ export default function ReservationDetailPage({
             </div>
           )}
         </div>
-      </motion.section>
+      </section>
 
       {/* ── Un report en cours ───────────────────────────────────────────── */}
       {b.reschedule?.status === "pending" && (
@@ -207,6 +227,18 @@ export default function ReservationDetailPage({
             <h3 className="mb-4 flex items-center gap-2 font-display text-lg font-bold text-navy">
               <UtensilsCrossed className="h-4 w-4 text-terra" aria-hidden /> Plats
               commandés
+              {b.menuFrozen && (
+                <span className="ml-auto inline-flex items-center gap-1">
+                  <Badge tone="navy" dot={false}>
+                    Menu figé
+                  </Badge>
+                  <InfoPopover label="Que veut dire « menu figé » ?">
+                    À 3 jours de la prestation, le client et le batch cooker ne changent
+                    plus les plats, sauf un plat à remplacer pour une allergie. La console
+                    le peut encore ; ce changement est tracé dans le journal d’audit.
+                  </InfoPopover>
+                </span>
+              )}
             </h3>
             {(b.allergyConflicts?.length ?? 0) > 0 && (
               <p className="mb-3 flex flex-wrap items-center gap-1 rounded-xl bg-danger-soft px-3 py-2 text-[13px] text-danger">
@@ -237,10 +269,20 @@ export default function ReservationDetailPage({
                       <span className="block text-sm font-semibold text-navy">
                         {m.name ?? "Plat retiré du catalogue"}
                       </span>
-                      <span className="block font-mono text-[11px] text-ink-soft">
+                      <span className="block font-mono text-xs text-ink-soft">
                         {m.recipeVersion != null
                           ? `recette v${m.recipeVersion} · ${m.mealId.slice(0, 8)}…`
                           : `${m.mealId.slice(0, 8)}…`}
+                      </span>
+                      {/* Recettes lot 3 : les allergènes enregistrés quand le menu a été écrit. */}
+                      <span className="block text-[12px] text-ink-mid">
+                        {m.allergensSnapshot == null
+                          ? "Allergènes pas encore figés"
+                          : m.allergensSnapshot.length === 0
+                            ? "Allergènes figés : aucun"
+                            : `Allergènes figés : ${m.allergensSnapshot
+                                .map((c) => allergens.data.find((a) => a.code === c)?.label ?? c)
+                                .join(", ")}`}
                       </span>
                     </span>
                     <Badge tone="navy" dot={false}>
@@ -251,6 +293,74 @@ export default function ReservationDetailPage({
               </ul>
             )}
           </section>
+
+          {/* ── Dates « à manger avant » (Recettes lot 3) ──────────────── */}
+          {(b.meals?.length ?? 0) > 0 && (
+            <section className="card p-6">
+              <h3 className="mb-4 flex items-center gap-2 font-display text-lg font-bold text-navy">
+                Dates « à manger avant »
+                <InfoPopover label="D’où viennent ces dates ?">
+                  La plateforme propose le jour de la prestation plus la durée au frais de
+                  la recette figée. Le batch cooker peut la changer jusqu’à 24 h après la
+                  fin ; chaque changement est gardé ci-dessous : qui, quand, et la nouvelle
+                  valeur.
+                </InfoPopover>
+              </h3>
+              {conservation.isPending ? (
+                <Skeleton className="h-16 rounded-xl" />
+              ) : conservation.isError || !conservation.data ? (
+                <p className="text-sm text-ink-soft">Les dates n’ont pas pu être lues.</p>
+              ) : (
+                <>
+                  <ul className="divide-y divide-[rgba(0,35,75,0.06)]">
+                    {conservation.data.dishes.map((d) => (
+                      <li key={d.mealId} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+                        <span className="text-sm font-semibold text-navy">{d.name}</span>
+                        <span className="flex flex-wrap items-center gap-2 text-[13px] text-ink-mid">
+                          {d.eatBefore.date ? jour(d.eatBefore.date) : "Pas de date"}
+                          {d.eatBefore.fridgeDays !== null && ` · ${d.eatBefore.fridgeDays} j au frais`}
+                          <Badge tone={d.eatBefore.setByChef ? "navy" : "neutral"} dot={false}>
+                            {d.eatBefore.setByChef ? "Date du batch cooker" : "Date proposée"}
+                          </Badge>
+                          {d.eatBefore.fridgeAlert && (
+                            <Badge tone="warning" dot={false}>
+                              Plus de {conservation.data.fridgeAlertDays} j
+                            </Badge>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mb-1.5 mt-4 text-[12px] font-semibold uppercase tracking-wide text-ink-soft">
+                    Historique
+                  </p>
+                  {(conservation.data.history?.length ?? 0) === 0 ? (
+                    <p className="text-[13px] text-ink-soft">
+                      Le batch cooker n’a modifié aucune date.
+                    </p>
+                  ) : (
+                    <ul className="space-y-1 text-[13px] text-ink-mid">
+                      {conservation.data.history!.map((h, i) => (
+                        <li key={i}>
+                          {formatDateLong(h.changedAt)} ·{" "}
+                          <span className="font-semibold text-navy">
+                            {h.changedBy.name ?? "Compte supprimé"}
+                          </span>
+                          {h.changedBy.role === "chef" && " (batch cooker)"}
+                          {h.changedBy.role === "admin" && " (Lab’s Food)"} ·{" "}
+                          {conservation.data.dishes.find((d) => d.mealId === h.mealId)?.name ?? "un plat"} :{" "}
+                          {h.value ? jour(h.value) : "retour à la date proposée"}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              )}
+            </section>
+          )}
+
+          {/* ── Courses payées à part (Recettes lot 6) ─────────────────── */}
+          {!b.shoppingByClient && <GroceriesPanel bookingId={b.id} />}
 
           {/* ── Liste de courses ───────────────────────────────────────── */}
           <section className="card p-6">
@@ -289,6 +399,40 @@ export default function ReservationDetailPage({
                     </InfoPopover>
                   </p>
                 )}
+                {/* Recettes lot 4 (LF-0296) : l'étape courses et les rappels partis. */}
+                {!b.shoppingByClient && (
+                  <p className="mt-1 flex flex-wrap items-center gap-1 text-[12px] text-ink-mid">
+                    <span className="font-semibold text-navy">
+                      {b.groceriesValidatedAt
+                        ? `Courses validées ${quand(b.groceriesValidatedAt)}`
+                        : "Courses pas encore validées"}
+                    </span>
+                    {b.groceriesAmountCents != null &&
+                      ` · ticket de ${euros(b.groceriesAmountCents / 100)}`}
+                    <InfoPopover label="Que veut dire « courses validées » ?">
+                      Le batch cooker confirme que les courses sont faites, avec le total
+                      du ticket s’il le souhaite. Ce montant est une information : aucun
+                      paiement des courses ne passe par la plateforme pour l’instant.
+                    </InfoPopover>
+                  </p>
+                )}
+                {!b.shoppingByClient && b.shoppingReminders && (
+                  <p className="mt-1 text-[12px] text-ink-soft">
+                    Rappels envoyés :{" "}
+                    {[
+                      b.shoppingReminders.chefSendAt &&
+                        `batch cooker, liste à envoyer (${quand(b.shoppingReminders.chefSendAt)})`,
+                      b.shoppingReminders.clientAnswerAt &&
+                        `client, liste à renvoyer (${quand(b.shoppingReminders.clientAnswerAt)})`,
+                      b.shoppingReminders.clientFrozenAt &&
+                        `client, liste figée (${quand(b.shoppingReminders.clientFrozenAt)})`,
+                      b.shoppingReminders.chefGroceriesAt &&
+                        `batch cooker, courses à faire (${quand(b.shoppingReminders.chefGroceriesAt)})`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "aucun pour l’instant"}
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => setARecalculer(true)}
@@ -305,11 +449,11 @@ export default function ReservationDetailPage({
             </div>
 
             {courses.isPending ? (
-              <div className="space-y-2">
+              <SkeletonGroup className="space-y-2">
                 {[0, 1, 2].map((i) => (
-                  <div key={i} className="h-9 animate-pulse rounded-xl bg-cream-soft" />
+                  <Skeleton key={i} className="h-9 rounded-xl" />
                 ))}
-              </div>
+              </SkeletonGroup>
             ) : groupes.length === 0 ? (
               <p className="text-sm leading-relaxed text-ink-soft">
                 Aucune liste. Elle se calcule depuis les recettes des plats : si
@@ -319,8 +463,8 @@ export default function ReservationDetailPage({
               <div className="space-y-4">
                 {groupes.map((g) => (
                   <div key={g.aisle || "sans-rayon"}>
-                    <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.16em] text-ink-soft">
-                      {aisleLabel(g.aisle) ?? "Sans rayon"}
+                    <p className="mb-2 text-xs uppercase tracking-[0.16em] text-ink-soft">
+                      {aisleLabel(g.aisle, aisles.data) ?? "Sans rayon"}
                     </p>
                     <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {g.lines.map((l, i) => (
@@ -332,13 +476,18 @@ export default function ReservationDetailPage({
                             <span className={cn(l.alreadyHave && "text-ink-soft line-through")}>
                               {l.name}
                             </span>
+                            {l.optional && (
+                              <span className="ml-2 text-xs font-semibold uppercase text-ink-soft">
+                                facultatif
+                              </span>
+                            )}
                             {l.edited && (
-                              <span className="ml-2 text-[10px] font-semibold uppercase text-terra-deep">
+                              <span className="ml-2 text-xs font-semibold uppercase text-terra-deep">
                                 corrigée
                               </span>
                             )}
                             {l.alreadyHave && (
-                              <span className="ml-2 text-[10px] font-semibold uppercase text-success">
+                              <span className="ml-2 text-xs font-semibold uppercase text-success">
                                 déjà chez le client
                               </span>
                             )}
@@ -349,7 +498,7 @@ export default function ReservationDetailPage({
                             )}
                           </span>
                           <span className="shrink-0 text-xs tabular-nums text-ink-soft">
-                            {l.qty.toLocaleString("fr-FR")} {l.unit}
+                            {displayQuantity(l.qty, l.unit)}
                           </span>
                         </li>
                       ))}
@@ -364,7 +513,7 @@ export default function ReservationDetailPage({
           {b.notes && (
             <section className="card p-6">
               <h3 className="mb-2 flex items-center gap-2 font-display text-base font-bold text-navy">
-                <Sparkles className="h-4 w-4 text-terra" aria-hidden /> Consignes du
+                <ClipboardList className="h-4 w-4 text-terra" aria-hidden /> Consignes du
                 client
               </h3>
               <p className="rounded-xl bg-cream-soft px-4 py-3 text-sm leading-relaxed text-ink-mid">
@@ -396,6 +545,10 @@ export default function ReservationDetailPage({
 
         {/* ── Colonne de droite ─────────────────────────────────────────── */}
         <aside className="space-y-4">
+          <WithdrawalPanel withdrawal={b.withdrawal} />
+          <RequestPanel request={b.request} />
+          <ContractPanel contract={b.contract} />
+
           <section className="card p-5">
             <h3 className="mb-3 flex items-center gap-2 font-display text-base font-bold text-navy">
               <UserRound className="h-4 w-4 text-terra" aria-hidden /> Le client
@@ -427,7 +580,7 @@ export default function ReservationDetailPage({
             <dl className="space-y-1.5 text-[13px]">
               <Row label="Prestation" value={money(b.priceCents) ?? "—"} />
               <Row
-                label="Courses"
+                label="Forfait courses"
                 value={
                   b.shoppingByClient
                     ? "à la charge du client"
@@ -469,7 +622,7 @@ export default function ReservationDetailPage({
                   </dl>
                 )}
                 {b.commissionEstimated && (
-                  <p className="mt-2 text-[11px] leading-relaxed text-ink-soft">
+                  <p className="mt-2 text-xs leading-relaxed text-ink-soft">
                     Estimé : la commission se fixe au paiement.
                   </p>
                 )}
@@ -492,7 +645,7 @@ export default function ReservationDetailPage({
                 {b.city}
               </p>
               {b.arrivedAt && (
-                <p className="mt-2 text-[12px] text-ink-soft">
+                <p className="mt-2 text-[12px] text-ink-soft tabular-nums">
                   Arrivée pointée le {formatDateLong(b.arrivedAt)}
                 </p>
               )}
