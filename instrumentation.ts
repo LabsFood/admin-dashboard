@@ -82,8 +82,24 @@ export async function register() {
 
 const IP_KEYS = ['forwarded', '-ip', 'remote-', 'via', '-user']
 
+/**
+ * En-tête de routeur (`Next-Router-State-Tree`) en double, trop long ou illisible : Next
+ * le refuse et répond 500 avant tout code de l'app. Un navigateur ne l'envoie jamais
+ * ainsi, seuls des scanners le font (ADMIN-DASHBOARD-3). proxy.ts ne peut pas les
+ * filtrer : Next retire cet en-tête de la requête qu'il lui passe.
+ */
+const ROUTER_STATE_HEADER_ERRORS = [
+  'The router state header was sent but could not be parsed.',
+  'The router state header was too large.',
+  'Multiple router state headers were sent. This is not allowed.',
+]
+
+const isRouterStateHeaderError = (error: unknown) =>
+  error instanceof Error && ROUTER_STATE_HEADER_ERRORS.includes(error.message)
+
 /** Erreurs des Server Components, des route handlers et de proxy.ts. */
 export const onRequestError = (...args: Parameters<typeof Sentry.captureRequestError>) => {
+  if (isRouterStateHeaderError(args[0])) return
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     posthogLogger?.emit({
       body: 'Server request error forwarded to Sentry',
