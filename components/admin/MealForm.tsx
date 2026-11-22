@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import InfoPopover from "@/components/ui/InfoPopover";
 import { problemText } from "@/lib/readiness";
 import Link from "next/link";
@@ -72,6 +72,13 @@ import {
   seasonsLine,
   reheatModesOf,
   storageProblem,
+  storageTouched,
+  NEW_STORAGE,
+  changeStorageMethod,
+  optionalIntIn,
+  setFreezable,
+  shakeInvalid,
+  toggleReheatMode,
   toStepRow,
   type DraftAllergens,
   type Freezable,
@@ -171,18 +178,27 @@ export default function MealForm({
     note: meal?.reheating?.note ?? "",
     container: meal?.reheating?.container ?? "",
   });
-  const [storage, setStorage] = useState<StorageForm>({
+  // Une nouvelle fiche part au réfrigérateur, trois jours : la réponse la plus
+  // courante en batch cooking, à corriger au besoin. Une fiche existante garde
+  // ce qu'elle a, même vide.
+  const [storage, setStorage] = useState<StorageForm>(meal ? {
     method: meal?.storage?.method ?? "",
     days: meal?.storage?.days?.toString() ?? "",
     container: meal?.storage?.container ?? "",
     freezable: freezableOf(meal?.storage),
     freezerMonths: meal?.storage?.freezerMonths?.toString() ?? "",
     thawing: meal?.storage?.thawing ?? "",
-  });
+  } : NEW_STORAGE);
   // Après un premier essai d'enregistrement, les erreurs de saisie s'affichent.
   const [tried, setTried] = useState(false);
   // Ce que l'API a refusé, ligne par ligne (index du formulaire).
   const [issues, setIssues] = useState<LineIssues>(NO_ISSUES);
+  // Chaque essai refusé fait vibrer les champs invalides, une fois rendus en rouge.
+  const formRef = useRef<HTMLFormElement>(null);
+  const [refusals, setRefusals] = useState(0);
+  useEffect(() => {
+    if (refusals > 0) shakeInvalid(formRef.current);
+  }, [refusals]);
 
   const saving = create.isPending || update.isPending;
   const error = create.error ?? update.error;
@@ -208,16 +224,45 @@ export default function MealForm({
   const storageMessage = storageProblem(storage);
   const conflict = error instanceof ApiError && error.status === 409 && errorCode(error) === "RECIPE_CONFLICT";
 
+  const wholeAtLeast = (v: number | "", min: number) =>
+    v === "" || (Number.isInteger(v) && v >= min);
+  const csvOf = (s: string) =>
+    s
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean);
+  const csvBad = (s: string, max: number, each: number) => {
+    const items = csvOf(s);
+    return items.length > max || items.some((x) => x.length > each);
+  };
+  const storageStarted = storageTouched(storage);
+  /** Les champs que le formulaire refuse, pour les marquer en rouge. */
+  const bad = {
+    name: !name.trim() || name.trim().length > 255,
+    description: description.length > 2000,
+    prepTime: !Number.isInteger(prepTime) || prepTime < 1,
+    portions: !wholeAtLeast(portions, 1),
+    cookTime: !wholeAtLeast(cookTime, 0),
+    calories: !wholeAtLeast(calories, 0),
+    customDiets: csvBad(customDiets, 10, 40),
+    equipment: csvBad(equipment, 20, 60),
+    reheatModes: reheatIncomplet,
+    temperature: !optionalIntIn(reheat.temperature, 0, 300),
+    minutes: !optionalIntIn(reheat.minutes, 0, 600),
+    reheatNote: reheat.note.trim().length > 300,
+    storageMethod: storageStarted && !storage.method,
+    storageDays:
+      storageStarted && (!storage.days.trim() || !optionalIntIn(storage.days, 0, 365)),
+    freezerMonths:
+      storage.freezable === "yes" && !optionalIntIn(storage.freezerMonths, 1, 24),
+    thawing: storage.thawing.trim().length > 300,
+  };
+  /** `aria-invalid` après un premier essai : rouge, et vibre au suivant. */
+  const invalid = (k: keyof typeof bad) => (tried && bad[k]) || undefined;
+
   /** Ce que le formulaire refuse avant d'écrire à l'API (qui reste l'autorité). */
   function formProblems(): string[] {
     const out: string[] = [];
-    const wholeAtLeast = (v: number | "", min: number) =>
-      v === "" || (Number.isInteger(v) && v >= min);
-    const csvOf = (s: string) =>
-      s
-        .split(",")
-        .map((x) => x.trim())
-        .filter(Boolean);
     if (!name.trim()) out.push("Le nom du plat est obligatoire.");
     if (name.trim().length > 255) out.push("Le nom est limité à 255 caractères.");
     if (description.length > 2000) out.push("La description est limitée à 2 000 caractères.");
@@ -303,11 +348,7 @@ export default function MealForm({
     setIssues(NO_ISSUES);
     if (problems.length > 0) {
       toast.error("Rien n'a été envoyé", problems[0]);
-      // Le cas le plus trompeur (un champ vide dont l'exemple grisé ressemble à
-      // une valeur) : on y amène directement.
-      if (storage.method && !storage.days.trim()) {
-        document.getElementById("storage-days")?.focus();
-      }
+      setRefusals((n) => n + 1);
       return;
     }
     const input = buildInput();
@@ -318,6 +359,7 @@ export default function MealForm({
     const refused = (err: unknown, title: string) => {
       setIssues(lineIssuesOf(err, sent));
       toast.error(title, saveErrorMessage(err));
+      setRefusals((n) => n + 1);
     };
 
     if (meal) {
@@ -360,7 +402,7 @@ export default function MealForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6">
+    <form ref={formRef} onSubmit={onSubmit} noValidate className="space-y-6">
       <Link
         href={backHref}
         className="inline-flex items-center gap-2 text-xs text-ink-mid hover:text-navy"
@@ -404,6 +446,7 @@ export default function MealForm({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
+                aria-invalid={invalid("name")}
                 placeholder="Poulet rôti aux herbes de Provence"
                 className="input-base"
               />
@@ -412,6 +455,7 @@ export default function MealForm({
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                aria-invalid={invalid("description")}
                 rows={3}
                 placeholder="Ingrédients principaux, préparation, particularités…"
                 className="input-base resize-y"
@@ -470,6 +514,7 @@ export default function MealForm({
                   min={1}
                   value={portions}
                   onChange={(e) => setPortions(Number(e.target.value))}
+                  aria-invalid={invalid("portions")}
                   className="input-base"
                 />
               </Field>
@@ -480,6 +525,7 @@ export default function MealForm({
                   required
                   value={prepTime}
                   onChange={(e) => setPrepTime(Number(e.target.value))}
+                  aria-invalid={invalid("prepTime")}
                   className="input-base"
                 />
               </Field>
@@ -491,6 +537,7 @@ export default function MealForm({
                   onChange={(e) =>
                     setCookTime(e.target.value === "" ? "" : Number(e.target.value))
                   }
+                  aria-invalid={invalid("cookTime")}
                   className="input-base"
                 />
               </Field>
@@ -502,6 +549,7 @@ export default function MealForm({
                   onChange={(e) =>
                     setCalories(e.target.value === "" ? "" : Number(e.target.value))
                   }
+                  aria-invalid={invalid("calories")}
                   className="input-base"
                 />
               </Field>
@@ -552,6 +600,7 @@ export default function MealForm({
               <input
                 value={customDiets}
                 onChange={(e) => setCustomDiets(e.target.value)}
+                aria-invalid={invalid("customDiets")}
                 placeholder="sans porc, faible en sel"
                 className="input-base"
               />
@@ -623,6 +672,7 @@ export default function MealForm({
               <input
                 value={equipment}
                 onChange={(e) => setEquipment(e.target.value)}
+                aria-invalid={invalid("equipment")}
                 placeholder="Cocotte en fonte, mixeur plongeant"
                 className="input-base"
               />
@@ -767,7 +817,12 @@ export default function MealForm({
                   Paramètres.
                 </InfoPopover>
               </p>
-              <div className="flex flex-wrap gap-1.5">
+              <div
+                role="group"
+                aria-label="Modes de réchauffage"
+                data-invalid={invalid("reheatModes")}
+                className="flex flex-wrap gap-1.5 rounded-md data-[invalid=true]:outline data-[invalid=true]:outline-1 data-[invalid=true]:outline-offset-4 data-[invalid=true]:outline-danger"
+              >
                 {reheatModes.data.map((m) => {
                   const on = reheat.modes.includes(m.code);
                   return (
@@ -775,12 +830,7 @@ export default function MealForm({
                       key={m.code}
                       type="button"
                       aria-pressed={on}
-                      onClick={() =>
-                        setReheat((r) => ({
-                          ...r,
-                          modes: on ? r.modes.filter((x) => x !== m.code) : [...r.modes, m.code],
-                        }))
-                      }
+                      onClick={() => setReheat((r) => toggleReheatMode(r, m.code))}
                       className={cn(on ? "chip-teal" : "chip-muted", "cursor-pointer")}
                     >
                       {m.label}
@@ -807,6 +857,7 @@ export default function MealForm({
                   onChange={(e) =>
                     setReheat((r) => ({ ...r, temperature: e.target.value }))
                   }
+                  aria-invalid={invalid("temperature")}
                   placeholder="Ex. 160"
                   className="input-base"
                 />
@@ -817,6 +868,7 @@ export default function MealForm({
                   min={0}
                   value={reheat.minutes}
                   onChange={(e) => setReheat((r) => ({ ...r, minutes: e.target.value }))}
+                  aria-invalid={invalid("minutes")}
                   placeholder="Ex. 15"
                   className="input-base"
                 />
@@ -824,7 +876,8 @@ export default function MealForm({
               <Field label="Conserver au">
                 <select
                   value={storage.method}
-                  onChange={(e) => setStorage((s) => ({ ...s, method: e.target.value }))}
+                  onChange={(e) => setStorage((s) => changeStorageMethod(s, e.target.value))}
+                  aria-invalid={invalid("storageMethod")}
                   className="input-base"
                 >
                   <option value="">Non précisé</option>
@@ -840,14 +893,14 @@ export default function MealForm({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field label="Jours de conservation" required={Boolean(storage.method)}>
                 <input
-                  id="storage-days"
                   type="number"
                   min={0}
                   value={storage.days}
                   onChange={(e) => setStorage((s) => ({ ...s, days: e.target.value }))}
                   placeholder="Ex. 3"
                   aria-invalid={
-                    (Boolean(storage.method) && !storage.days.trim()) || undefined
+                    invalid("storageDays") ??
+                    ((Boolean(storage.method) && !storage.days.trim()) || undefined)
                   }
                   className="input-base"
                 />
@@ -880,7 +933,7 @@ export default function MealForm({
                     key={label}
                     type="button"
                     aria-pressed={storage.freezable === v}
-                    onClick={() => setStorage((s) => ({ ...s, freezable: v }))}
+                    onClick={() => setStorage((s) => setFreezable(s, v))}
                     className={cn(
                       storage.freezable === v ? "chip-teal" : "chip-muted",
                       "cursor-pointer",
@@ -906,6 +959,7 @@ export default function MealForm({
                     step={1}
                     value={storage.freezerMonths}
                     onChange={(e) => setStorage((s) => ({ ...s, freezerMonths: e.target.value }))}
+                    aria-invalid={invalid("freezerMonths")}
                     placeholder="Ex. 3"
                     className="input-base"
                   />
@@ -916,6 +970,7 @@ export default function MealForm({
                       value={storage.thawing}
                       maxLength={300}
                       onChange={(e) => setStorage((s) => ({ ...s, thawing: e.target.value }))}
+                      aria-invalid={invalid("thawing")}
                       placeholder="Ex. une nuit au réfrigérateur."
                       className="input-base"
                     />
@@ -932,6 +987,7 @@ export default function MealForm({
                 value={reheat.note}
                 maxLength={300}
                 onChange={(e) => setReheat((r) => ({ ...r, note: e.target.value }))}
+                aria-invalid={invalid("reheatNote")}
                 placeholder="Ex. ajouter une cuillère de bouillon pour éviter le dessèchement."
                 className="input-base"
               />
@@ -1089,7 +1145,7 @@ export default function MealForm({
           <div className="flex flex-col gap-2">
             <button
               type="submit"
-              disabled={saving || !name.trim() || conflict}
+              disabled={saving || conflict}
               className="btn btn-primary w-full"
             >
               {saving ? (

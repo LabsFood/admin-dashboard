@@ -581,10 +581,137 @@ export function cleanStorage(s: StorageForm): Storage | null {
   return base;
 }
 
+/* ── Valeurs par défaut ──────────────────────────────────────────────────────
+   Un champ prérempli se corrige ; un champ vide dont l'exemple grisé ressemble
+   à une valeur passe pour rempli. On remplit donc, au moment où la question se
+   pose, ce qu'un cuisinier répondrait le plus souvent. Toujours modifiable. */
+
+/** Jours de conservation proposés pour chaque lieu. */
+export const STORAGE_DEFAULT_DAYS: Record<string, string> = {
+  fridge: "3",
+  freezer: "90",
+  ambient: "1",
+};
+
+/** Une nouvelle fiche de batch cooking : au réfrigérateur, trois jours. */
+export const NEW_STORAGE: StorageForm = {
+  method: "fridge",
+  days: STORAGE_DEFAULT_DAYS.fridge,
+  container: "Boîte hermétique",
+  freezable: "",
+  freezerMonths: "",
+  thawing: "",
+};
+
+/** « Congelable : oui » : ce qu'on propose pour les deux questions qui suivent. */
+export const FREEZER_DEFAULTS = { freezerMonths: "3", thawing: "Une nuit au réfrigérateur." };
+
+/** Température et durée proposées quand on coche un mode de réchauffage. */
+export const REHEAT_DEFAULTS: Record<string, { temperature?: string; minutes?: string }> = {
+  oven: { temperature: "160", minutes: "15" },
+  microwave: { minutes: "3" },
+  pan: { minutes: "5" },
+  saucepan: { minutes: "10" },
+  steam: { minutes: "10" },
+  "bain-marie": { minutes: "15" },
+};
+
+/**
+ * Cocher ou décocher un mode. Cocher remplit les champs encore vides avec les
+ * valeurs du mode ; décocher retire celles qu'il avait mises et qu'on n'a pas
+ * changées, pour qu'un clic annulé ne laisse pas un réchauffage sans mode.
+ */
+export function toggleReheatMode<
+  R extends { modes: string[]; temperature: string; minutes: string },
+>(r: R, code: string): R {
+  const d = REHEAT_DEFAULTS[code] ?? {};
+  if (r.modes.includes(code)) {
+    const modes = r.modes.filter((x) => x !== code);
+    // Une valeur changée à la main reste ; une valeur proposée par ce mode passe
+    // à celle d'un mode encore coché, ou se vide.
+    const kept = (field: "temperature" | "minutes") => {
+      if (d[field] === undefined || r[field] !== d[field]) return r[field];
+      const next = modes.map((m) => REHEAT_DEFAULTS[m]?.[field]).find((v) => v !== undefined);
+      return next ?? "";
+    };
+    return { ...r, modes, temperature: kept("temperature"), minutes: kept("minutes") };
+  }
+  return {
+    ...r,
+    modes: [...r.modes, code],
+    temperature: r.temperature.trim() || (d.temperature ?? ""),
+    minutes: r.minutes.trim() || (d.minutes ?? ""),
+  };
+}
+
+/**
+ * Changer de lieu : les jours vides, ou encore ceux proposés pour l'ancien lieu,
+ * prennent ceux du nouveau. « Non précisé » retire les jours proposés.
+ */
+export function changeStorageMethod(s: StorageForm, method: string): StorageForm {
+  const proposed = !s.days.trim() || s.days === STORAGE_DEFAULT_DAYS[s.method];
+  if (!proposed) return { ...s, method };
+  return { ...s, method, days: STORAGE_DEFAULT_DAYS[method] ?? "" };
+}
+
+/** Répondre « congelable » : « oui » propose les mois et la décongélation. */
+export function setFreezable(s: StorageForm, freezable: Freezable): StorageForm {
+  if (freezable !== "yes") return { ...s, freezable };
+  return {
+    ...s,
+    freezable,
+    freezerMonths: s.freezerMonths.trim() || FREEZER_DEFAULTS.freezerMonths,
+    thawing: s.thawing.trim() || FREEZER_DEFAULTS.thawing,
+  };
+}
+
+/** Une réponse de la partie conservation, quelle qu'elle soit. */
+export const storageTouched = (s: StorageForm) =>
+  Boolean(s.method || s.days.trim() || s.container.trim() || s.freezable);
+
+/** Un entier de `min` à `max`, ou rien. */
+export const optionalIntIn = (v: string, min: number, max: number) => {
+  const t = v.trim();
+  if (!t) return true;
+  const n = Number(t);
+  return Number.isInteger(n) && n >= min && n <= max;
+};
+
+/**
+ * Exagération (guidelines § 2) : chaque champ invalide vibre une fois, en
+ * 200 ms, puis le premier prend le focus. Rien ne bouge en mouvement réduit.
+ */
+export function shakeInvalid(root: HTMLElement | null) {
+  const els = Array.from(root?.querySelectorAll<HTMLElement>(
+      '[aria-invalid="true"], [data-invalid="true"]',
+    ) ?? []);
+  if (els.length === 0) return;
+  const first = els[0];
+  first.scrollIntoView({ block: "center", behavior: "auto" });
+  const focusable = first.matches("input, select, textarea, button")
+    ? first
+    : first.querySelector<HTMLElement>("input, select, textarea, button");
+  focusable?.focus({ preventScroll: true });
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  for (const el of els) {
+    // slow-in + slow-out (EASE_MOVE) : un aller-retour amorti, 200 ms.
+    el.animate(
+      [
+        { transform: "translateX(0)" },
+        { transform: "translateX(-5px)" },
+        { transform: "translateX(5px)" },
+        { transform: "translateX(-3px)" },
+        { transform: "translateX(3px)" },
+        { transform: "translateX(0)" },
+      ],
+      { duration: 200, easing: "cubic-bezier(0.65, 0, 0.35, 1)" },
+    );
+  }
+}
+
 /** Pourquoi la conservation serait refusée, ou `null`. */
 export function storageProblem(s: StorageForm): string | null {
-  const touched = s.method || s.days.trim() || s.container.trim() || s.freezable;
-  if (!touched) return null;
+  if (!storageTouched(s)) return null;
   // Dire quel champ manque : un champ vide dont l'exemple grisé ressemble à une
   // valeur (« 3 ») passe pour rempli, et l'enregistrement semble refuser sans raison.
   if (s.method && !s.days.trim())

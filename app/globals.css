@@ -235,8 +235,11 @@ button:disabled {
     cursor: not-allowed;
   }
 
+  /* Un champ refusé se voit en rouge, bordure et fond : la bordure seule se
+     perd sur un écran lumineux ou une photo d'écran. */
   .input-base[aria-invalid="true"] {
     border-color: var(--color-danger);
+    background-color: color-mix(in srgb, var(--color-danger-soft) 55%, white);
   }
 
   /* Un <select> natif dessine sa flèche dans le padding droit : sans place
