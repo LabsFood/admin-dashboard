@@ -46,7 +46,16 @@ export function problemText(p: { code: string; field: string }): string {
       return "un régime déclaré que les ingrédients ne permettent pas";
     case "PHOTO_MISSING":
       return "une vraie photo du plat";
-    default:
+    default: {
+      // `recipe.ingredients[2].unit`, `.qty` : une ligne dont il manque une case.
+      const ligne = /^recipe\.ingredients\[(\d+)\]\.(\w+)$/.exec(p.field);
+      if (ligne) {
+        const n = Number(ligne[1]) + 1;
+        if (ligne[2] === "unit") return `l'unité de l'ingrédient n° ${n}`;
+        if (ligne[2] === "qty") return `la quantité de l'ingrédient n° ${n}`;
+        return `l'ingrédient n° ${n}, à compléter`;
+      }
       return CHAMP[p.field] ?? p.field;
+    }
   }
 }

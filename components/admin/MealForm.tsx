@@ -197,7 +197,16 @@ export default function MealForm({
   const formRef = useRef<HTMLFormElement>(null);
   const [refusals, setRefusals] = useState(0);
   useEffect(() => {
-    if (refusals > 0) shakeInvalid(formRef.current);
+    if (refusals === 0) return;
+    // Deux images : l'erreur de l'API se rend après le rappel qui compte le refus.
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => shakeInvalid(formRef.current));
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
   }, [refusals]);
 
   const saving = create.isPending || update.isPending;
@@ -257,8 +266,32 @@ export default function MealForm({
       storage.freezable === "yes" && !optionalIntIn(storage.freezerMonths, 1, 24),
     thawing: storage.thawing.trim().length > 300,
   };
-  /** `aria-invalid` après un premier essai : rouge, et vibre au suivant. */
-  const invalid = (k: keyof typeof bad) => (tried && bad[k]) || undefined;
+  // Ce que l'API a réclamé pour publier : les mêmes champs passent au rouge.
+  const notReady = notReadyProblems(error).map((p) => p.field);
+  const named = (field: string) => notReady.includes(field);
+  const namedUnder = (field: string) =>
+    notReady.some((f) => f === field || f.startsWith(`${field}[`));
+  const fromApi = {
+    name: named("name"),
+    description: named("description"),
+    category: named("category"),
+    portions: named("portions"),
+    cookTime: named("cookMinutes"),
+    imageUrl: named("imageUrl"),
+    ingredients: namedUnder("recipe.ingredients"),
+    steps: namedUnder("recipe.steps"),
+    reheatModes: named("recipe.reheating"),
+    reheatNote: named("recipe.reheating.note"),
+    storageMethod: named("recipe.storage") && !storage.method,
+    storageDays: named("recipe.storage") && !storage.days.trim(),
+    freezable: named("recipe.storage.freezable"),
+    freezerMonths: named("recipe.storage.freezerMonths"),
+  } satisfies Record<string, boolean>;
+  /** `aria-invalid` : refusé par le formulaire (après un essai) ou par l'API. */
+  const invalid = (k: keyof typeof bad | keyof typeof fromApi) =>
+    (tried && k in bad && bad[k as keyof typeof bad]) ||
+    (k in fromApi && fromApi[k as keyof typeof fromApi]) ||
+    undefined;
 
   /** Ce que le formulaire refuse avant d'écrire à l'API (qui reste l'autorité). */
   function formProblems(): string[] {
@@ -305,7 +338,7 @@ export default function MealForm({
   const toggle = (list: string[], set: (v: string[]) => void, value: string) =>
     set(list.includes(value) ? list.filter((t) => t !== value) : [...list, value]);
 
-  function buildInput(): MealInput {
+  function buildInput(statusToSend: MealStatus = status): MealInput {
     const csv = (s: string) =>
       s
         .split(",")
@@ -338,12 +371,18 @@ export default function MealForm({
       reheating: cleanReheating(reheat),
       storage: cleanStorage(storage),
       isFeatured,
-      status,
+      status: statusToSend,
     };
   }
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    save();
+  }
+
+  /** Enregistrer ; `statusToSend` force un statut (« en brouillon » après un refus). */
+  function save(statusToSend: MealStatus = status) {
+    if (statusToSend !== status) setStatus(statusToSend);
     setTried(true);
     setIssues(NO_ISSUES);
     if (problems.length > 0) {
@@ -351,7 +390,7 @@ export default function MealForm({
       setRefusals((n) => n + 1);
       return;
     }
-    const input = buildInput();
+    const input = buildInput(statusToSend);
     // La version lue : si la fiche a changé depuis (autre onglet), l'API répond 409.
     if (readLockVersion !== undefined) input.lockVersion = readLockVersion;
     // Les lignes vides ne partent pas : l'index de l'API n'est plus celui de l'écran.
@@ -390,7 +429,7 @@ export default function MealForm({
           });
           toast.success(
             `« ${saved?.name ?? input.name} » créé`,
-            status === "draft"
+            input.status === "draft"
               ? "En brouillon : rien n'est proposé tant qu'il n'est pas publié."
               : undefined,
           );
@@ -495,11 +534,9 @@ export default function MealForm({
               </Field>
             </div>
             <Field label="Photo du plat">
-              <PhotoField
-                mealId={meal?.id}
-                value={imageUrl}
-                onChange={setImageUrl}
-              />
+              <div data-invalid={invalid("imageUrl")} className={GROUP_INVALID}>
+                <PhotoField mealId={meal?.id} value={imageUrl} onChange={setImageUrl} />
+              </div>
             </Field>
           </section>
 
@@ -573,6 +610,7 @@ export default function MealForm({
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value as DishCategory | "")}
+                  aria-invalid={invalid("category")}
                   className="input-base"
                 >
                   <option value="">Non précisée</option>
@@ -643,6 +681,7 @@ export default function MealForm({
               </p>
             </div>
 
+            <div data-invalid={invalid("ingredients")} className={GROUP_INVALID}>
             <IngredientRows
               value={lines}
               onChange={(v) => {
@@ -654,6 +693,7 @@ export default function MealForm({
               showMessages={tried}
               issues={issues}
             />
+            </div>
             {lignesNonReliees > 0 && (
               <p className="flex items-start gap-2 rounded-md bg-cream-soft px-3.5 py-2.5 text-[12px] leading-relaxed text-[#8A6212]">
                 <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -664,7 +704,9 @@ export default function MealForm({
                 vérifiés, tant que toutes ne le sont pas.
               </p>
             )}
-            <StepRows value={steps} onChange={setSteps} />
+            <div data-invalid={invalid("steps")} className={GROUP_INVALID}>
+              <StepRows value={steps} onChange={setSteps} />
+            </div>
             <Field
               label="Matériel (facultatif)"
               hint="Séparé par des virgules. Jamais contrôlé : un mémo pour le cuisinier."
@@ -821,7 +863,7 @@ export default function MealForm({
                 role="group"
                 aria-label="Modes de réchauffage"
                 data-invalid={invalid("reheatModes")}
-                className="flex flex-wrap gap-1.5 rounded-md data-[invalid=true]:outline data-[invalid=true]:outline-1 data-[invalid=true]:outline-offset-4 data-[invalid=true]:outline-danger"
+                className={cn("flex flex-wrap gap-1.5", GROUP_INVALID)}
               >
                 {reheatModes.data.map((m) => {
                   const on = reheat.modes.includes(m.code);
@@ -921,7 +963,7 @@ export default function MealForm({
 
             <fieldset>
               <legend className="field-label">Congelable</legend>
-              <div className="flex flex-wrap gap-1.5">
+              <div data-invalid={invalid("freezable")} className={cn("flex flex-wrap gap-1.5", GROUP_INVALID)}>
                 {(
                   [
                     ["yes", "Oui"],
@@ -1130,6 +1172,16 @@ export default function MealForm({
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
                 {saveErrorMessage(error)}
               </p>
+              {notReady.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => save("draft")}
+                  disabled={saving}
+                  className="btn btn-sm mt-2.5 border border-danger/40 text-danger hover:bg-danger/10"
+                >
+                  Enregistrer en brouillon
+                </button>
+              )}
               {conflict && (
                 <button
                   type="button"
@@ -1371,6 +1423,22 @@ const errorCode = (error: unknown): string | undefined =>
     ? (error.body as { code?: string }).code
     : undefined;
 
+/** Les points que l'API réclame avant de publier (`422 RECIPE_NOT_READY`). */
+function notReadyProblems(error: unknown): { code: string; field: string }[] {
+  if (!(error instanceof ApiError) || error.status !== 422) return [];
+  if (errorCode(error) !== "RECIPE_NOT_READY") return [];
+  const list = (error.body as { problems?: unknown } | null)?.problems;
+  if (!Array.isArray(list)) return [];
+  return list.filter(
+    (p): p is { code: string; field: string } =>
+      !!p && typeof p.code === "string" && typeof p.field === "string",
+  );
+}
+
+/** Le contour rouge d'un groupe (pastilles, lignes, photo) refusé. */
+const GROUP_INVALID =
+  "rounded-md data-[invalid=true]:outline data-[invalid=true]:outline-1 data-[invalid=true]:outline-offset-4 data-[invalid=true]:outline-danger";
+
 const LINE_REFUSALS: Record<string, string> = {
   "This ingredient is not available to you":
     "Cet ingrédient n'est pas disponible pour une recette Lab's Food (un ingrédient privé d'un batch cooker est refusé). Choisissez une entrée de la liste commune.",
@@ -1427,6 +1495,13 @@ function saveErrorMessage(error: unknown): string {
     const code = errorCode(error);
     if (error.status === 409 && code === "RECIPE_CONFLICT") {
       return "Cette recette a été modifiée entre-temps (un ingrédient de la liste commune a peut-être été mis à jour). Rechargez avant d'enregistrer.";
+    }
+    if (error.status === 422 && code === "RECIPE_NOT_READY") {
+      // L'API liste chaque manque ; son `message` (« not ready to publish ») est en
+      // anglais et ne dit pas quoi compléter.
+      const manques = [...new Set(notReadyProblems(error).map(problemText))];
+      const liste = manques.length > 0 ? ` Il manque : ${manques.join(" ; ")}.` : "";
+      return `Pas encore publiable : la fiche n'est pas Prête.${liste} Rien n'est perdu : enregistrez-la en brouillon en attendant.`;
     }
     if (error.status === 422 && code === "DUPLICATE_INGREDIENT_LINE") {
       return "Le même ingrédient apparaît sur plusieurs lignes (surlignées) : même groupe, même précision. Précisez-les ou fusionnez-les.";
