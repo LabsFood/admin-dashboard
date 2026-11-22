@@ -428,14 +428,14 @@ export default function MealForm({
             ingredient_count: input.ingredients?.length ?? 0,
           });
           toast.success(
-            `« ${saved?.name ?? input.name} » créé`,
+            `« ${saved?.name ?? input.name} » ${isRecette ? "créée" : "créé"}`,
             input.status === "draft"
               ? "En brouillon : rien n'est proposé tant qu'il n'est pas publié."
               : undefined,
           );
           router.push(backHref);
         },
-        onError: (err) => refused(err, `${capitalize(noun)} n'a pas été créé`),
+        onError: (err) => refused(err, `${capitalize(noun)} n'a pas été ${isRecette ? "créée" : "créé"}`),
       });
     }
   }
