@@ -303,6 +303,11 @@ export default function MealForm({
     setIssues(NO_ISSUES);
     if (problems.length > 0) {
       toast.error("Rien n'a été envoyé", problems[0]);
+      // Le cas le plus trompeur (un champ vide dont l'exemple grisé ressemble à
+      // une valeur) : on y amène directement.
+      if (storage.method && !storage.days.trim()) {
+        document.getElementById("storage-days")?.focus();
+      }
       return;
     }
     const input = buildInput();
@@ -790,7 +795,7 @@ export default function MealForm({
                 <input
                   value={reheat.container}
                   onChange={(e) => setReheat((r) => ({ ...r, container: e.target.value }))}
-                  placeholder="Plat en verre"
+                  placeholder="Ex. plat en verre"
                   className="input-base"
                 />
               </Field>
@@ -802,7 +807,7 @@ export default function MealForm({
                   onChange={(e) =>
                     setReheat((r) => ({ ...r, temperature: e.target.value }))
                   }
-                  placeholder="160"
+                  placeholder="Ex. 160"
                   className="input-base"
                 />
               </Field>
@@ -812,7 +817,7 @@ export default function MealForm({
                   min={0}
                   value={reheat.minutes}
                   onChange={(e) => setReheat((r) => ({ ...r, minutes: e.target.value }))}
-                  placeholder="15"
+                  placeholder="Ex. 15"
                   className="input-base"
                 />
               </Field>
@@ -835,11 +840,12 @@ export default function MealForm({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field label="Jours de conservation" required={Boolean(storage.method)}>
                 <input
+                  id="storage-days"
                   type="number"
                   min={0}
                   value={storage.days}
                   onChange={(e) => setStorage((s) => ({ ...s, days: e.target.value }))}
-                  placeholder="3"
+                  placeholder="Ex. 3"
                   aria-invalid={
                     (Boolean(storage.method) && !storage.days.trim()) || undefined
                   }
@@ -853,7 +859,7 @@ export default function MealForm({
                     onChange={(e) =>
                       setStorage((s) => ({ ...s, container: e.target.value }))
                     }
-                    placeholder="Boîte hermétique"
+                    placeholder="Ex. boîte hermétique"
                     className="input-base"
                   />
                 </Field>
@@ -900,7 +906,7 @@ export default function MealForm({
                     step={1}
                     value={storage.freezerMonths}
                     onChange={(e) => setStorage((s) => ({ ...s, freezerMonths: e.target.value }))}
-                    placeholder="3"
+                    placeholder="Ex. 3"
                     className="input-base"
                   />
                 </Field>
@@ -910,7 +916,7 @@ export default function MealForm({
                       value={storage.thawing}
                       maxLength={300}
                       onChange={(e) => setStorage((s) => ({ ...s, thawing: e.target.value }))}
-                      placeholder="Une nuit au réfrigérateur."
+                      placeholder="Ex. une nuit au réfrigérateur."
                       className="input-base"
                     />
                   </Field>
@@ -926,7 +932,7 @@ export default function MealForm({
                 value={reheat.note}
                 maxLength={300}
                 onChange={(e) => setReheat((r) => ({ ...r, note: e.target.value }))}
-                placeholder="Ajouter une cuillère de bouillon pour éviter le dessèchement."
+                placeholder="Ex. ajouter une cuillère de bouillon pour éviter le dessèchement."
                 className="input-base"
               />
             </Field>

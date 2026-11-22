@@ -585,8 +585,14 @@ export function cleanStorage(s: StorageForm): Storage | null {
 export function storageProblem(s: StorageForm): string | null {
   const touched = s.method || s.days.trim() || s.container.trim() || s.freezable;
   if (!touched) return null;
+  // Dire quel champ manque : un champ vide dont l'exemple grisé ressemble à une
+  // valeur (« 3 ») passe pour rempli, et l'enregistrement semble refuser sans raison.
+  if (s.method && !s.days.trim())
+    return "Jours de conservation : le champ est vide. Indiquez combien de jours le plat se garde, ou repassez « Conserver au » sur « Non précisé ».";
+  if (!s.method && s.days.trim())
+    return "Conserver au : choisissez un lieu pour les jours de conservation indiqués.";
   if (!s.method || !s.days.trim())
-    return "La conservation demande un lieu et un nombre de jours : l'API exige les deux.";
+    return "La conservation demande un lieu (« Conserver au ») et un nombre de jours, ou aucune des réponses de cette partie.";
   const days = Number(s.days);
   if (!Number.isInteger(days) || days < 0 || days > 365)
     return "Les jours de conservation : un nombre entier de 0 à 365.";
