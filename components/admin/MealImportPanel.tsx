@@ -41,6 +41,7 @@ const FIELD_LABELS: Record<string, string> = {
   prepMinutes: "temps de préparation",
   cookMinutes: "temps de cuisson",
   storageDays: "durée de conservation",
+  stepTypes: "types d'étape",
 };
 
 /** Ce que le formulaire reprend d'un brouillon. */
