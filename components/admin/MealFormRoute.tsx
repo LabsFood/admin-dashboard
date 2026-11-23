@@ -3,8 +3,14 @@
 import FormSkeleton from "@/components/admin/FormSkeleton";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useCallback, useState } from "react";
 import { AlertTriangle, RotateCw } from "lucide-react";
 import MealForm from "@/components/admin/MealForm";
+import MealImportPanel, {
+  draftToMeal,
+  ImportReviewNote,
+} from "@/components/admin/MealImportPanel";
+import type { ImportDraft } from "@/lib/api/recipe-imports";
 import { useMeals } from "@/lib/api/catalog";
 import { adminErrorMessage } from "@/lib/api/errors";
 
@@ -28,7 +34,7 @@ export default function MealFormRoute({
   const meal = id ? meals.data?.find((m) => m.id === id) : undefined;
 
   // Création : aucune raison d'attendre la bibliothèque.
-  if (!id) return <MealForm variant={variant} backHref={backHref} />;
+  if (!id) return <NewMeal variant={variant} backHref={backHref} />;
 
   if (meals.isPending || (meals.isFetching && !meals.isFetchedAfterMount && !meals.isError)) {
     return <FormSkeleton />;
@@ -72,4 +78,39 @@ export default function MealFormRoute({
   }
 
   return <MealForm meal={meal} variant={variant} backHref={backHref} />;
+}
+
+/**
+ * Création, avec l'import par IA au-dessus : un brouillon importé remplit le
+ * formulaire (remonté à neuf), que l'admin relit avant de créer.
+ */
+function NewMeal({ variant, backHref }: { variant: "menu" | "recette"; backHref: string }) {
+  const [imported, setImported] = useState<{
+    n: number;
+    draft: ImportDraft;
+    warnings: string[];
+  } | null>(null);
+  const [showNote, setShowNote] = useState(true);
+  const onDraft = useCallback((draft: ImportDraft, warnings: string[]) => {
+    setImported((prev) => ({ n: (prev?.n ?? 0) + 1, draft, warnings }));
+    setShowNote(true);
+  }, []);
+  return (
+    <div className="space-y-4">
+      <MealImportPanel onDraft={onDraft} />
+      {imported && showNote && (
+        <ImportReviewNote
+          draft={imported.draft}
+          warnings={imported.warnings}
+          onDismiss={() => setShowNote(false)}
+        />
+      )}
+      <MealForm
+        key={imported?.n ?? 0}
+        prefill={imported ? draftToMeal(imported.draft) : undefined}
+        variant={variant}
+        backHref={backHref}
+      />
+    </div>
+  );
 }

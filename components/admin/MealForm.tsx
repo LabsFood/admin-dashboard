@@ -107,10 +107,13 @@ const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
 
 export default function MealForm({
   meal,
+  prefill,
   variant,
   backHref,
 }: {
   meal?: Meal;
+  /** Création seulement : des champs déjà remplis (import par IA), à relire. */
+  prefill?: Partial<Meal>;
   variant: "menu" | "recette";
   backHref: string;
 }) {
@@ -134,50 +137,52 @@ export default function MealForm({
   // version d'un autre onglet, et l'envoyer avec nos champs anciens écraserait la
   // fiche plus récente sans 409.
   const [readLockVersion] = useState(meal?.lockVersion);
-  const [name, setName] = useState(meal?.name ?? "");
-  const [description, setDescription] = useState(meal?.description ?? "");
-  const [country, setCountry] = useState(meal?.country ?? "");
-  const [continent, setContinent] = useState<Continent | "">(meal?.continent ?? "");
-  const [imageUrl, setImageUrl] = useState(meal?.imageUrl ?? "");
-  const [portions, setPortions] = useState(meal?.portions ?? 4);
-  const [prepTime, setPrepTime] = useState(meal?.prepTime ?? 45);
-  const [cookTime, setCookTime] = useState<number | "">(meal?.cookTime ?? "");
-  const [calories, setCalories] = useState<number | "">(meal?.calories ?? "");
-  const [difficulty, setDifficulty] = useState<Difficulty | "">(meal?.difficulty ?? "");
-  const [category, setCategory] = useState<DishCategory | "">(meal?.category ?? "");
-  const [dietaryTags, setDietaryTags] = useState<string[]>(meal?.dietaryTags ?? []);
-  const [customDiets, setCustomDiets] = useState(meal?.customDiets?.join(", ") ?? "");
-  const [addedAllergens, setAddedAllergens] = useState<string[]>(meal?.addedAllergens ?? []);
+  // Les valeurs de départ : la fiche modifiée, sinon un brouillon importé.
+  const src: Partial<Meal> | undefined = meal ?? prefill;
+  const [name, setName] = useState(src?.name ?? "");
+  const [description, setDescription] = useState(src?.description ?? "");
+  const [country, setCountry] = useState(src?.country ?? "");
+  const [continent, setContinent] = useState<Continent | "">(src?.continent ?? "");
+  const [imageUrl, setImageUrl] = useState(src?.imageUrl ?? "");
+  const [portions, setPortions] = useState(src?.portions ?? 4);
+  const [prepTime, setPrepTime] = useState(src?.prepTime ?? 45);
+  const [cookTime, setCookTime] = useState<number | "">(src?.cookTime ?? "");
+  const [calories, setCalories] = useState<number | "">(src?.calories ?? "");
+  const [difficulty, setDifficulty] = useState<Difficulty | "">(src?.difficulty ?? "");
+  const [category, setCategory] = useState<DishCategory | "">(src?.category ?? "");
+  const [dietaryTags, setDietaryTags] = useState<string[]>(src?.dietaryTags ?? []);
+  const [customDiets, setCustomDiets] = useState(src?.customDiets?.join(", ") ?? "");
+  const [addedAllergens, setAddedAllergens] = useState<string[]>(src?.addedAllergens ?? []);
   const [customAllergens, setCustomAllergens] = useState(
-    meal?.customAllergens?.join(", ") ?? "",
+    src?.customAllergens?.join(", ") ?? "",
   );
-  const [lines, setLines] = useState<LineRow[]>(() => readLineRows(meal?.ingredients));
-  const [steps, setSteps] = useState<StepRow[]>(() => readSteps(meal?.steps).map(toStepRow));
-  const [equipment, setEquipment] = useState(meal?.equipment?.join(", ") ?? "");
-  const [declaredDiets, setDeclaredDiets] = useState<string[]>(meal?.declaredDiets ?? []);
-  const [profiles, setProfiles] = useState<string[]>(meal?.profiles ?? []);
+  const [lines, setLines] = useState<LineRow[]>(() => readLineRows(src?.ingredients));
+  const [steps, setSteps] = useState<StepRow[]>(() => readSteps(src?.steps).map(toStepRow));
+  const [equipment, setEquipment] = useState(src?.equipment?.join(", ") ?? "");
+  const [declaredDiets, setDeclaredDiets] = useState<string[]>(src?.declaredDiets ?? []);
+  const [profiles, setProfiles] = useState<string[]>(src?.profiles ?? []);
   const [seasonsOverride, setSeasonsOverride] = useState<number[]>(
-    meal?.seasonsOverride ?? [],
+    src?.seasonsOverride ?? [],
   );
-  const [isFeatured, setIsFeatured] = useState(meal?.isFeatured ?? false);
-  const [status, setStatus] = useState<MealStatus>(meal?.status ?? "draft");
+  const [isFeatured, setIsFeatured] = useState(src?.isFeatured ?? false);
+  const [status, setStatus] = useState<MealStatus>(src?.status ?? "draft");
 
   // Réchauffage et conservation : tenus en chaînes pour qu'un champ vidé reste
   // vide au lieu de retomber sur 0, et convertis à l'envoi.
   const [reheat, setReheat] = useState({
-    modes: reheatModesOf(meal?.reheating),
-    temperature: meal?.reheating?.temperature?.toString() ?? "",
-    minutes: meal?.reheating?.minutes?.toString() ?? "",
-    note: meal?.reheating?.note ?? "",
-    container: meal?.reheating?.container ?? "",
+    modes: reheatModesOf(src?.reheating),
+    temperature: src?.reheating?.temperature?.toString() ?? "",
+    minutes: src?.reheating?.minutes?.toString() ?? "",
+    note: src?.reheating?.note ?? "",
+    container: src?.reheating?.container ?? "",
   });
   const [storage, setStorage] = useState<StorageForm>({
-    method: meal?.storage?.method ?? "",
-    days: meal?.storage?.days?.toString() ?? "",
-    container: meal?.storage?.container ?? "",
-    freezable: freezableOf(meal?.storage),
-    freezerMonths: meal?.storage?.freezerMonths?.toString() ?? "",
-    thawing: meal?.storage?.thawing ?? "",
+    method: src?.storage?.method ?? "",
+    days: src?.storage?.days?.toString() ?? "",
+    container: src?.storage?.container ?? "",
+    freezable: freezableOf(src?.storage),
+    freezerMonths: src?.storage?.freezerMonths?.toString() ?? "",
+    thawing: src?.storage?.thawing ?? "",
   });
   // Après un premier essai d'enregistrement, les erreurs de saisie s'affichent.
   const [tried, setTried] = useState(false);
