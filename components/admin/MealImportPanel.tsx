@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, FileUp, Sparkles, X } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { AlertTriangle, FileUp, Loader2, Sparkles, X } from "lucide-react";
 import ActivityTrail, { type ActivityStep } from "@/components/ui/ActivityTrail";
 import FilterTabs from "@/components/ui/FilterTabs";
 import { adminErrorMessage } from "@/lib/api/errors";
 import { useAllergens } from "@/lib/api/referentials";
-import type { Meal } from "@/lib/api/catalog";
+import { useCreateMeal, type Meal, type MealInput } from "@/lib/api/catalog";
 import { COUNTRIES, regionOf } from "@/lib/countries";
 import {
   checkImportFiles,
@@ -23,10 +24,13 @@ import {
    Importer une recette avec l'IA, en tête du formulaire de création.
 
    L'admin donne un fichier (PDF ou photos), un texte, un lien ou un simple
-   titre. L'API lit la recette et renvoie un brouillon par recette trouvée ; on
-   en remplit le formulaire, que l'admin relit avant d'enregistrer. Rien n'est
-   créé tant qu'il n'a pas cliqué « Créer ». Les allergènes se calculent des
-   lignes reliées ; ceux que l'IA soupçonne sont signalés, jamais ajoutés.
+   titre. L'API lit la recette et renvoie un brouillon par recette trouvée.
+   Une recette : on en remplit le formulaire, que l'admin relit avant de créer.
+   Plusieurs : l'admin coche celles à garder, chacune est enregistrée en
+   brouillon (rien n'est publié) et la première s'ouvre. Les allergènes se
+   calculent des lignes reliées ; ceux que l'IA soupçonne sont signalés, jamais
+   ajoutés. On sort à tout moment (Échap, clic à côté, Annuler) : l'import
+   continue et se retrouve en rouvrant la fenêtre.
    ───────────────────────────────────────────────────────────────────────────── */
 
 const SOURCES: { id: ImportSourceType; label: string }[] = [
@@ -66,6 +70,20 @@ export function draftToMeal(draft: ImportDraft): Partial<Meal> {
     reheating: d.recipe.reheating ? { note: d.recipe.reheating.note } : null,
   };
 }
+
+/** Un brouillon de l'IA, prêt pour `POST /admin/meals`, toujours en brouillon. */
+function draftToInput(draft: ImportDraft): MealInput {
+  const m = draftToMeal(draft);
+  return {
+    ...(m as Omit<MealInput, "name" | "prepTime">),
+    name: draft.dish.name,
+    prepTime: draft.dish.prepMinutes ?? 0,
+    status: "draft",
+  };
+}
+
+/** Ce que la création en série a donné, recette par recette. */
+type Created = { index: number; name: string; id: string | null; error: string | null };
 
 type Origin = { source: string; startedAt: string };
 type Phase = "source" | "trail";
@@ -146,7 +164,13 @@ function ImportDialog({
   const [trailOpen, setTrailOpen] = useState(true);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(0);
+  const [picked, setPicked] = useState<number[] | null>(null);
+  const [created, setCreated] = useState<Created[] | null>(null);
+  const [creating, setCreating] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const pathname = usePathname();
+  const createMeal = useCreateMeal();
   const start = useStartAdminImport((e) =>
     setProgress((p) =>
       e.kind === "created"
@@ -169,13 +193,13 @@ function ImportDialog({
     return () => clearInterval(t);
   }, [busy]);
 
-  // Échap ferme (l'import continue : on le retrouve en rouvrant), focus dans la
+  // Échap ferme, même pendant l'envoi (l'import continue : on le retrouve en rouvrant), focus dans la
   // fenêtre, défilement de la page bloqué — comme `ConfirmDialog`.
   useEffect(() => {
     if (!open) return;
     panel.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !uploading) onClose();
+      if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", onKey);
     const overflow = document.body.style.overflow;
@@ -184,7 +208,7 @@ function ImportDialog({
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = overflow;
     };
-  }, [open, uploading, onClose]);
+  }, [open, onClose]);
 
   function submit() {
     setLocalError(null);
@@ -212,6 +236,8 @@ function ImportDialog({
     setImportId(null);
     setProgress(NO_PROGRESS);
     setTrailOpen(true);
+    setPicked(null);
+    setCreated(null);
     const t0 = Date.now();
     setStartedAt(t0);
     setNow(t0);
@@ -223,7 +249,33 @@ function ImportDialog({
     start.reset();
     setImportId(null);
     setProgress(NO_PROGRESS);
+    setPicked(null);
+    setCreated(null);
     setPhase("source");
+  }
+
+  /** Enregistre en brouillon chaque recette cochée, l'une après l'autre, puis ouvre la première créée. */
+  async function createDrafts(indexes: number[]) {
+    if (!data || creating) return;
+    setCreating(true);
+    // Une relance garde les brouillons déjà enregistrés et ne refait que les échecs.
+    const results: Created[] = (created ?? []).filter((c) => c.id);
+    for (const i of indexes) {
+      const d = data.drafts[i];
+      try {
+        const meal = await createMeal.mutateAsync(draftToInput(d));
+        results.push({ index: i, name: d.dish.name, id: meal.id, error: null });
+      } catch (err) {
+        results.push({ index: i, name: d.dish.name, id: null, error: adminErrorMessage(err) });
+      }
+      setCreated([...results]);
+    }
+    setCreating(false);
+    const first = [...results].sort((a, b) => a.index - b.index).find((r) => r.id);
+    if (first && results.every((r) => r.id)) {
+      onClose();
+      router.push(`${pathname}?id=${first.id}`);
+    }
   }
 
   const origin: Origin | null = data
@@ -234,7 +286,18 @@ function ImportDialog({
     (data?.status === "failed" ? (data.error?.message ?? "L'import a échoué.") : null) ??
     (current.error ? adminErrorMessage(current.error) : null);
   const done = data?.status === "done";
-  const steps = buildSteps({ source, files, text, url, title, progress, data, failed, uploading });
+  const steps = [
+    ...buildSteps({ source, files, text, url, title, progress, data, failed, uploading }),
+    ...(created ?? []).map(
+      (c, i): ActivityStep => ({
+        id: `created-${i}`,
+        label: c.id ? `Brouillon enregistré : « ${c.name} »` : `« ${c.name} » non enregistré`,
+        status: c.id ? "done" : "error",
+        meta: c.error ?? undefined,
+      }),
+    ),
+  ];
+  const chosen = picked ?? (data?.drafts ?? []).map((_, i) => i);
   const elapsed = startedAt ? Math.max(0, Math.round((now - startedAt) / 1000)) : 0;
   const summary = failed
     ? "L'import s'est arrêté : voir l'étape en échec."
@@ -251,7 +314,7 @@ function ImportDialog({
   return (
     <div
       className="fixed inset-0 z-[80] flex items-center justify-center bg-navy/50 p-4 animate-fade-in motion-reduce:animate-none"
-      onClick={() => !uploading && onClose()}
+      onClick={onClose}
     >
       {/* slow-out : la fenêtre se pose en 160 ms (fondu seul). */}
       <div
@@ -270,7 +333,6 @@ function ImportDialog({
           <button
             type="button"
             onClick={onClose}
-            disabled={uploading}
             aria-label="Fermer"
             className="hit -m-2 rounded-full p-2 text-ink-soft hover:text-navy disabled:opacity-40"
           >
@@ -400,28 +462,73 @@ function ImportDialog({
               </p>
             )}
 
-            {done && data.drafts.length > 1 && origin && (
-              <div>
-                <p className="text-sm font-semibold text-navy">
-                  {data.drafts.length} recettes trouvées : laquelle reprendre ?
+            {done && data.drafts.length > 1 && (
+              <fieldset disabled={creating || Boolean(created?.every((c) => c.id))}>
+                <legend className="text-sm font-semibold text-navy">
+                  {data.drafts.length} recettes trouvées : lesquelles garder ?
+                </legend>
+                <p className="mt-0.5 text-xs text-ink-soft">
+                  Chacune est enregistrée en brouillon, rien n&apos;est publié. La première
+                  s&apos;ouvre ensuite pour relecture.
                 </p>
-                <ul className="mt-2 flex flex-wrap gap-2">
+                <ul className="mt-2 space-y-1.5">
                   {data.drafts.map((d, i) => (
                     <li key={`${d.dish.name}-${i}`}>
-                      <button
-                        type="button"
-                        className="btn btn-outline btn-sm"
-                        onClick={() => onDraft(d, data.warnings, origin)}
-                      >
-                        {d.dish.name} · {d.dish.recipe.ingredients.length} ingrédients
-                      </button>
+                      <label className="flex cursor-pointer items-center gap-2.5 rounded-md border border-cream-deep px-3 py-2 text-sm text-ink hover:border-teal/40">
+                        <input
+                          type="checkbox"
+                          checked={chosen.includes(i)}
+                          onChange={(e) =>
+                            setPicked(
+                              e.target.checked
+                                ? [...chosen, i].sort((a, b) => a - b)
+                                : chosen.filter((j) => j !== i),
+                            )
+                          }
+                        />
+                        <span className="min-w-0 flex-1 truncate">{d.dish.name}</span>
+                        <span className="text-xs tabular-nums text-ink-soft">
+                          {d.dish.recipe.ingredients.length} ingrédients
+                        </span>
+                      </label>
                     </li>
                   ))}
                 </ul>
-              </div>
+              </fieldset>
             )}
 
             <div className="flex flex-wrap gap-2">
+              {done && data.drafts.length > 1 && (
+                <button
+                  type="button"
+                  autoFocus
+                  disabled={creating || chosen.length === 0}
+                  onClick={() =>
+                    createDrafts(chosen.filter((i) => !created?.some((c) => c.index === i && c.id)))
+                  }
+                  className="btn btn-primary disabled:opacity-55"
+                >
+                  {creating && (
+                    <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden />
+                  )}
+                  {created?.some((c) => c.error)
+                    ? "Réessayer les recettes en échec"
+                    : `Créer ${chosen.length} brouillon${chosen.length > 1 ? "s" : ""}`}
+                </button>
+              )}
+              {done && data.drafts.length > 1 && created?.some((c) => c.id) && !creating && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const first = created.find((c) => c.id);
+                    onClose();
+                    router.push(`${pathname}?id=${first?.id}`);
+                  }}
+                  className="btn btn-outline"
+                >
+                  Ouvrir le premier brouillon
+                </button>
+              )}
               {done && data.drafts.length === 1 && origin && (
                 <button
                   type="button"
@@ -437,13 +544,8 @@ function ImportDialog({
                   {failed ? "Réessayer" : "Importer une autre source"}
                 </button>
               )}
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={uploading}
-                className="btn btn-ghost"
-              >
-                {busy ? "Continuer en arrière-plan" : "Fermer"}
+              <button type="button" onClick={onClose} className="btn btn-ghost">
+                {busy ? "Continuer en arrière-plan" : "Annuler"}
               </button>
             </div>
           </div>
