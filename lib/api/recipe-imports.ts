@@ -60,6 +60,14 @@ export interface AdminRecipeImport {
   error: { code: string; message: string } | null;
   warnings: string[];
   drafts: ImportDraft[];
+  /** Ce qui s'est réellement passé pendant la lecture (fournisseur, modèle, seuil). */
+  trace?: {
+    provider: string | null;
+    model: string | null;
+    startedAt: string | null;
+    belowThreshold: boolean;
+    unlinkedNames: string[];
+  };
   createdAt: string;
   finishedAt: string | null;
 }
@@ -113,20 +121,29 @@ export type StartImport =
   | { sourceType: "url"; url: string }
   | { sourceType: "title"; title: string };
 
-export function useStartAdminImport() {
+/** Ce que l'envoi fait, au fil de l'eau : la console l'affiche comme une étape. */
+export type UploadEvent =
+  | { kind: "upload"; index: number; total: number; name: string }
+  | { kind: "uploaded"; index: number; total: number }
+  | { kind: "created" };
+
+export function useStartAdminImport(onEvent?: (e: UploadEvent) => void) {
   const apiFetch = useApiFetch();
   return useMutation({
     mutationFn: async (input: StartImport) => {
       if (input.sourceType !== "file") {
-        return apiFetch<AdminRecipeImport>("/admin/recipe-imports", {
+        const created = await apiFetch<AdminRecipeImport>("/admin/recipe-imports", {
           method: "POST",
           body: input,
         });
+        onEvent?.({ kind: "created" });
+        return created;
       }
       const problem = checkImportFiles(input.files);
       if (problem) throw new Error(problem);
       const uploadIds: string[] = [];
-      for (const file of input.files) {
+      for (const [index, file] of input.files.entries()) {
+        onEvent?.({ kind: "upload", index, total: input.files.length, name: file.name });
         const ticket = await apiFetch<Ticket>("/admin/recipe-imports/upload-url", {
           method: "POST",
           body: { mimeType: file.type, sizeBytes: file.size },
@@ -143,11 +160,14 @@ export function useStartAdminImport() {
         }
         if (!res.ok) throw new Error(`Le transfert du fichier a échoué (${res.status}).`);
         uploadIds.push(ticket.uploadId);
+        onEvent?.({ kind: "uploaded", index, total: input.files.length });
       }
-      return apiFetch<AdminRecipeImport>("/admin/recipe-imports", {
+      const created = await apiFetch<AdminRecipeImport>("/admin/recipe-imports", {
         method: "POST",
         body: { sourceType: "file", uploadIds },
       });
+      onEvent?.({ kind: "created" });
+      return created;
     },
   });
 }
