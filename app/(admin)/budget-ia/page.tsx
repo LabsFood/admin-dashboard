@@ -682,12 +682,15 @@ function UnlinkedNames() {
         Ingrédients non reliés, 30 jours
       </h2>
       <p className="mt-1 text-xs text-ink-soft">
-        Les noms lus dans les imports qui ne correspondent à aucune entrée : à
-        ajouter à la{" "}
-        <Link href="/ingredients" className="font-semibold text-navy underline">
-          liste commune
+        Les noms lus dans les imports qui ne correspondent à aucune entrée. Les
+        traiter (autre nom, nouvel ingrédient ou ignorer) dans{" "}
+        <Link
+          href="/ingredients/a-relier"
+          className="font-semibold text-navy underline"
+        >
+          Ingrédients, lus dans les imports
         </Link>
-        , ou comme autre nom d’une entrée existante.
+        .
       </p>
       {names.isPending ? (
         <Skeleton className="mt-4 h-24" />
@@ -702,7 +705,7 @@ function UnlinkedNames() {
         </p>
       ) : (
         <ul className="mt-3 divide-y divide-cream-deep">
-          {names.data.slice(0, 30).map((n) => (
+          {names.data.slice(0, 10).map((n) => (
             <li
               key={n.name}
               className="flex items-center justify-between gap-3 py-2 text-sm"

@@ -165,15 +165,44 @@ export function useSetRecipeImportSetting() {
   });
 }
 
+/** Un nom lu dans les imports que la liste commune ne relie pas encore. */
+export interface UnlinkedName {
+  name: string;
+  count: number;
+  chefs: number;
+  /** L'entrée existante qui ressemble le plus (nom en mots entiers), ou `null`. */
+  suggestion: { id: string; name: string; aliases: string[] } | null;
+}
+
 export function useUnlinkedNames(days = 30) {
   const apiFetch = useApiFetch();
   return useQuery({
     queryKey: [...ROOT, "unlinked", days],
     queryFn: () =>
-      apiFetch<{ name: string; count: number; chefs: number }[]>(
+      apiFetch<UnlinkedName[]>(
         `/admin/recipe-imports/unlinked-names?days=${days}`,
       ),
   });
+}
+
+/** `POST /admin/recipe-imports/unlinked-names/ignore` : le nom ne remonte plus. */
+export function useIgnoreUnlinkedName() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) =>
+      apiFetch<{ ignored: number }>(
+        "/admin/recipe-imports/unlinked-names/ignore",
+        { method: "POST", body: { name } },
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [...ROOT, "unlinked"] }),
+  });
+}
+
+/** Après un ajout à la liste commune : la file se recalcule. */
+export function useRefreshUnlinked() {
+  const qc = useQueryClient();
+  return () => qc.invalidateQueries({ queryKey: [...ROOT, "unlinked"] });
 }
 
 export const euros = (cents: number) =>
