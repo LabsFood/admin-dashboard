@@ -108,12 +108,15 @@ const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
 export default function MealForm({
   meal,
   prefill,
+  imported,
   variant,
   backHref,
 }: {
   meal?: Meal;
   /** Création seulement : des champs déjà remplis (import par IA), à relire. */
   prefill?: Partial<Meal>;
+  /** L'import d'où vient `prefill` : sa source et l'heure de l'envoi (mesure J1). */
+  imported?: { source: string; startedAt: string };
   variant: "menu" | "recette";
   backHref: string;
 }) {
@@ -137,6 +140,9 @@ export default function MealForm({
   // version d'un autre onglet, et l'envoyer avec nos champs anciens écraserait la
   // fiche plus récente sans 409.
   const [readLockVersion] = useState(meal?.lockVersion);
+  // Le temps de création (mesure J1, comme côté cuisinier) : depuis l'envoi de
+  // l'import, ou depuis l'ouverture du formulaire pour une saisie à la main.
+  const [openedAt] = useState(() => Date.now());
   // Les valeurs de départ : la fiche modifiée, sinon un brouillon importé.
   const src: Partial<Meal> | undefined = meal ?? prefill;
   const [name, setName] = useState(src?.name ?? "");
@@ -345,6 +351,12 @@ export default function MealForm({
             status: input.status,
             is_featured: input.isFeatured,
             ingredient_count: input.ingredients?.length ?? 0,
+            step_count: input.steps?.length ?? 0,
+            mode: imported ? "import" : "manual",
+            source: imported?.source ?? null,
+            duration_seconds: Math.round(
+              (Date.now() - (imported ? Date.parse(imported.startedAt) : openedAt)) / 1000,
+            ),
           });
           toast.success(
             `« ${saved?.name ?? input.name} » créé`,

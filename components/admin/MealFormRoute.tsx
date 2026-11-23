@@ -89,12 +89,16 @@ function NewMeal({ variant, backHref }: { variant: "menu" | "recette"; backHref:
     n: number;
     draft: ImportDraft;
     warnings: string[];
+    origin: { source: string; startedAt: string };
   } | null>(null);
   const [showNote, setShowNote] = useState(true);
-  const onDraft = useCallback((draft: ImportDraft, warnings: string[]) => {
-    setImported((prev) => ({ n: (prev?.n ?? 0) + 1, draft, warnings }));
-    setShowNote(true);
-  }, []);
+  const onDraft = useCallback(
+    (draft: ImportDraft, warnings: string[], origin: { source: string; startedAt: string }) => {
+      setImported((prev) => ({ n: (prev?.n ?? 0) + 1, draft, warnings, origin }));
+      setShowNote(true);
+    },
+    [],
+  );
   return (
     <div className="space-y-4">
       <MealImportPanel onDraft={onDraft} />
@@ -108,6 +112,7 @@ function NewMeal({ variant, backHref }: { variant: "menu" | "recette"; backHref:
       <MealForm
         key={imported?.n ?? 0}
         prefill={imported ? draftToMeal(imported.draft) : undefined}
+        imported={imported ? imported.origin : undefined}
         variant={variant}
         backHref={backHref}
       />

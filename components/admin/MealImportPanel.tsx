@@ -66,7 +66,11 @@ export function draftToMeal(draft: ImportDraft): Partial<Meal> {
 export default function MealImportPanel({
   onDraft,
 }: {
-  onDraft: (draft: ImportDraft, warnings: string[]) => void;
+  onDraft: (
+    draft: ImportDraft,
+    warnings: string[],
+    origin: { source: string; startedAt: string },
+  ) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [source, setSource] = useState<ImportSourceType>("file");
@@ -85,7 +89,10 @@ export default function MealImportPanel({
   useEffect(() => {
     if (data?.status === "done" && data.drafts.length === 1 && applied.current !== data.id) {
       applied.current = data.id;
-      onDraft(data.drafts[0], data.warnings);
+      onDraft(data.drafts[0], data.warnings, {
+        source: data.sourceType,
+        startedAt: data.createdAt,
+      });
       setOpen(false);
     }
   }, [data, onDraft]);
@@ -251,7 +258,11 @@ export default function MealImportPanel({
                       type="button"
                       className="btn btn-outline btn-sm"
                       onClick={() => {
-                        onDraft(d, data?.warnings ?? []);
+                        if (!data) return;
+                        onDraft(d, data.warnings, {
+                          source: data.sourceType,
+                          startedAt: data.createdAt,
+                        });
                         setOpen(false);
                       }}
                     >
