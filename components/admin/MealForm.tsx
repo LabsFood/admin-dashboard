@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toaster";
 import { cn } from "@/lib/utils";
-import { COUNTRIES } from "@/lib/countries";
+import { COUNTRIES, regionOf } from "@/lib/countries";
 import { CONTINENTS, catalogLabel, continentLabel, difficultyLabel } from "@/lib/catalog-labels";
 import {
   DECLARED_DIETS,
@@ -103,6 +103,9 @@ import {
    ───────────────────────────────────────────────────────────────────────────── */
 
 const STATUSES: MealStatus[] = ["draft", "published", "archived"];
+const CONTINENTS_BY_NAME = [...CONTINENTS].sort((a, b) =>
+  continentLabel[a].localeCompare(continentLabel[b], "fr"),
+);
 const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
 
 export default function MealForm({
@@ -436,11 +439,19 @@ export default function MealForm({
               >
                 <select
                   value={country}
-                  onChange={(e) => setCountry(e.target.value)}
+                  onChange={(e) => {
+                    setCountry(e.target.value);
+                    // Le pays donne sa région culinaire.
+                    const region = regionOf(e.target.value);
+                    if (region) setContinent(region);
+                  }}
                   className="input-base"
                 >
                   <option value="">À renseigner</option>
-                  {COUNTRIES.map((c) => (
+                  {/* Une région choisie filtre les pays (le pays déjà choisi reste listé). */}
+                  {COUNTRIES.filter(
+                    (c) => !continent || c.region === continent || c.code === country,
+                  ).map((c) => (
                     <option key={c.code} value={c.code}>
                       {c.label}
                     </option>
@@ -450,11 +461,17 @@ export default function MealForm({
               <Field label="Région culinaire">
                 <select
                   value={continent}
-                  onChange={(e) => setContinent(e.target.value as Continent | "")}
+                  onChange={(e) => {
+                    const next = e.target.value as Continent | "";
+                    setContinent(next);
+                    // Un pays d'une autre région ne va plus avec : on le retire.
+                    const region = regionOf(country);
+                    if (next && region && region !== next) setCountry("");
+                  }}
                   className="input-base"
                 >
                   <option value="">À renseigner</option>
-                  {CONTINENTS.map((c) => (
+                  {CONTINENTS_BY_NAME.map((c) => (
                     <option key={c} value={c}>
                       {continentLabel[c]}
                     </option>

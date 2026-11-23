@@ -6,7 +6,7 @@ import FilterTabs from "@/components/ui/FilterTabs";
 import { adminErrorMessage } from "@/lib/api/errors";
 import { useAllergens } from "@/lib/api/referentials";
 import type { Meal } from "@/lib/api/catalog";
-import { COUNTRIES } from "@/lib/countries";
+import { COUNTRIES, regionOf } from "@/lib/countries";
 import {
   checkImportFiles,
   IMPORT_MAX_FILES,
@@ -50,6 +50,7 @@ export function draftToMeal(draft: ImportDraft): Partial<Meal> {
     name: d.name,
     description: d.description,
     country: d.country && COUNTRIES.some((c) => c.code === d.country) ? d.country : null,
+    continent: regionOf(d.country),
     category: (d.category as Meal["category"]) ?? null,
     portions: d.portions,
     prepTime: d.prepMinutes,
