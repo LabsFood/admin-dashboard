@@ -50,7 +50,9 @@ import {
   type Meal,
   type MealInput,
   type MealStatus,
+  type Problem,
 } from "@/lib/api/catalog";
+import SectionCard, { type SectionNote } from "@/components/ui/SectionCard";
 import {
   LINE_LIMITS,
   MAX_LINES,
@@ -107,6 +109,28 @@ const CONTINENTS_BY_NAME = [...CONTINENTS].sort((a, b) =>
   continentLabel[a].localeCompare(continentLabel[b], "fr"),
 );
 const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
+
+/** Les cartes repliables du formulaire, pour ranger chaque alerte dans la sienne. */
+type SectionKey = "general" | "traits" | "allergens" | "recipe" | "classement" | "conservation";
+
+/** La carte d'un point « Prête » de l'API, d'après son `code` puis son `field`. */
+function sectionOfProblem(p: Problem): SectionKey | null {
+  if (p.code === "PHOTO_MISSING") return "general";
+  if (p.code.startsWith("ALLERGENS_")) return "allergens";
+  if (p.code.startsWith("INGREDIENT_") || p.code.startsWith("STEP_")) return "recipe";
+  if (p.code === "DECLARED_DIET_NOT_ALLOWED" || p.code === "NO_COMMON_SEASON") return "classement";
+  if (p.code === "FRIDGE_LONG") return "conservation";
+  const f = p.field.replace(/\[\d+\].*$/, "");
+  if (["name", "description", "country", "continent", "imageUrl"].includes(f)) return "general";
+  if (["portions", "prepMinutes", "prepTime", "cookMinutes", "cookTime", "calories", "difficulty", "category", "dietaryTags", "customDiets"].includes(f))
+    return "traits";
+  if (["addedAllergens", "customAllergens"].includes(f)) return "allergens";
+  if (f.startsWith("recipe.ingredients") || f.startsWith("recipe.steps") || f === "equipment")
+    return "recipe";
+  if (["declaredDiets", "profiles", "seasonsOverride"].includes(f)) return "classement";
+  if (f.startsWith("recipe.reheating") || f.startsWith("recipe.storage")) return "conservation";
+  return null;
+}
 
 export default function MealForm({
   meal,
@@ -222,9 +246,10 @@ export default function MealForm({
   const storageMessage = storageProblem(storage);
   const conflict = error instanceof ApiError && error.status === 409 && errorCode(error) === "RECIPE_CONFLICT";
 
-  /** Ce que le formulaire refuse avant d'écrire à l'API (qui reste l'autorité). */
-  function formProblems(): string[] {
-    const out: string[] = [];
+  /** Ce que le formulaire refuse avant d'écrire à l'API (qui reste l'autorité), par carte. */
+  function formProblems(): { section: SectionKey; text: string }[] {
+    const out: { section: SectionKey; text: string }[] = [];
+    const push = (section: SectionKey, text: string) => out.push({ section, text });
     const wholeAtLeast = (v: number | "", min: number) =>
       v === "" || (Number.isInteger(v) && v >= min);
     const csvOf = (s: string) =>
@@ -232,44 +257,157 @@ export default function MealForm({
         .split(",")
         .map((x) => x.trim())
         .filter(Boolean);
-    if (!name.trim()) out.push("Le nom du plat est obligatoire.");
-    if (name.trim().length > 255) out.push("Le nom est limité à 255 caractères.");
-    if (description.length > 2000) out.push("La description est limitée à 2 000 caractères.");
+    if (!name.trim()) push("general", "Le nom du plat est obligatoire.");
+    if (name.trim().length > 255) push("general", "Le nom est limité à 255 caractères.");
+    if (description.length > 2000)
+      push("general", "La description est limitée à 2 000 caractères.");
     if (!Number.isInteger(prepTime) || prepTime < 1)
-      out.push("Le temps de préparation : un nombre entier d'au moins 1 minute.");
-    if (!wholeAtLeast(portions, 1)) out.push("Les portions : un nombre entier d'au moins 1.");
-    if (!wholeAtLeast(cookTime, 0)) out.push("La cuisson : un nombre entier de minutes.");
-    if (!wholeAtLeast(calories, 0)) out.push("Les calories : un nombre entier.");
-    const free = (label: string, s: string, max: number, each: number) => {
+      push("traits", "Le temps de préparation : un nombre entier d'au moins 1 minute.");
+    if (!wholeAtLeast(portions, 1)) push("traits", "Les portions : un nombre entier d'au moins 1.");
+    if (!wholeAtLeast(cookTime, 0)) push("traits", "La cuisson : un nombre entier de minutes.");
+    if (!wholeAtLeast(calories, 0)) push("traits", "Les calories : un nombre entier.");
+    const free = (section: SectionKey, label: string, s: string, max: number, each: number) => {
       const items = csvOf(s);
-      if (items.length > max) out.push(`${label} : ${max} éléments au plus.`);
+      if (items.length > max) push(section, `${label} : ${max} éléments au plus.`);
       if (items.some((x) => x.length > each))
-        out.push(`${label} : ${each} caractères au plus par élément.`);
+        push(section, `${label} : ${each} caractères au plus par élément.`);
     };
-    free("Autres régimes", customDiets, 10, 40);
-    free("Autres allergènes", customAllergens, 10, 40);
-    free("Matériel", equipment, 20, 60);
+    free("traits", "Autres régimes", customDiets, 10, 40);
+    free("allergens", "Autres allergènes", customAllergens, 10, 40);
+    free("recipe", "Matériel", equipment, 20, 60);
     if (lignesInvalides > 0)
-      out.push(
+      push(
+        "recipe",
         lignesInvalides === 1
           ? "Une ligne d'ingrédient est à corriger."
           : `${lignesInvalides} lignes d'ingrédient sont à corriger.`,
       );
     if (lines.filter((l) => !lineBlank(l)).length > MAX_LINES)
-      out.push(`Une recette compte ${MAX_LINES} ingrédients au plus.`);
-    if (reheatIncomplet) out.push("Le réchauffage ne s'enregistre qu'avec au moins un mode coché.");
+      push("recipe", `Une recette compte ${MAX_LINES} ingrédients au plus.`);
+    if (reheatIncomplet)
+      push("conservation", "Le réchauffage ne s'enregistre qu'avec au moins un mode coché.");
     const t = reheat.temperature.trim();
     if (t && !(Number.isInteger(Number(t)) && Number(t) >= 0 && Number(t) <= 300))
-      out.push("La température : un nombre entier de 0 à 300 °C.");
+      push("conservation", "La température : un nombre entier de 0 à 300 °C.");
     const m = reheat.minutes.trim();
     if (m && !(Number.isInteger(Number(m)) && Number(m) >= 0 && Number(m) <= 600))
-      out.push("La durée de réchauffage : un nombre entier de 0 à 600 minutes.");
+      push("conservation", "La durée de réchauffage : un nombre entier de 0 à 600 minutes.");
     if (reheat.note.trim().length > 300)
-      out.push("Le conseil de réchauffage est limité à 300 caractères.");
-    if (storageMessage) out.push(storageMessage);
+      push("conservation", "Le conseil de réchauffage est limité à 300 caractères.");
+    if (storageMessage) push("conservation", storageMessage);
     return out;
   }
-  const problems = formProblems();
+  const tagged = formProblems();
+  const problems = tagged.map((p) => p.text);
+
+  /* ── Les cartes repliées : une ligne qui décrit, puis les alertes ─────────── */
+
+  /** Les alertes d'une carte : ce que le formulaire refuse, puis ce que « Prête » demande. */
+  const notesOf = (section: SectionKey, extra: SectionNote[] = []): SectionNote[] => [
+    ...tagged
+      .filter((p) => p.section === section)
+      .map((p) => ({ tone: tried ? ("danger" as const) : ("warning" as const), text: p.text })),
+    ...extra,
+    ...(readiness?.problems ?? [])
+      .filter((p) => sectionOfProblem(p) === section)
+      .map((p) => ({ tone: "warning" as const, text: `Pour être Prête : ${problemText(p)}` })),
+    ...(readiness?.toPublish ?? [])
+      .filter((p) => sectionOfProblem(p) === section)
+      .map((p) => ({ tone: "warning" as const, text: `Pour publier : ${problemText(p)}` })),
+    ...(readiness?.warnings ?? [])
+      .filter((p) => sectionOfProblem(p) === section)
+      .map((p) => ({ tone: "info" as const, text: `À surveiller : ${problemText(p)}` })),
+  ];
+  const linesFilled = lines.filter((l) => !lineBlank(l)).length;
+  const stepsFilled = steps.filter((s) => s.text.trim()).length;
+  const unlinkedNote: SectionNote[] =
+    lignesNonReliees > 0
+      ? [
+          {
+            tone: "info",
+            text:
+              lignesNonReliees === 1
+                ? "Une ligne n'est pas reliée à la liste commune."
+                : `${lignesNonReliees} lignes ne sont pas reliées à la liste commune.`,
+          },
+        ]
+      : [];
+  const draftAllergenList = draftAllergens(lines, addedAllergens);
+  const allergenNames = draftAllergenList.firm.map((c) => refLabel(allergens.data, c));
+  const csvCount = (s: string) => s.split(",").filter((x) => x.trim()).length;
+  const summaries: Record<SectionKey, string> = {
+    general:
+      [
+        name.trim() || "Sans nom",
+        COUNTRIES.find((c) => c.code === country)?.label,
+        continent ? continentLabel[continent] : null,
+        imageUrl.trim() ? "avec photo" : "sans photo",
+      ]
+        .filter(Boolean)
+        .join(" · ") + (description.trim() ? "" : " · sans description"),
+    traits: [
+      portions ? `${portions} portion${Number(portions) > 1 ? "s" : ""}` : null,
+      prepTime ? `${prepTime} min de prépa` : null,
+      cookTime !== "" ? `${cookTime} min de cuisson` : "cuisson non précisée",
+      difficulty ? difficultyLabel[difficulty] : null,
+      category ? refLabel(categories.data, category) : null,
+      dietaryTags.length + csvCount(customDiets) > 0
+        ? `${dietaryTags.length + csvCount(customDiets)} régime${dietaryTags.length + csvCount(customDiets) > 1 ? "s" : ""}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+    allergens:
+      allergenNames.length + csvCount(customAllergens) > 0
+        ? `${[...allergenNames, ...customAllergens.split(",").map((x) => x.trim()).filter(Boolean)].join(", ")}${draftAllergenList.incomplete ? " (incomplet)" : ""}`
+        : draftAllergenList.incomplete
+          ? "Aucun allergène d'après le brouillon, mais le calcul est incomplet"
+          : linesFilled > 0
+            ? "Aucun allergène d'après les ingrédients"
+            : "Calculés d'après les ingrédients",
+    recipe: [
+      `${linesFilled} ingrédient${linesFilled > 1 ? "s" : ""}`,
+      `${stepsFilled} étape${stepsFilled > 1 ? "s" : ""}`,
+      csvCount(equipment) > 0 ? `matériel : ${equipment.split(",").map((x) => x.trim()).filter(Boolean).join(", ")}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+    classement:
+      [
+        declaredDiets.length
+          ? declaredDiets.map((c) => DECLARED_DIETS.find((d) => d.code === c)?.label ?? c).join(", ")
+          : null,
+        profiles.length ? profiles.map((c) => refLabel(profileList.data, c)).join(", ") : null,
+        seasonsOverride.length
+          ? `Vos mois : ${seasonsLine(seasonsOverride)}`
+          : meal?.classification
+            ? `Saisons : ${seasonsLine(meal.classification.seasonMonths)}`
+            : null,
+      ]
+        .filter(Boolean)
+        .join(" · ") || "Calculé à l'enregistrement, rien de déclaré",
+    conservation:
+      [
+        reheat.modes.length
+          ? reheat.modes.map((c) => refLabel(reheatModes.data, c)).join(", ")
+          : "Aucun mode de réchauffage",
+        [reheat.temperature.trim() && `${reheat.temperature.trim()} °C`, reheat.minutes.trim() && `${reheat.minutes.trim()} min`]
+          .filter(Boolean)
+          .join(", ") || null,
+        storage.method
+          ? `${STORAGE_METHODS.find((s) => s.code === storage.method)?.label ?? storage.method}${storage.days.trim() ? `, ${storage.days.trim()} j` : ""}`
+          : "conservation non précisée",
+        storage.freezable === "yes"
+          ? `congelable${storage.freezerMonths.trim() ? ` ${storage.freezerMonths.trim()} mois` : ""}`
+          : storage.freezable === "no"
+            ? "ne se congèle pas"
+            : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+  };
+  // Une fiche neuve et vide n'a rien à résumer : sa première carte s'ouvre.
+  const blank = !src;
 
   const toggle = (list: string[], set: (v: string[]) => void, value: string) =>
     set(list.includes(value) ? list.filter((t) => t !== value) : [...list, value]);
@@ -410,10 +548,12 @@ export default function MealForm({
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Colonne principale */}
         <div className="space-y-6 lg:col-span-2">
-          <section className="card space-y-4 p-6">
-            <h3 className="font-display text-base font-bold text-navy">
-              Informations générales
-            </h3>
+          <SectionCard
+            title="Informations générales"
+            summary={summaries.general}
+            notes={notesOf("general")}
+            defaultOpen={blank}
+          >
             <Field label="Nom du plat" required>
               <input
                 value={name}
@@ -486,12 +626,13 @@ export default function MealForm({
                 onChange={setImageUrl}
               />
             </Field>
-          </section>
+          </SectionCard>
 
-          <section className="card space-y-4 p-6">
-            <h3 className="font-display text-base font-bold text-navy">
-              Caractéristiques
-            </h3>
+          <SectionCard
+            title="Caractéristiques"
+            summary={summaries.traits}
+            notes={notesOf("traits")}
+          >
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <Field label="Portions">
                 <input
@@ -585,14 +726,15 @@ export default function MealForm({
                 className="input-base"
               />
             </Field>
-          </section>
+          </SectionCard>
 
-          <section className="card space-y-4 p-6">
+          <SectionCard
+            title="Allergènes"
+            summary={summaries.allergens}
+            notes={notesOf("allergens", unlinkedNote)}
+          >
             <div>
-              <h3 className="font-display text-base font-bold text-navy">
-                Allergènes
-              </h3>
-              <p className="mt-1 text-[13px] leading-relaxed text-ink-soft">
+              <p className="text-[13px] leading-relaxed text-ink-soft">
                 Les 14 allergènes à déclaration obligatoire se calculent des
                 ingrédients reliés à la liste commune. Vous ajoutez à la main
                 ceux que le calcul ne peut pas voir. Un batch cooker qui adopte
@@ -610,12 +752,15 @@ export default function MealForm({
               custom={customAllergens}
               onCustom={setCustomAllergens}
             />
-          </section>
+          </SectionCard>
 
-          <section className="card space-y-4 p-6">
+          <SectionCard
+            title="Recette"
+            summary={summaries.recipe}
+            notes={notesOf("recipe", unlinkedNote)}
+          >
             <div>
-              <h3 className="font-display text-base font-bold text-navy">Recette</h3>
-              <p className="mt-1 text-[13px] leading-relaxed text-ink-soft">
+              <p className="text-[13px] leading-relaxed text-ink-soft">
                 Les listes de courses se calculent depuis les ingrédients, pour
                 le nombre de portions indiqué plus haut, et se groupent par
                 rayon (celui de la liste commune). Seuls les ingrédients communs
@@ -656,21 +801,22 @@ export default function MealForm({
                 className="input-base"
               />
             </Field>
-          </section>
+          </SectionCard>
 
           {/* ── Classement (§4.8) ─────────────────────────────────────────── */}
-          <section className="card space-y-4 p-6">
-            <div>
-              <h3 className="flex items-center gap-1 font-display text-base font-bold text-navy">
-                Classement
-                <InfoPopover label="Comment le classement est-il établi ?">
-                  Les régimes et les saisons se calculent d&apos;après la liste commune
-                  d&apos;ingrédients, dès que chaque ligne y est reliée. Halal et casher
-                  se déclarent. Les saisons calculées peuvent être remplacées par vos
-                  mois. Rien ici n&apos;empêche de publier.
-                </InfoPopover>
-              </h3>
-            </div>
+          <SectionCard
+            title="Classement"
+            aside={
+              <InfoPopover label="Comment le classement est-il établi ?">
+                Les régimes et les saisons se calculent d&apos;après la liste commune
+                d&apos;ingrédients, dès que chaque ligne y est reliée. Halal et casher
+                se déclarent. Les saisons calculées peuvent être remplacées par vos
+                mois. Rien ici n&apos;empêche de publier.
+              </InfoPopover>
+            }
+            summary={summaries.classement}
+            notes={notesOf("classement")}
+          >
             <div>
               <p className="field-label">Régimes calculés</p>
               {!meal ? (
@@ -771,15 +917,16 @@ export default function MealForm({
                 </button>
               )}
             </div>
-          </section>
+          </SectionCard>
 
           {/* ── Ce que le client lit plusieurs jours après la session ─────── */}
-          <section className="card space-y-4 p-6">
+          <SectionCard
+            title="Réchauffage et conservation"
+            summary={summaries.conservation}
+            notes={notesOf("conservation")}
+          >
             <div>
-              <h3 className="font-display text-base font-bold text-navy">
-                Réchauffage et conservation
-              </h3>
-              <p className="mt-1 text-[13px] leading-relaxed text-ink-soft">
+              <p className="text-[13px] leading-relaxed text-ink-soft">
                 Ce que le client retrouve dans son espace quand il ouvre sa
                 boîte, et ce qu&apos;un batch cooker hérite s&apos;il adopte ce
                 plat.
@@ -979,7 +1126,7 @@ export default function MealForm({
                   .join(" ")}
               </p>
             )}
-          </section>
+          </SectionCard>
         </div>
 
         {/* Publication */}
