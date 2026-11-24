@@ -67,7 +67,7 @@ export function draftToMeal(draft: ImportDraft): Partial<Meal> {
     ingredients: d.recipe.ingredients,
     steps: d.recipe.steps,
     storage: d.recipe.storage ?? null,
-    reheating: d.recipe.reheating ? { note: d.recipe.reheating.note } : null,
+    reheating: d.recipe.reheating ?? null,
   };
 }
 

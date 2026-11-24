@@ -42,8 +42,14 @@ export interface ImportDraft {
     recipe: {
       ingredients: DraftLine[];
       steps: { text: string; type: string | null; durationMinutes: number | null }[];
-      storage?: { method: string; days: number; freezable?: boolean };
-      reheating?: { note: string };
+      storage?: { method: string; days: number; container?: string; freezable?: boolean };
+      reheating?: {
+        modes: string[];
+        minutes?: number;
+        temperature?: number;
+        container?: string;
+        note?: string;
+      };
     };
   };
   estimatedFields: string[];
