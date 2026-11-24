@@ -64,6 +64,7 @@ export default function IngredientEditor({
   submitLabel = "Enregistrer",
   title,
   disabled = false,
+  defaultName = "",
 }: {
   initial: CatalogIngredient | null;
   onDone: () => void;
@@ -73,6 +74,8 @@ export default function IngredientEditor({
   title?: string;
   /** Une action liée est en cours : le formulaire ne peut pas être renvoyé. */
   disabled?: boolean;
+  /** Nom proposé pour une nouvelle entrée (un nom lu dans un import, par exemple). */
+  defaultName?: string;
 }) {
   const create = useCreateCatalogIngredient();
   const update = useUpdateCatalogIngredient();
@@ -82,7 +85,7 @@ export default function IngredientEditor({
   const diets = useComputedDiets();
   const replay = useReplay();
 
-  const [name, setName] = useState(initial?.name ?? "");
+  const [name, setName] = useState(initial?.name ?? defaultName);
   const [aliases, setAliases] = useState(initial?.aliases.join(", ") ?? "");
   const [aisle, setAisle] = useState(initial?.aisle ?? "");
   const [allergens, setAllergens] = useState<string[]>(initial?.allergens ?? []);
