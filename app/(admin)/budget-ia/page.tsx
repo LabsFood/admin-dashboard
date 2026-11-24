@@ -257,6 +257,12 @@ function DailyChart() {
 
 type Row = AiBreakdown["rows"][number];
 const column = createColumnHelper<Row>();
+/**
+ * Pendant le chargement d'un onglet, toujours le même tableau vide : un `[]`
+ * neuf à chaque rendu relance le tri, qui remet la pagination à zéro, qui
+ * provoque un rendu... jusqu'à bloquer la page.
+ */
+const NO_ROWS: Row[] = [];
 
 function Breakdown() {
   const [by, setBy] = useState<BreakdownBy>("poste");
@@ -308,7 +314,7 @@ function Breakdown() {
   );
 
   const table = useReactTable({
-    data: query.data?.rows ?? [],
+    data: query.data?.rows ?? NO_ROWS,
     columns,
     state: { sorting },
     onSortingChange: setSorting,
