@@ -1,0 +1,126 @@
+## [1.3.0](https://github.com/LabsFood/admin-dashboard/compare/v1.2.0...v1.3.0) (2026-11-20)
+
+### Features
+
+* **argent:** avance immédiate par Unipros et prélèvement manuel des commissions ([#57](https://github.com/LabsFood/admin-dashboard/issues/57)) ([7612639](https://github.com/LabsFood/admin-dashboard/commit/7612639df26b995956098dad14a9df481aadd082)), closes [LF-BackEnd#92](https://github.com/LabsFood/LF-BackEnd/issues/92)
+* **batchcookers:** modifier les zones depuis la fiche d'un batch cooker avec candidature ([1f49865](https://github.com/LabsFood/admin-dashboard/commit/1f4986537708c40646acde297910c9453a738203))
+* **candidatures:** ouvrir une candidature pour un batch cooker ([8cf0e90](https://github.com/LabsFood/admin-dashboard/commit/8cf0e902b444020028b280fd30693ee849fc485c))
+* **demandes:** show the dishes of a custom request's offer ([#58](https://github.com/LabsFood/admin-dashboard/issues/58)) ([d63f860](https://github.com/LabsFood/admin-dashboard/commit/d63f8606ab6886d84f932c5de0850cef9c9aee9a))
+* **legal:** CGV V1 blocks in the console (withdrawal, contract, chef identity) ([f0914a6](https://github.com/LabsFood/admin-dashboard/commit/f0914a6867312a42c7f4f57b0457c9bec4d82f30))
+* **photos:** resize and convert photos to WebP before upload ([9a40a02](https://github.com/LabsFood/admin-dashboard/commit/9a40a0202ca28f6f29a600a99e723e070bb45b65))
+* **recettes:** groceries step and list reminders on a booking ([#53](https://github.com/LabsFood/admin-dashboard/issues/53)) ([861a1a4](https://github.com/LabsFood/admin-dashboard/commit/861a1a4ba2e1a7c843d8a78e4c95bb44d0b8d8d5))
+* **recettes:** lot 6 groundwork — grocery amounts setting and « Forfait courses » ([#54](https://github.com/LabsFood/admin-dashboard/issues/54)) ([d473b57](https://github.com/LabsFood/admin-dashboard/commit/d473b5792d7a04a035a0f58d5e37a06acd25c2e4))
+* **recettes:** lot 6, the groceries in the console ([#61](https://github.com/LabsFood/admin-dashboard/issues/61)) ([98c0bbd](https://github.com/LabsFood/admin-dashboard/commit/98c0bbd887ef611e32a1b9249503e80cacc7c61c))
+* **recettes:** recipe foundation V4 (lot 2b) and frozen menu (lot 3) ([#52](https://github.com/LabsFood/admin-dashboard/issues/52)) ([1d11577](https://github.com/LabsFood/admin-dashboard/commit/1d11577aa84b1efa29ecd1b7e7ad5ba8a5ca7ff0))
+* **reservations:** show the CGV V1 booking request — method, card, chef answer, charge date ([#63](https://github.com/LabsFood/admin-dashboard/issues/63)) ([08813f1](https://github.com/LabsFood/admin-dashboard/commit/08813f15bee051bb8d82e96b58be6d14625a82ee))
+* **ui:** squelettes de chargement, guidelines UI/UX et passe anti-slop sur la console ([#56](https://github.com/LabsFood/admin-dashboard/issues/56)) ([4452b12](https://github.com/LabsFood/admin-dashboard/commit/4452b128c606bb028fc43b281e8b60949be0c57a)), closes [#5F6B7A](https://github.com/LabsFood/admin-dashboard/issues/5F6B7A)
+* **zones:** villes précises dans l'éditeur de zones, et leurs noms sur la fiche ([10eb284](https://github.com/LabsFood/admin-dashboard/commit/10eb284069529c0368ca349dac29d80eb2f3985f))
+
+### Bug Fixes
+
+* **clients:** la carte d'un compte sans profil reprend le squelette d'une fiche client ([8eeffcf](https://github.com/LabsFood/admin-dashboard/commit/8eeffcfbe71348c093c94a5c1030b21aa10b6bbe))
+* **clients:** un compte sans profil se supprime depuis la liste ([911206a](https://github.com/LabsFood/admin-dashboard/commit/911206a3e64578a5fd32a6b87c0f734c4caa5dba))
+* **posthog:** relay /ingest assets through eu.i.posthog.com ([2164b82](https://github.com/LabsFood/admin-dashboard/commit/2164b82b044dc564c7cf390a227e83bbe275c40a))
+* **recettes:** « facultatif » badge on optional shopping lines ([#60](https://github.com/LabsFood/admin-dashboard/issues/60)) ([889c94c](https://github.com/LabsFood/admin-dashboard/commit/889c94cc13d476f2d910eb46a5b63486bf6b983f))
+* **recettes:** courses panel shows cent amounts in euros ([1979a7f](https://github.com/LabsFood/admin-dashboard/commit/1979a7fea620e8ff6d33b4729dfee35d738c12b7))
+* **sentry:** ignore malformed router state header errors from scanners ([6485474](https://github.com/LabsFood/admin-dashboard/commit/6485474635c8d1822b32b300620f5bb4dab19cf8))
+* update references from Unipros to cooperative in various components ([04980db](https://github.com/LabsFood/admin-dashboard/commit/04980db161042c8fe99d335e2fd154e33696b579))
+
+## [1.2.0](https://github.com/LabsFood/admin-dashboard/compare/v1.1.0...v1.2.0) (2026-11-10)
+
+### Features
+
+* add readiness checks and reheat modes management ([160ef6f](https://github.com/LabsFood/admin-dashboard/commit/160ef6f12627b6f05f604445af0570c1ca73bc48))
+* **batchcookers:** set a batch cooker's tier from their page ([3e9937b](https://github.com/LabsFood/admin-dashboard/commit/3e9937bbd9ac36cde360634246e1289cd9388cae))
+* **batchcookers:** set a batch cooker's tier from their page ([45900d1](https://github.com/LabsFood/admin-dashboard/commit/45900d128a49404fdcc32a39c397964086e01c2b))
+* **clients:** read a client's allergies on their page only ([fcc39f2](https://github.com/LabsFood/admin-dashboard/commit/fcc39f27cbcf00d3d7dd0fde7a0889257819e0d2))
+* **clients:** read a client's allergies on their page only ([51f704a](https://github.com/LabsFood/admin-dashboard/commit/51f704a5c97f9a0ef9acfdd2612007ae1ac1ab1d))
+* **observability:** report console errors to Sentry ([#45](https://github.com/LabsFood/admin-dashboard/issues/45)) ([cbedb35](https://github.com/LabsFood/admin-dashboard/commit/cbedb35abe27568fb19b0de9ecbbf162385e6385))
+* paliers et rappel de saison des ingrédients (BLK-26, BLK-33) ([#48](https://github.com/LabsFood/admin-dashboard/issues/48)) ([709e419](https://github.com/LabsFood/admin-dashboard/commit/709e419284cae18875a702d14fe2a83eae7f39b7))
+* **parametres:** edit the names of the four chef tiers ([6deb778](https://github.com/LabsFood/admin-dashboard/commit/6deb778c41593f2c5bcd24a8f446030bd1195fd7))
+* **parametres:** edit the names of the four chef tiers ([617a8ae](https://github.com/LabsFood/admin-dashboard/commit/617a8ae6569a6a7712a39517ecdde57b00c31767))
+* **reservations:** flag a dish to replace after a client's new allergy ([0c0c760](https://github.com/LabsFood/admin-dashboard/commit/0c0c760908c32bd77d78ddf68cfb7aaa7d4deb74))
+* **reservations:** flag a dish to replace after a client's new allergy ([fda9200](https://github.com/LabsFood/admin-dashboard/commit/fda9200bfdaba66d04eb978658cab745c608ae64))
+* **reservations:** show the client's answer to the shopping list ([a18630c](https://github.com/LabsFood/admin-dashboard/commit/a18630c25dc04e8173d60c42f1a34ab14e282321))
+* **reservations:** show the client's answer to the shopping list ([76fa645](https://github.com/LabsFood/admin-dashboard/commit/76fa64559fbcde3ee70dd136aa98716ee1854856))
+* **transactions:** catch up the invoices of past card payments ([#42](https://github.com/LabsFood/admin-dashboard/issues/42)) ([9a4077f](https://github.com/LabsFood/admin-dashboard/commit/9a4077f28dc16b04abf9ccd741a2c2cb5e81008b))
+* **ui:** add hints that stay until they are clicked ([6dbac8b](https://github.com/LabsFood/admin-dashboard/commit/6dbac8b801abf07eede486080c756bb5a3f40d6b))
+* **ui:** add hints that stay until they are clicked ([10ef31b](https://github.com/LabsFood/admin-dashboard/commit/10ef31b51921b45b20b6267c82cfd69678e893d8))
+* **ui:** add the explanation popover ([75d7ffc](https://github.com/LabsFood/admin-dashboard/commit/75d7ffc6245ed30cc3a4f1af3c6a6a2b8ede73b8))
+* **ui:** add the explanation popover ([8ead8c7](https://github.com/LabsFood/admin-dashboard/commit/8ead8c71201d1393976073bbdaee78e739532a06))
+* **ui:** motion polish on buttons, the popover and page entrances ([#44](https://github.com/LabsFood/admin-dashboard/issues/44)) ([d4ad2c8](https://github.com/LabsFood/admin-dashboard/commit/d4ad2c826da64650b1b52cc21ae9a5ca74e8c476))
+* update cooperative references to include "SAP" for clarity ([cc8bbe3](https://github.com/LabsFood/admin-dashboard/commit/cc8bbe3e9c86ec19e5da8a0b0a57262cd7f05fa9))
+* **users:** implement user management with updated API integration and remove recent users memoization ([d7e8ccd](https://github.com/LabsFood/admin-dashboard/commit/d7e8ccd09d9f3062594bb80e9b4bd5ba180705f1))
+
+### Bug Fixes
+
+* **analytics:** pass the PostHog token to the build, no replay, masked text ([#46](https://github.com/LabsFood/admin-dashboard/issues/46)) ([1a84beb](https://github.com/LabsFood/admin-dashboard/commit/1a84bebcd638834a88f8456c447d3edfd5f132a8))
+* **auth:** une clé fixe pour les Server Actions (ADMIN-DASHBOARD-1) ([fcf551a](https://github.com/LabsFood/admin-dashboard/commit/fcf551a39d5408619258a5fe1748c33f2e799565))
+* **palette:** ignorer les keydown sans touche ([d1a48c5](https://github.com/LabsFood/admin-dashboard/commit/d1a48c5dc641902f3f52593b1faa96891f97f028))
+
+## [1.1.0](https://github.com/LabsFood/admin-dashboard/compare/v1.0.0...v1.1.0) (2026-11-01)
+
+### Features
+
+* **nav:** retire the Kossam orders page from the console ([5124579](https://github.com/LabsFood/admin-dashboard/commit/5124579560b641759310c9cebff4d501ad20eaa8))
+
+## 1.0.0 (2026-10-31)
+
+### Features
+
+* add admin dashboard modules for client management, user role assignment, and authentication handling ([13fea41](https://github.com/LabsFood/admin-dashboard/commit/13fea41a04bf0bc5c81cbf7e7953b187a04994c5))
+* add custom login page with animated UI and configure husky pre-push hook for build validation ([7d5154d](https://github.com/LabsFood/admin-dashboard/commit/7d5154de237a27795c20a0396983ffb8fbb76dee))
+* **admin:** candidatures on the real API, dynamic tables, sharper console ([b839bb9](https://github.com/LabsFood/admin-dashboard/commit/b839bb99d6ddd28861a95cb43ad84c40a5315a71))
+* **admin:** deciding on a candidature, document by document ([f23f7b5](https://github.com/LabsFood/admin-dashboard/commit/f23f7b5e0d5d107c96295796beed3ba454fcfe9e))
+* **admin:** the candidature dossier reads, and documents open in place ([37a0374](https://github.com/LabsFood/admin-dashboard/commit/37a03748f000aa94853864d11921750da99682e7))
+* **avatar:** la photo de profil dans la console ([22534a2](https://github.com/LabsFood/admin-dashboard/commit/22534a292666c797eee2a15d4e4d42aabbd33906))
+* **batch cookers:** le réseau sort des maquettes, et la modale se ferme ([09a1ad2](https://github.com/LabsFood/admin-dashboard/commit/09a1ad27ec2d04d9ac3da1120ce4f44ef778e653))
+* **batch cookers:** renvoyer le lien de connexion, et noter les statuts SAP ([c78e5fb](https://github.com/LabsFood/admin-dashboard/commit/c78e5fb8410110bdd4361542825f015291cfdd8a))
+* **batchcookers:** align admin review with the new application form ([e116c85](https://github.com/LabsFood/admin-dashboard/commit/e116c85182fbfdd9ff014937a5b37240955784a7))
+* **batchcookers:** la liste vient enfin de l'API (LF-0164) ([2a90542](https://github.com/LabsFood/admin-dashboard/commit/2a90542c5978b260dcfe777d590555f1a585e65b))
+* **batchcookers:** modifier les zones, avec la perte nommée ([61193ab](https://github.com/LabsFood/admin-dashboard/commit/61193ab9c32a4238e9fd85c684defbc1ab1e6850))
+* **batchcookers:** three professional statuses, as on the application form ([07bf0f7](https://github.com/LabsFood/admin-dashboard/commit/07bf0f7c0e4baf279e700b8deb2b25f79427217d))
+* **candidatures:** le second geste, mettre la vitrine en ligne ([158351d](https://github.com/LabsFood/admin-dashboard/commit/158351da868d7c158c14dd56971d61b30e970480))
+* **catalogue:** la photo d'un plat maison s'envoie enfin ([55c099e](https://github.com/LabsFood/admin-dashboard/commit/55c099e516451a47171cd8c94352d81cefe53edb))
+* **catalogue:** le catalogue et la modération sur la vraie API ([5d54aa2](https://github.com/LabsFood/admin-dashboard/commit/5d54aa21b14363e67a9775365df61c41eb640359))
+* **catalogue:** le formulaire de plat écrit enfin tout ce que l'API attend ([3425c48](https://github.com/LabsFood/admin-dashboard/commit/3425c48d2c885b2bd3971062ca7957e1561f2869))
+* **client:** implement preferences editor for culinary profile updates ([c6135dc](https://github.com/LabsFood/admin-dashboard/commit/c6135dc9be66f9fc6a7a9183f3a81801d1808151))
+* **comptes:** supprimer un compte depuis la console, avec ses conséquences dites avant ([5424657](https://github.com/LabsFood/admin-dashboard/commit/54246571068baab19114053adc2c8d55fad444d9))
+* configure build-time environment variables in Dockerfile and implement API client utility ([32829d7](https://github.com/LabsFood/admin-dashboard/commit/32829d78ac2e033e5881442ceafcf8f7ce80c424))
+* **console:** vue d'ensemble, demandes et formules quittent les maquettes ([4c0ed50](https://github.com/LabsFood/admin-dashboard/commit/4c0ed509fb44bccc5ebe62b2340bb624a60fcdb8))
+* **contact:** la boîte de contact lit et répond pour de vrai ([735dda4](https://github.com/LabsFood/admin-dashboard/commit/735dda4cbd99b0eb36179578c369d1b4125e2622))
+* **demandes, modération, réservations:** la réponse du backend du 17/10 ([0948d80](https://github.com/LabsFood/admin-dashboard/commit/0948d80ed8e45e7868ad86d00c063603d321e576))
+* **demandes:** offres sur-mesure, réattribution et commission (BLK-10) ([01cd4c3](https://github.com/LabsFood/admin-dashboard/commit/01cd4c3f7519fcf3ceb7a2a2cbaef5e9391fa2ad))
+* **documents:** add sepa-mandate type for API documents and update decision logic ([589b2e6](https://github.com/LabsFood/admin-dashboard/commit/589b2e63083c73020217a6b4600ea04f59c863ff))
+* **fiches:** montrer la photo de profil, et pouvoir la retirer ([938eff1](https://github.com/LabsFood/admin-dashboard/commit/938eff1cde012ae395fbc716b9a16b2d526d3864))
+* **formules:** add batch cookers' formulas and related API integration ([6428d18](https://github.com/LabsFood/admin-dashboard/commit/6428d182cb29ea3cea41de205e15d60494512ef2))
+* implement admin dashboard features for user provisioning, role management, and client profile viewing ([8c63b8d](https://github.com/LabsFood/admin-dashboard/commit/8c63b8da3f8225febe307e48f138757d9f206110))
+* implement admin dashboard menus and recipes management with drawer-based editing components ([8beddaa](https://github.com/LabsFood/admin-dashboard/commit/8beddaaa055c2ab351b3cbf1409a28d8a0afe3e9))
+* implement API integration layer, React Query providers, and admin authentication guard. ([01c9780](https://github.com/LabsFood/admin-dashboard/commit/01c9780765974c56d7e381620e53677a3c94f2b9))
+* implement secure admin authentication flow with Clerk and route protection ([89fe631](https://github.com/LabsFood/admin-dashboard/commit/89fe6313eb1083e65435be80d236e07135e9f725))
+* implement transaction dashboard and integrate TanStack Query with devtools ([b87fc00](https://github.com/LabsFood/admin-dashboard/commit/b87fc009df56c750fbd64ea4b1a84abaf7b72911))
+* integrate Clerk authentication with custom branding and login page layout ([83594b0](https://github.com/LabsFood/admin-dashboard/commit/83594b0e8109aa6defcc3c65cad44d50dda8ca18))
+* **menus, modération:** une semaine se corrige enfin, et les photos reviennent ([14cb051](https://github.com/LabsFood/admin-dashboard/commit/14cb051469904e4fe40787bf0a0394b18ed8c845))
+* **messagerie:** l'équipe peut écrire la première ([fee7bd6](https://github.com/LabsFood/admin-dashboard/commit/fee7bd6cebe294c4664e213fc499c281c0d0884a))
+* **messagerie:** la console lit et répond pour de vrai ([442503a](https://github.com/LabsFood/admin-dashboard/commit/442503af56254c9f064bc0acd7a2fbf6c62ea6de))
+* **messagerie:** les images s'affichent dans le fil, avec un aperçu ([3023ce0](https://github.com/LabsFood/admin-dashboard/commit/3023ce0eefa0883ff4ac6cadc7da2d18a748ca95))
+* **moderation:** enhance moderation drawer with additional review fields and allergen display logic ([b26a55d](https://github.com/LabsFood/admin-dashboard/commit/b26a55da64bbbc0ee34127bdffa5c15cb6e42c0c))
+* **moderation:** update review logic to handle modified or republished items ([5477b46](https://github.com/LabsFood/admin-dashboard/commit/5477b46421a20971772de50635ee59ff99c08be2))
+* **réservations:** /admin/bookings, paginée, filtrée, et fermée aux non-admins ([22fd458](https://github.com/LabsFood/admin-dashboard/commit/22fd458b4830c2bff6530fc6d2e58e91505ca235))
+* **réservations:** la console lit les vraies réservations ([711fb14](https://github.com/LabsFood/admin-dashboard/commit/711fb14d6ef41b7dd3c4a3e0e25995fc45fda58d))
+* **réservations:** les suppléments se règlent depuis la console ([5fbffe4](https://github.com/LabsFood/admin-dashboard/commit/5fbffe445a440ed942b4ac4e8581363c82b40601))
+* scaffold core admin dashboard structure, authentication provider, and mock data infrastructure ([b4617ec](https://github.com/LabsFood/admin-dashboard/commit/b4617ec037b02bdcf5c8a5c2509f7d4a35630b71))
+* **topbar:** la recherche cherche, la cloche compte ([f4c07b8](https://github.com/LabsFood/admin-dashboard/commit/f4c07b804c9771b264609aff5d6e1ca918e86a82))
+* **transactions:** le module argent, sur les douze routes qui attendaient ([c3693c0](https://github.com/LabsFood/admin-dashboard/commit/c3693c0835caa10210044791557594b0a77e8125))
+
+### Bug Fixes
+
+* **admin:** an explicit button to open a candidature ([99282dc](https://github.com/LabsFood/admin-dashboard/commit/99282dc6a363d6bc8fd1b70743e320611c8a0a47))
+* **batchcookers:** les statuts SAP avec les valeurs que l'API accepte ([67784a9](https://github.com/LabsFood/admin-dashboard/commit/67784a9f2e75d5b723e58e0749b6b97b7eec2d4f))
+* **clients:** une ligne de la liste est un compte ET son profil ([fca2909](https://github.com/LabsFood/admin-dashboard/commit/fca290984891e83c57a729fc4d31d08c5324a0a2))
+* **console:** « Se reconnecter » marche même quand Clerk est bloqué ([6ed9cc3](https://github.com/LabsFood/admin-dashboard/commit/6ed9cc32684449de6953ce81bc7dd486cf21b311))
+* **console:** se tromper de porte ne doit pas coûter ses clés ([b8e04a0](https://github.com/LabsFood/admin-dashboard/commit/b8e04a0d0f5266c492cd208ea7a1d6034b2bce6a))
+* **demandes:** le net d'une offre est borné avant l'envoi ([7609a4b](https://github.com/LabsFood/admin-dashboard/commit/7609a4be0da88298cfe271d8f6d13a38d2f5d8e1))
+* **modération:** le dernier message d'erreur brut passe par adminErrorMessage ([5c83b20](https://github.com/LabsFood/admin-dashboard/commit/5c83b207fc3fd312c333646a25542284c735b030))
+* regenerate package-lock.json to include husky/lint-staged ([e4316d1](https://github.com/LabsFood/admin-dashboard/commit/e4316d1916d90b33b751cfe92d4f0fa905f8d9a4))
+* **session:** un écran de chargement qui ne ment plus ([73281c7](https://github.com/LabsFood/admin-dashboard/commit/73281c729968b3e00ec9788c1e9d7b747c52bfcf))

@@ -6,10 +6,11 @@ import { cn } from "@/lib/utils";
 const TABS = [
   { href: "/ingredients", label: "Liste commune" },
   { href: "/ingredients/a-valider", label: "À valider" },
+  { href: "/ingredients/a-relier", label: "Lus dans les imports" },
   { href: "/ingredients/import", label: "Import" },
 ] as const;
 
-/** Les trois écrans des ingrédients, côte à côte. */
+/** Les écrans des ingrédients, côte à côte. */
 export default function IngredientTabs({ current }: { current: (typeof TABS)[number]["href"] }) {
   return (
     <nav aria-label="Ingrédients" className="flex flex-wrap gap-2">

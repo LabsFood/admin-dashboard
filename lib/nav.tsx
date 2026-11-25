@@ -15,6 +15,7 @@ import {
   Settings,
   ShieldCheck,
   UserCog,
+  Bot,
   type LucideIcon,
 } from "lucide-react";
 
@@ -179,6 +180,14 @@ export const NAV_SECTIONS: NavSection[] = [
         eyebrow: "Comptes & accès",
         title: "Utilisateurs",
         subtitle: "Création de comptes et attribution des rôles.",
+      },
+      {
+        href: "/budget-ia",
+        label: "Budget IA",
+        Icon: Bot,
+        eyebrow: "Coûts",
+        title: "Budget IA",
+        subtitle: "Ce que coûte l'IA, d'où vient la dépense, et les plafonds qui la bornent.",
       },
       {
         href: "/parametres",

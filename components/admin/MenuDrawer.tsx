@@ -6,10 +6,8 @@ import Link from "next/link";
 import {
   Loader2,
   Pencil,
-  ShieldAlert,
   ShoppingBasket,
   Trash2,
-  UserMinus,
   UtensilsCrossed,
 } from "lucide-react";
 import Drawer from "@/components/ui/Drawer";
@@ -23,12 +21,12 @@ import {
   useDeleteLabsFoodMenu,
   useMeals,
   useUpdateLabsFoodMenu,
-  useWithdrawLabsFoodMenuOffer,
   type LabsFoodMenu,
   type MealStatus,
 } from "@/lib/api/catalog";
 import { ApiError } from "@/lib/api/client";
 import { adminErrorMessage } from "@/lib/api/errors";
+import OfferToChef from "@/components/admin/OfferToChef";
 
 const STATUSES: MealStatus[] = ["published", "draft", "archived"];
 
@@ -49,7 +47,6 @@ export default function MenuDrawer({
   const toast = useToast();
   const update = useUpdateLabsFoodMenu();
   const remove = useDeleteLabsFoodMenu();
-  const withdraw = useWithdrawLabsFoodMenuOffer();
   const meals = useMeals();
   const [confirmDelete, setConfirmDelete] = useState(false);
   /** Le statut qu'on s'apprête à poser, le temps de le confirmer. */
@@ -154,33 +151,13 @@ export default function MenuDrawer({
           )}
 
           {offered && (
-            <div className="rounded-2xl border border-terra/30 bg-terra/8 p-4">
-              <p className="flex items-center gap-2 text-[13px] font-semibold text-terra-deep">
-                <ShieldAlert className="h-4 w-4" aria-hidden /> Réservé à un batch
-                cooker
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-ink-mid">
-                Lui seul le voit, et l&apos;API refuse de le modifier tant que
-                l&apos;offre tient.
-              </p>
-              <button
-                onClick={() =>
-                  withdraw.mutate(menu.id, {
-                    onSuccess: () => toast.success("Offre retirée"),
-                    onError: () => toast.error("L'offre n'a pas été retirée"),
-                  })
-                }
-                disabled={withdraw.isPending}
-                className="btn btn-sm mt-3 border border-terra/40 text-terra-deep hover:bg-terra/10"
-              >
-                {withdraw.isPending ? (
-                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-                ) : (
-                  <UserMinus className="h-3 w-3" aria-hidden />
-                )}
-                Retirer l&apos;offre
-              </button>
-            </div>
+            <OfferToChef
+              kind="menu"
+              id={menu.id}
+              name={menu.title}
+              offeredTo={menu.offeredToChefProfileId}
+              published={menu.status === "published"}
+            />
           )}
 
           <div className="flex items-center gap-2.5 rounded-2xl bg-paper p-4">
@@ -300,6 +277,21 @@ export default function MenuDrawer({
               ))}
             </div>
           </div>
+
+          {!offered && (
+            <OfferToChef
+              kind="menu"
+              id={menu.id}
+              name={menu.title}
+              offeredTo={null}
+              published={menu.status === "published"}
+              blockedReason={
+                dishes.length === 0 && !chargePlats
+                  ? "Ajoutez des plats d'abord : un menu vide ne peut pas être accepté."
+                  : null
+              }
+            />
+          )}
 
           <div className="border-t border-[rgba(0,35,75,0.08)] pt-4">
             {confirmDelete ? (

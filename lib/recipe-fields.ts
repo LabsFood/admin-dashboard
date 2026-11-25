@@ -547,6 +547,9 @@ export const cleanSteps = (list: StepRow[]): Step[] =>
 /** « Congelable » : `""` tant que la question n'a pas de réponse. */
 export type Freezable = "" | "yes" | "no";
 
+/** Mois au congélateur proposés dès que « se congèle : oui » est choisi (comme l'import). */
+export const DEFAULT_FREEZER_MONTHS = 3;
+
 export const freezableOf = (s?: Storage | null): Freezable =>
   s?.freezable === true ? "yes" : s?.freezable === false ? "no" : "";
 
@@ -604,7 +607,10 @@ export const NEW_STORAGE: StorageForm = {
 };
 
 /** « Congelable : oui » : ce qu'on propose pour les deux questions qui suivent. */
-export const FREEZER_DEFAULTS = { freezerMonths: "3", thawing: "Une nuit au réfrigérateur." };
+export const FREEZER_DEFAULTS = {
+  freezerMonths: String(DEFAULT_FREEZER_MONTHS),
+  thawing: "Une nuit au réfrigérateur.",
+};
 
 /** Température et durée proposées quand on coche un mode de réchauffage. */
 export const REHEAT_DEFAULTS: Record<string, { temperature?: string; minutes?: string }> = {
@@ -681,11 +687,17 @@ export const optionalIntIn = (v: string, min: number, max: number) => {
  * Exagération (guidelines § 2) : chaque champ invalide vibre une fois, en
  * 200 ms, puis le premier prend le focus. Rien ne bouge en mouvement réduit.
  */
-export function shakeInvalid(root: HTMLElement | null) {
-  const els = Array.from(root?.querySelectorAll<HTMLElement>(
-      '[aria-invalid="true"], [data-invalid="true"]',
-    ) ?? []);
+export function shakeInvalid(
+  root: HTMLElement | null,
+  /** Ouvre la carte repliée qui contient le champ (accordéon), avant de le montrer. */
+  reveal?: (el: HTMLElement) => void,
+) {
+  const els = Array.from(
+    root?.querySelectorAll<HTMLElement>('[aria-invalid="true"], [data-invalid="true"]') ?? [],
+  );
   if (els.length === 0) return;
+  // Un champ d'une carte repliée est caché (`hidden`) : ni visible, ni focalisable.
+  if (reveal) els.forEach(reveal);
   const first = els[0];
   first.scrollIntoView({ block: "center", behavior: "auto" });
   const focusable = first.matches("input, select, textarea, button")
