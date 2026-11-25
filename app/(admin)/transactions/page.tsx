@@ -1,7 +1,8 @@
 "use client";
 
 import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -27,6 +28,8 @@ import InfoPopover from "@/components/ui/InfoPopover";
 import { useToast } from "@/components/ui/Toaster";
 import { adminErrorMessage } from "@/lib/api/errors";
 import UrssafDossierDrawer from "@/components/money/UrssafDossierDrawer";
+import VoletVersements from "@/components/money/VoletVersements";
+import { usePayoutsSummary } from "@/lib/api/payouts";
 import {
   CESU_ISSUER,
   CESU_MEDIUM,
@@ -80,7 +83,24 @@ import {
    consent, et l'attestation fiscale n'est pas un mouvement du tout.
    ───────────────────────────────────────────────────────────────────────────── */
 
-type Volet = "cesu" | "commissions" | "factures" | "urssaf" | "courses" | "attestations";
+type Volet =
+  | "cesu"
+  | "versements"
+  | "factures"
+  | "urssaf"
+  | "courses"
+  | "attestations"
+  | "commissions";
+
+const VOLETS: readonly Volet[] = [
+  "cesu",
+  "versements",
+  "factures",
+  "urssaf",
+  "courses",
+  "attestations",
+  "commissions",
+];
 
 const dateCourte = (iso?: string | null) =>
   iso ? new Date(iso).toLocaleDateString("fr-FR") : "—";
@@ -96,24 +116,55 @@ const dateHeure = (iso?: string | null) =>
     : "—";
 
 export default function TransactionsPage() {
-  const [volet, setVolet] = useState<Volet>("cesu");
+  // `useSearchParams` impose une frontière Suspense au rendu statique.
+  return (
+    <Suspense fallback={<SkeletonGroup className="space-y-3"><Skeleton className="h-10 w-full max-w-2xl" /><Skeleton className="h-64 w-full" /></SkeletonGroup>}>
+      <Transactions />
+    </Suspense>
+  );
+}
+
+function Transactions() {
+  const router = useRouter();
+  const params = useSearchParams();
+  /** `?volet=versements&chef=<id>` : ce que la cloche ouvre directement. */
+  const demande = params.get("volet") as Volet | null;
+  // L'URL porte le volet : la cloche peut l'ouvrir, page déjà affichée ou non.
+  const volet: Volet = demande && VOLETS.includes(demande) ? demande : "cesu";
+  const chefId = params.get("chef");
+  const resume = usePayoutsSummary();
+  const aVerser = resume.data?.payableChefs;
+
+  const allerA = (next: Volet, chef: string | null = null) => {
+    const q = new URLSearchParams({ volet: next });
+    if (chef) q.set("chef", chef);
+    router.replace(`/transactions?${q.toString()}`, { scroll: false });
+  };
 
   return (
     <div className="space-y-6">
       <FilterTabs<Volet>
         value={volet}
-        onChange={setVolet}
+        onChange={(v) => allerA(v)}
         options={[
           { id: "cesu", label: "CESU" },
-          { id: "commissions", label: "Commissions" },
+          {
+            id: "versements",
+            label: "Versements aux batch cookers",
+            count: aVerser ? aVerser : undefined,
+          },
           { id: "factures", label: "Factures clients" },
           { id: "urssaf", label: "Avance immédiate" },
           { id: "courses", label: "Courses" },
           { id: "attestations", label: "Attestations fiscales" },
+          { id: "commissions", label: "Commissions (carte et ancien circuit)" },
         ]}
       />
 
       {volet === "cesu" && <VoletCesu />}
+      {volet === "versements" && (
+        <VoletVersements chefId={chefId} onChefChange={(id) => allerA("versements", id)} />
+      )}
       {volet === "commissions" && <VoletCommissions />}
       {volet === "factures" && <VoletFacturesClients />}
       {volet === "urssaf" && <VoletUrssaf />}

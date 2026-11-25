@@ -28,6 +28,8 @@ import { useChefApplications, useClients } from "@/lib/api/admin";
 import { useLabsFoodMenus, useMeals } from "@/lib/api/catalog";
 import { useReviewQueue } from "@/lib/api/moderation";
 import { rowToClientView } from "@/lib/api/adapt";
+import { centimes } from "@/lib/api/money";
+import { usePayoutsSummary } from "@/lib/api/payouts";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Ce que la barre du haut de la console sait dire.
@@ -193,9 +195,33 @@ function useAdminAlerts() {
   const aDecider = useChefApplications({ status: "submitted", limit: 1 });
   const aCompleter = useChefApplications({ hasPendingDocuments: true, limit: 1 });
   const aRelire = useReviewQueue({ review: "pending", limit: 1 });
+  // Les versements dus : la cloche se relit toutes les 5 minutes, sans recharger la page.
+  const versements = usePayoutsSummary({ refetchInterval: 5 * 60_000 });
 
   const alerts = useMemo(() => {
     const out: Alerte[] = [];
+
+    const v = versements.data;
+    if (v && v.lateChefs > 0) {
+      out.push({
+        id: "payouts:late",
+        tone: "urgent",
+        title: `${v.lateChefs} versement${v.lateChefs > 1 ? "s" : ""} en retard`,
+        detail: `${centimes(v.lateCents)} reçus depuis plus de 2 jours ouvrés et pas encore versés.`,
+        href: "/transactions?volet=versements",
+        cta: "Verser",
+      });
+    }
+    if (v && v.payableChefs > 0) {
+      out.push({
+        id: "payouts:payable",
+        tone: "todo",
+        title: `${v.payableChefs} batch cooker${v.payableChefs > 1 ? "s" : ""} à verser · ${centimes(v.payableCents)}`,
+        detail: "Argent reçu et rapproché, versement pas encore fait.",
+        href: "/transactions?volet=versements",
+        cta: "Ouvrir les versements",
+      });
+    }
 
     const nDecider = aDecider.data?.meta?.total ?? 0;
     if (nDecider > 0) {
@@ -237,7 +263,7 @@ function useAdminAlerts() {
     }
 
     return out;
-  }, [aDecider.data, aCompleter.data, aRelire.data]);
+  }, [aDecider.data, aCompleter.data, aRelire.data, versements.data]);
 
   return {
     alerts,
