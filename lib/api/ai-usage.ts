@@ -199,6 +199,38 @@ export function useIgnoreUnlinkedName() {
   });
 }
 
+/** Ce que `POST /admin/recipe-imports/unlinked-names/create-with-ai` a fait d'un lot. */
+export interface UnlinkedAiResult {
+  created: { id: string; name: string }[];
+  /** Noms devenus l'« autre nom » d'une fiche existante. */
+  linked: number;
+  /** Ce que l'IA juge ne pas être un ingrédient : écarté de la file. */
+  ignored: string[];
+  /** Sans fiche lisible : restent dans la file. */
+  left: string[];
+  costMicroEur: number;
+}
+
+/** 20 noms au plus par appel : la console enchaîne les lots. */
+export const UNLINKED_AI_BATCH = 20;
+
+/** L'IA crée les fiches complètes (rayon, allergènes, régimes, saisons) des noms donnés. */
+export function useCreateUnlinkedWithAi() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (names: string[]) =>
+      apiFetch<UnlinkedAiResult>(
+        "/admin/recipe-imports/unlinked-names/create-with-ai",
+        { method: "POST", body: { names }, timeoutMs: 5 * 60 * 1000 },
+      ),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: [...ROOT, "unlinked"] });
+      qc.invalidateQueries({ queryKey: ["admin", "ingredients"] });
+    },
+  });
+}
+
 /** Après un ajout à la liste commune : la file se recalcule. */
 export function useRefreshUnlinked() {
   const qc = useQueryClient();

@@ -67,6 +67,8 @@ const CODE_MESSAGES: Record<string, string> = {
     "Une des commissions choisies ne peut plus être prélevée (déjà facturée, ou prestation pas encore payée). Rechargez la liste.",
   SEPA_MANDATE_INACTIVE:
     "Ce batch cooker n'a pas de mandat SEPA actif : rien ne peut être prélevé.",
+  MEAL_IN_MENU:
+    "Ce plat fait partie d'un menu Lab's Food : proposez le menu entier, ou retirez-en le plat d'abord.",
 };
 
 const apiCode = (error: ApiError): string | undefined => {

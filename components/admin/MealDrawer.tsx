@@ -8,10 +8,8 @@ import {
   Flame as Fire,
   Loader2,
   Pencil,
-  ShieldAlert,
   Snowflake,
   Trash2,
-  UserMinus,
   Users,
 } from "lucide-react";
 import Drawer from "@/components/ui/Drawer";
@@ -41,18 +39,19 @@ import {
 import {
   ingredientLines,
   useDeleteMeal,
+  useLabsFoodMenus,
   useUpdateMeal,
-  useWithdrawMealOffer,
   type Meal,
   type MealStatus,
 } from "@/lib/api/catalog";
 import { ApiError } from "@/lib/api/client";
+import OfferToChef from "@/components/admin/OfferToChef";
 
 const STATUSES: MealStatus[] = ["published", "draft", "archived"];
 
 /**
  * Le dossier d'un plat Lab's Food, et ce qu'on peut en faire sans ouvrir le
- * formulaire : changer son état, retirer l'offre faite à un batch cooker,
+ * formulaire : changer son état, le proposer à un batch cooker ou retirer l'offre,
  * le supprimer.
  */
 export default function MealDrawer({
@@ -69,7 +68,7 @@ export default function MealDrawer({
   const toast = useToast();
   const update = useUpdateMeal();
   const remove = useDeleteMeal();
-  const withdraw = useWithdrawMealOffer();
+  const menus = useLabsFoodMenus({ enabled: open });
   const diets = useDiets();
   const allergens = useAllergens();
   const categories = useDishCategories();
@@ -80,6 +79,12 @@ export default function MealDrawer({
   const computedDiets = useComputedDiets();
   const profileList = useRecipeProfiles();
   const offered = Boolean(meal?.offeredToChefProfileId);
+  // L'API refuse d'offrir un plat qui sert dans un menu Lab's Food (MEAL_IN_MENU) : on le dit avant.
+  const inMenus = meal
+    ? (menus.data ?? []).filter(
+        (m) => m.dishIds?.includes(meal.id) || m.dishes?.some((d) => d.id === meal.id),
+      )
+    : [];
   const lines = ingredientLines(meal?.ingredients);
   const steps = readSteps(meal?.steps);
 
@@ -177,33 +182,13 @@ export default function MealDrawer({
           )}
 
           {offered && (
-            <div className="rounded-2xl border border-terra/30 bg-terra/8 p-4">
-              <p className="flex items-center gap-2 text-[13px] font-semibold text-terra-deep">
-                <ShieldAlert className="h-4 w-4" /> Réservé à un batch cooker
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-ink-mid">
-                Tant que l&apos;offre tient, l&apos;API refuse toute
-                modification : on ne change pas sous ses yeux ce qu&apos;il a
-                accepté.
-              </p>
-              <button
-                onClick={() =>
-                  withdraw.mutate(meal.id, {
-                    onSuccess: () => toast.success("Offre retirée"),
-                    onError: () => toast.error("L'offre n'a pas été retirée"),
-                  })
-                }
-                disabled={withdraw.isPending}
-                className="btn btn-sm mt-3 border border-terra/40 text-terra-deep hover:bg-terra/10"
-              >
-                {withdraw.isPending ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <UserMinus className="h-3 w-3" />
-                )}
-                Retirer l&apos;offre
-              </button>
-            </div>
+            <OfferToChef
+              kind="meal"
+              id={meal.id}
+              name={meal.name}
+              offeredTo={meal.offeredToChefProfileId}
+              published={meal.status === "published"}
+            />
           )}
 
           {meal.description && (
@@ -426,6 +411,21 @@ export default function MealDrawer({
               ))}
             </div>
           </Block>
+
+          {!offered && (
+            <OfferToChef
+              kind="meal"
+              id={meal.id}
+              name={meal.name}
+              offeredTo={null}
+              published={meal.status === "published"}
+              blockedReason={
+                inMenus.length > 0
+                  ? `Ce plat fait partie ${inMenus.length > 1 ? "des menus" : "du menu"} ${inMenus.map((m) => `« ${m.title} »`).join(", ")} : c'est le menu entier qui se propose.`
+                  : null
+              }
+            />
+          )}
 
           <div className="border-t border-[rgba(0,35,75,0.08)] pt-4">
             {confirmDelete ? (

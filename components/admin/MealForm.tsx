@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import InfoPopover from "@/components/ui/InfoPopover";
-import { problemText } from "@/lib/readiness";
+import { liveReadiness, problemText } from "@/lib/readiness";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import posthog from "posthog-js";
@@ -66,6 +66,7 @@ import {
   draftAllergens,
   emptyLine,
   freezableOf,
+  DEFAULT_FREEZER_MONTHS,
   lineBlank,
   lineProblem,
   MONTHS,
@@ -214,7 +215,9 @@ export default function MealForm({
     days: src?.storage?.days?.toString() ?? "",
     container: src?.storage?.container ?? "",
     freezable: freezableOf(src?.storage),
-    freezerMonths: src?.storage?.freezerMonths?.toString() ?? "",
+    freezerMonths:
+      src?.storage?.freezerMonths?.toString() ??
+      (freezableOf(src?.storage) === "yes" ? String(DEFAULT_FREEZER_MONTHS) : ""),
     thawing: src?.storage?.thawing ?? "",
   });
   // Après un premier essai d'enregistrement, les erreurs de saisie s'affichent.
@@ -225,9 +228,31 @@ export default function MealForm({
   const saving = create.isPending || update.isPending;
   const error = create.error ?? update.error;
 
-  /** Recettes §4.11, d'après l'API : la fiche enregistrée, pas le brouillon. */
-  const readiness = meal?.readiness;
-  const manques = readiness ? [...readiness.problems, ...readiness.toPublish] : [];
+  /**
+   * Recettes §4.11, recalculé pendant la saisie : ce que le formulaire sait
+   * (nom, lignes, étapes, conservation, réchauffage, photo…) se lit sur les
+   * champs ; le reste (allergènes vérifiés, fiches communes incomplètes, régimes)
+   * vient de la fiche enregistrée. Plus besoin d'enregistrer pour voir la liste.
+   */
+  const readiness = liveReadiness(
+    {
+      name,
+      description,
+      category,
+      portions,
+      cookTime,
+      imageUrl,
+      lines: lines.filter((l) => !lineBlank(l)),
+      steps: steps.filter((st) => st.text.trim()),
+      storage,
+      reheat,
+    },
+    meal?.readiness,
+  );
+  const manques = [
+    ...readiness.problems.map((m) => ({ ...m, publish: false })),
+    ...readiness.toPublish.map((m) => ({ ...m, publish: true })),
+  ];
 
   /**
    * Les lignes que l'API refuserait. Elle rejette le plat entier pour une seule
@@ -1055,7 +1080,17 @@ export default function MealForm({
                     key={label}
                     type="button"
                     aria-pressed={storage.freezable === v}
-                    onClick={() => setStorage((s) => ({ ...s, freezable: v }))}
+                    onClick={() =>
+                      setStorage((s) => ({
+                        ...s,
+                        freezable: v,
+                        // Oui : 3 mois proposés d'office, modifiables.
+                        freezerMonths:
+                          v === "yes" && !s.freezerMonths.trim()
+                            ? String(DEFAULT_FREEZER_MONTHS)
+                            : s.freezerMonths,
+                      }))
+                    }
                     className={cn(
                       storage.freezable === v ? "chip-teal" : "chip-muted",
                       "cursor-pointer",
@@ -1187,11 +1222,10 @@ export default function MealForm({
             </button>
           </section>
 
-          {meal && readiness && (
-            <section className="card p-5">
+            <section className="card p-5" aria-live="polite">
               <p className="flex items-center gap-1 text-[13px] font-semibold text-navy">
                 {readiness.ready ? "Fiche Prête" : "Fiche pas encore Prête"}
-                {meal.recipeVersion != null && (
+                {meal?.recipeVersion != null && (
                   <span className="font-normal text-ink-soft">· version {meal.recipeVersion}</span>
                 )}
                 <InfoPopover label="Que veut dire « Prête » ?">
@@ -1209,19 +1243,18 @@ export default function MealForm({
                       className="flex items-start gap-2 text-[12px] leading-relaxed text-[#8A6212]"
                     >
                       <span aria-hidden className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-warning" />
-                      {problemText(m)}
+                      {m.publish ? `pour publier : ${problemText(m)}` : problemText(m)}
                     </li>
                   ))}
                 </ul>
               )}
               <p className="mt-2 text-[12px] leading-relaxed text-ink-soft">
-                {meal.allergensVerifiedAt
+                {meal?.allergensVerifiedAt
                   ? `Allergènes vérifiés le ${new Date(meal.allergensVerifiedAt).toLocaleDateString("fr-FR")}.`
                   : "Allergènes non vérifiés : le plat ne peut pas être réservé tant que chaque ingrédient n'est pas relié à la liste commune."}{" "}
-                Calculé sur la fiche enregistrée.
+                Mis à jour pendant la saisie.
               </p>
             </section>
-          )}
 
           {tried && problems.length > 0 && (
             <div

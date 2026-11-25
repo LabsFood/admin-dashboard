@@ -39,10 +39,18 @@ export interface ImportDraft {
     cookMinutes: number | null;
     difficulty: "easy" | "medium" | "hard" | null;
     equipment: string[];
+    /** Profils proposés par l'IA (enfants, sportif…), codes de la liste en vigueur. */
+    profiles?: string[];
     recipe: {
       ingredients: DraftLine[];
       steps: { text: string; type: string | null; durationMinutes: number | null }[];
-      storage?: { method: string; days: number; container?: string; freezable?: boolean };
+      storage?: {
+        method: string;
+        days: number;
+        container?: string;
+        freezable?: boolean;
+        freezerMonths?: number;
+      };
       reheating?: {
         modes: string[];
         minutes?: number;
@@ -73,6 +81,8 @@ export interface AdminRecipeImport {
     startedAt: string | null;
     belowThreshold: boolean;
     unlinkedNames: string[];
+    /** Fiches que l'IA a ajoutées à la liste commune pendant l'import. */
+    createdIngredients?: { id: string; name: string }[];
   };
   createdAt: string;
   finishedAt: string | null;

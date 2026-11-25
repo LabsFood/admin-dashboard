@@ -794,6 +794,42 @@ export function useCreateCatalogIngredient() {
  * `PATCH /admin/ingredients/{id}` — les recettes qui relient l'ingrédient sont
  * reclassées par l'API ; `propagation` en donne le bilan (`null` : rien à reporter).
  */
+/** Combien de fiches communes sont incomplètes (sans rayon, ou allergènes non renseignés). */
+export function useIncompleteIngredientCount() {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: [...INGREDIENTS, "incomplete-count"],
+    queryFn: async () =>
+      (
+        await apiFetch<{ meta: PageMeta }>(
+          "/admin/ingredients?limit=1&page=1&incomplete=true",
+        )
+      ).meta.total,
+  });
+}
+
+/** Ce qu'un appel de `POST /admin/ingredients/complete-with-ai` a complété. */
+export interface AiCompletion {
+  completed: number;
+  failed: { id: string; name: string; message: string }[];
+  remaining: number;
+  costMicroEur: number;
+}
+
+/**
+ * `POST /admin/ingredients/complete-with-ai` — l'IA remplit les champs vides
+ * (rayon, allergènes ou « aucun », régimes) de 20 fiches incomplètes au plus ;
+ * jamais un champ déjà saisi. Rappeler tant que `remaining` reste au-dessus de 0.
+ */
+export function useCompleteIngredientsWithAi() {
+  return useIngredientMutation<void, AiCompletion>((apiFetch) =>
+    apiFetch<AiCompletion>("/admin/ingredients/complete-with-ai", {
+      method: "POST",
+      timeoutMs: LONG_WRITE_MS,
+    }),
+  );
+}
+
 export function useUpdateCatalogIngredient() {
   return useIngredientMutation<{ id: string; patch: CatalogIngredientInput }, IngredientWrite>(
     (apiFetch, { id, patch }) =>

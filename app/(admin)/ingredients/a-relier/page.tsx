@@ -10,6 +10,8 @@ import { useToast } from "@/components/ui/Toaster";
 import { adminErrorMessage } from "@/lib/api/errors";
 import { useUpdateCatalogIngredient } from "@/lib/api/catalog";
 import {
+  UNLINKED_AI_BATCH,
+  useCreateUnlinkedWithAi,
   useIgnoreUnlinkedName,
   useRefreshUnlinked,
   useUnlinkedNames,
@@ -22,9 +24,10 @@ import {
    L'import de recettes par IA lit des ingrédients que la liste commune ne
    connaît pas (galanga, citronnelle, pâte de tamarin…). Ils remontent ici, les
    plus fréquents d'abord, pour que la liste apprenne : rattacher le nom à une
-   entrée existante (il devient un « autre nom »), créer l'entrée (allergènes
-   saisis à la main, jamais devinés), ou l'écarter (« huile », « échalote et
-   ail »). Un nom traité disparaît de la file ; les imports suivants le relient.
+   entrée existante (il devient un « autre nom »), créer l'entrée, ou l'écarter
+   (« huile », « échalote et ail »). « Tout créer avec l'IA » traite la file
+   d'un coup : fiches complètes (rayon, allergènes, régimes, saisons) à relire
+   ensuite. Un nom traité disparaît de la file ; les imports suivants le relient.
    ───────────────────────────────────────────────────────────────────────────── */
 
 const RANGES = [
@@ -39,6 +42,40 @@ export default function IngredientsALierPage() {
   const names = useUnlinkedNames(Number(range));
   const refresh = useRefreshUnlinked();
   const toast = useToast();
+  const createAll = useCreateUnlinkedWithAi();
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+
+  async function createAllWithAi(items: UnlinkedName[]) {
+    const names = items.map((n) => n.name);
+    let created = 0;
+    let linked = 0;
+    let ignored = 0;
+    setProgress({ done: 0, total: names.length });
+    try {
+      for (let i = 0; i < names.length; i += UNLINKED_AI_BATCH) {
+        const r = await createAll.mutateAsync(names.slice(i, i + UNLINKED_AI_BATCH));
+        created += r.created.length;
+        linked += r.linked;
+        ignored += r.ignored.length;
+        setProgress({ done: Math.min(names.length, i + UNLINKED_AI_BATCH), total: names.length });
+      }
+      toast.success(
+        `${created} ingrédient${created > 1 ? "s" : ""} créé${created > 1 ? "s" : ""} par l'IA`,
+        [
+          linked ? `${linked} rattaché${linked > 1 ? "s" : ""} à une fiche existante` : null,
+          ignored ? `${ignored} écarté${ignored > 1 ? "s" : ""}` : null,
+          "Fiches à relire dans la liste (« Pas encore relus »).",
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      );
+    } catch (e) {
+      toast.error("Création interrompue", adminErrorMessage(e));
+    } finally {
+      setProgress(null);
+      refresh();
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -60,6 +97,24 @@ export default function IngredientsALierPage() {
           value={range}
           onChange={setRange}
         />
+        {names.data && names.data.length > 0 && (
+          <button
+            type="button"
+            onClick={() => createAllWithAi(names.data)}
+            disabled={Boolean(progress)}
+            className="btn btn-primary btn-sm disabled:opacity-55"
+            title="L'IA crée une fiche complète pour chaque nom : rayon, allergènes, régimes, saisons."
+          >
+            {progress ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" aria-hidden />
+            )}
+            {progress
+              ? `${progress.done} / ${progress.total}…`
+              : `Tout créer avec l’IA (${names.data.length})`}
+          </button>
+        )}
       </section>
 
       <IngredientTabs current="/ingredients/a-relier" />

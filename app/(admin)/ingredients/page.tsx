@@ -13,6 +13,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Sparkles,
 } from "lucide-react";
 import InfoPopover from "@/components/ui/InfoPopover";
 import IngredientEditor from "@/components/admin/IngredientEditor";
@@ -25,6 +26,8 @@ import { seasonsLine } from "@/lib/recipe-fields";
 import {
   isIncomplete,
   useCatalogIngredients,
+  useCompleteIngredientsWithAi,
+  useIncompleteIngredientCount,
   useMarkIngredientSeasonReviewed,
   useReviewIngredient,
   type CatalogIngredient,
@@ -117,6 +120,8 @@ export default function IngredientsPage() {
       <IngredientTabs current="/ingredients" />
 
       {liste.data?.seasonReview?.due && <RappelSaison review={liste.data.seasonReview} />}
+
+      <CompleterAvecIA />
 
       {saved && (
         <section className="card space-y-2 p-5">
@@ -431,6 +436,89 @@ function RappelSaison({ review }: { review: IngredientSeasonReview }) {
           La liste convient à la saison
         </button>
       )}
+    </section>
+  );
+}
+
+/**
+ * Les fiches sans rayon ou sans allergènes renseignés, complétées par l'IA par
+ * lots de 20 jusqu'au bout. Seuls les champs vides sont remplis ; chaque fiche
+ * passe par la même écriture qu'une modification (report dans les recettes) et
+ * reste « non revue ».
+ */
+function CompleterAvecIA() {
+  const toast = useToast();
+  const count = useIncompleteIngredientCount();
+  const complete = useCompleteIngredientsWithAi();
+  const [run, setRun] = useState<{ done: number; total: number; failed: string[] } | null>(
+    null,
+  );
+  const total = count.data ?? 0;
+  if (!run && total === 0) return null;
+
+  async function start() {
+    let state = { done: 0, total, failed: [] as string[] };
+    setRun(state);
+    try {
+      for (let pass = 0; pass < 50; pass++) {
+        const r = await complete.mutateAsync();
+        state = {
+          done: state.done + r.completed,
+          total: state.total,
+          failed: [...state.failed, ...r.failed.map((f) => f.name)],
+        };
+        setRun(state);
+        // Rien de complété ce tour-ci : ce qui reste, l'IA ne sait pas le remplir.
+        if (r.remaining === 0 || r.completed === 0) break;
+      }
+      toast.success(
+        `${state.done} fiche${state.done > 1 ? "s" : ""} complétée${state.done > 1 ? "s" : ""} par l'IA`,
+        "Relisez-les avec le filtre « Pas encore relus ».",
+      );
+    } catch (e) {
+      toast.error("Complétion interrompue", adminErrorMessage(e));
+    } finally {
+      setRun(null);
+      count.refetch();
+    }
+  }
+  return (
+    <section
+      role="status"
+      className="card flex flex-wrap items-start justify-between gap-4 border-l-4 border-l-warning p-5"
+    >
+      <div className="flex items-start gap-3">
+        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" aria-hidden />
+        <div>
+          <p className="flex items-center gap-1 font-semibold text-navy">
+            {total} fiche{total > 1 ? "s" : ""} à compléter
+            <InfoPopover label="Que fait l'IA ?">
+              Pour chaque fiche sans rayon ou sans allergènes renseignés, l&apos;IA remplit
+              uniquement les champs vides : rayon de la liste en vigueur, allergènes (ou
+              « aucun ») et régimes. Un champ déjà saisi n&apos;est jamais modifié. Les recettes
+              qui relient ces fiches sont mises à jour ; les fiches restent « pas encore relues ».
+            </InfoPopover>
+          </p>
+          <p className="mt-1 text-sm text-ink-mid">
+            {run
+              ? `${run.done} complétée${run.done > 1 ? "s" : ""} sur ${run.total}…`
+              : "Sans rayon ou sans allergènes, elles bloquent les recettes qui les utilisent."}
+          </p>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={start}
+        disabled={Boolean(run)}
+        className="btn btn-primary btn-sm disabled:opacity-55"
+      >
+        {run ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+        ) : (
+          <Sparkles className="h-3.5 w-3.5" aria-hidden />
+        )}
+        Compléter avec l&apos;IA
+      </button>
     </section>
   );
 }
