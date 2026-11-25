@@ -48,6 +48,17 @@ const FIELD_LABELS: Record<string, string> = {
   cookMinutes: "temps de cuisson",
   storageDays: "durée de conservation",
   stepTypes: "types d'étape",
+  country: "pays d'origine",
+  category: "type de plat",
+  description: "description",
+  difficulty: "difficulté",
+  freezable: "congélation",
+  freezerMonths: "durée au congélateur",
+  reheatingModes: "réchauffage",
+  reheatingMinutes: "durée de réchauffage",
+  reheatingTemperature: "température de réchauffage",
+  reheatingNote: "consigne de réchauffage",
+  equipment: "matériel",
 };
 
 /** Ce que le formulaire reprend d'un brouillon. */
@@ -64,6 +75,7 @@ export function draftToMeal(draft: ImportDraft): Partial<Meal> {
     cookTime: d.cookMinutes,
     difficulty: d.difficulty,
     equipment: d.equipment,
+    profiles: d.profiles ?? [],
     ingredients: d.recipe.ingredients,
     steps: d.recipe.steps,
     storage: d.recipe.storage ?? null,
@@ -684,17 +696,36 @@ function buildSteps({
     const linked = data.drafts.reduce((n, d) => n + d.linked, 0);
     const toVerify = data.drafts.reduce((n, d) => n + d.toVerify, 0);
     const unlinked = trace?.unlinkedNames ?? [];
+    const added = trace?.createdIngredients ?? [];
     steps.push({
       id: "link",
       label: `${linked} ingrédient${linked > 1 ? "s" : ""} relié${linked > 1 ? "s" : ""} à la liste commune`,
-      status: toVerify > 0 ? "warning" : "done",
-      meta: toVerify > 0 ? `${toVerify} à vérifier` : undefined,
+      status: toVerify > 0 || unlinked.length > 0 ? "warning" : "done",
+      meta:
+        [
+          added.length > 0
+            ? `${added.length} ajouté${added.length > 1 ? "s" : ""} par l'IA`
+            : null,
+          toVerify > 0 ? `${toVerify} à vérifier` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ") || undefined,
       detail:
-        unlinked.length > 0 ? (
-          <p>
-            Inconnus de la liste commune : {unlinked.join(", ")}. Ils remontent aussi dans
-            « Lus dans les imports ».
-          </p>
+        added.length + unlinked.length > 0 ? (
+          <>
+            {added.length > 0 && (
+              <p>
+                Ajoutés à la liste, fiches remplies par l&apos;IA (rayon, allergènes, régimes,
+                saisons), à revoir dans Ingrédients : {added.map((a) => a.name).join(", ")}.
+              </p>
+            )}
+            {unlinked.length > 0 && (
+              <p>
+                Restés inconnus de la liste commune : {unlinked.join(", ")}. Ils remontent aussi
+                dans « Lus dans les imports ».
+              </p>
+            )}
+          </>
         ) : undefined,
     });
 
