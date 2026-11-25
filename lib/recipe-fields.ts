@@ -547,6 +547,9 @@ export const cleanSteps = (list: StepRow[]): Step[] =>
 /** « Congelable » : `""` tant que la question n'a pas de réponse. */
 export type Freezable = "" | "yes" | "no";
 
+/** Mois au congélateur proposés dès que « se congèle : oui » est choisi (comme l'import). */
+export const DEFAULT_FREEZER_MONTHS = 3;
+
 export const freezableOf = (s?: Storage | null): Freezable =>
   s?.freezable === true ? "yes" : s?.freezable === false ? "no" : "";
 
