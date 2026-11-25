@@ -512,16 +512,14 @@ export function useResendInvitation() {
   });
 }
 
-/* ── Les statuts SAP instruits par l'équipe ────────────────────────────────── */
+/* ── Le statut SAP instruit par l'équipe ───────────────────────────────────── */
 
-/** Ce que l'API accepte pour les deux statuts externes. */
 /**
  * Les trois valeurs que l'API accepte — l'énumération Prisma `SapExternalStatus`.
  *
  * La console en envoyait quatre autres, inventées : `approved`, `requested`,
  * `not_requested`, `refused`. L'API les refusait toutes, et chaque
- * enregistrement échouait sur « le champ crcesuAffiliationStatus n'est pas
- * accepté ». Il n'y a pas de « refusée » : un refus se note en revenant à
+ * enregistrement échouait sur « le champ n'est pas accepté ». Il n'y a pas de « refusée » : un refus se note en revenant à
  * `not_started`, la démarche étant à refaire.
  */
 export const SAP_EXTERNAL_STATUSES = ["not_started", "pending", "active"] as const;
@@ -537,17 +535,16 @@ export const SAP_EXTERNAL_LABEL: Record<string, string> = {
 /**
  * `PATCH /admin/chefs/{id}/sap-external-status`.
  *
- * L'affiliation CRCESU et l'avance immédiate URSSAF ne se décident pas chez
- * nous : elles s'obtiennent auprès du CRCESU et de l'URSSAF. La console note
- * ici ce que ces organismes ont répondu — et l'espace du batch cooker, qui
- * affiche ces deux statuts en lecture seule, cesse d'être un cul-de-sac.
+ * L'avance immédiate URSSAF ne se décide pas chez nous : elle s'obtient
+ * auprès de l'URSSAF. La console note ici sa réponse, que l'espace du batch
+ * cooker affiche en lecture seule. Le CESU n'a plus de statut par batch
+ * cooker (NAN unique de Labs Food Batchcooking SAS, 25/11).
  */
 export function useSetSapExternalStatus(chefProfileId: string | undefined) {
   const apiFetch = useApiFetch();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: {
-      crcesuAffiliationStatus?: SapExternalStatus;
       urssafTiersPrestationStatus?: SapExternalStatus;
     }) =>
       apiFetch<unknown>(`/admin/chefs/${chefProfileId}/sap-external-status`, {
@@ -555,6 +552,46 @@ export function useSetSapExternalStatus(chefProfileId: string | undefined) {
         body,
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "chefs"] }),
+  });
+}
+
+/* ── Les frais CESU (25/11) ─────────────────────────────────────────────────── */
+
+/**
+ * Les frais de traitement et d'encaissement des CESU : supportés par le batch
+ * cooker sur la part payée en CESU, calculés après la commission. Le client ne
+ * paie jamais plus (CRCESU, CGA art. 4.1). En points de base : `1000` = 10 %.
+ * Un palier absent de `byTier` prend le taux par défaut.
+ */
+export interface CesuFeeSetting {
+  defaultBps: number;
+  byTier: Partial<Record<ChefTier, number>>;
+  updatedAt: string | null;
+}
+
+/** Le plafond accepté par l'API, en points de base (30 %). */
+export const MAX_CESU_FEE_BPS = 3000;
+
+const CESU_FEE = ["admin", "settings", "cesu-fee"] as const;
+
+/** `GET /admin/settings/cesu-fee` — 10 % par défaut. */
+export function useCesuFeeSetting() {
+  const apiFetch = useApiFetch();
+  return useQuery({
+    queryKey: CESU_FEE,
+    queryFn: () => apiFetch<CesuFeeSetting>("/admin/settings/cesu-fee"),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** `PUT /admin/settings/cesu-fee` — de 0 à 30 % par taux, tracé. */
+export function useSetCesuFee() {
+  const apiFetch = useApiFetch();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Pick<CesuFeeSetting, "defaultBps" | "byTier">) =>
+      apiFetch<CesuFeeSetting>("/admin/settings/cesu-fee", { method: "PUT", body }),
+    onSuccess: (s) => qc.setQueryData(CESU_FEE, s),
   });
 }
 
