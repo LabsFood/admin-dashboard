@@ -208,7 +208,9 @@ function useAdminAlerts() {
         tone: "urgent",
         title: `${v.lateChefs} versement${v.lateChefs > 1 ? "s" : ""} en retard`,
         detail: `${centimes(v.lateCents)} reçus depuis plus de 2 jours ouvrés et pas encore versés.`,
-        href: "/transactions?volet=versements",
+        href: v.nextChefProfileId
+          ? `/transactions?volet=versements&chef=${v.nextChefProfileId}`
+          : "/transactions?volet=versements",
         cta: "Verser",
       });
     }

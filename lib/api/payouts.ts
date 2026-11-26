@@ -27,6 +27,8 @@ export interface PayoutsSummary {
   lateCents: number;
   lastReconciliation: { at: string; received: number; matched: number } | null;
   bankFeedConfigured: boolean;
+  /** Le batch cooker à verser en premier : la cloche ouvre sa fiche. */
+  nextChefProfileId: string | null;
 }
 
 export interface PayoutChefHit {
@@ -55,6 +57,35 @@ export interface PayoutLine {
   receivedAt: string | null;
   paidAt: string | null;
   paidReference: string | null;
+  /** L'autofacture sous laquelle la ligne a été versée. */
+  statementId: string | null;
+  late: boolean;
+}
+
+export type StatementBlocker = "name" | "siren" | "businessAddress" | "vatFranchise";
+
+export const STATEMENT_BLOCKER_LABEL: Record<StatementBlocker, string> = {
+  name: "nom ou raison sociale",
+  siren: "SIREN",
+  businessAddress: "adresse professionnelle",
+  vatFranchise: "franchise de TVA (art. 293 B)",
+};
+
+export interface PayableLine {
+  chefProfileId: string;
+  chefName: string;
+  bookingReference: string | null;
+  method: PayoutMethod;
+  amountTtcCents: number;
+  vatRateBps: number;
+  amountVatCents: number;
+  amountHtCents: number;
+  commissionRateBps: number;
+  commissionCents: number;
+  cesuFeeBps: number;
+  cesuFeeCents: number;
+  netCents: number;
+  receivedAt: string;
   late: boolean;
 }
 
@@ -65,6 +96,8 @@ export interface ChefPayouts {
     city: string | null;
     tierLabel: string;
     ibanLast4: string | null;
+    /** Vide quand l'autofacture peut être émise. */
+    statementBlockers: StatementBlocker[];
   };
   counts: Record<PayoutView, number>;
   totalNetCents: number;
@@ -139,7 +172,13 @@ export function useMarkPayoutsPaid() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: { chefProfileId: string; payoutIds: string[]; reference?: string }) =>
-      apiFetch<{ paid: number; netCents: number; paidAt: string }>(
+      apiFetch<{
+        paid: number;
+        netCents: number;
+        paidAt: string;
+        statementId: string;
+        statementNumber: string;
+      }>(
         `/admin/payouts/chefs/${input.chefProfileId}/mark-paid`,
         {
           method: "POST",
@@ -166,4 +205,23 @@ export function transferLabel(lines: readonly PayoutLine[]): string {
     .map((l) => l.bookingReference?.replace(/[^A-Za-z0-9]/g, "").toUpperCase())
     .filter((r): r is string => Boolean(r));
   return `LF VERSEMENT ${refs.join(" ")}`.slice(0, 140).trim();
+}
+
+/** Toutes les lignes à verser, tous batch cookers : l'export de la journée. */
+export function usePayableLinesExport() {
+  const apiFetch = useApiFetch();
+  return useMutation({
+    mutationFn: () => apiFetch<PayableLine[]>("/admin/payouts/payable"),
+  });
+}
+
+/** Un lien de 5 minutes vers l'autofacture et son relevé. */
+export function useStatementDownload() {
+  const apiFetch = useApiFetch();
+  return useMutation({
+    mutationFn: (statementId: string) =>
+      apiFetch<{ url: string; expiresAt: string }>(
+        `/admin/payouts/statements/${statementId}/download`,
+      ),
+  });
 }
