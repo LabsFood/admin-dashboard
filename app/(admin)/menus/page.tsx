@@ -29,6 +29,7 @@ import MealDrawer from "@/components/admin/MealDrawer";
 import MenuDrawer from "@/components/admin/MenuDrawer";
 import { cn, formatDate } from "@/lib/utils";
 import { countryLabel } from "@/lib/countries";
+import { chercherPlats } from "@/lib/plats-recherche";
 import { catalogLabel, catalogTone, periodLabel } from "@/lib/catalog-labels";
 import { useDiets, refLabel } from "@/lib/api/referentials";
 import {
@@ -68,6 +69,8 @@ const NONE: Meal[] = [];
 export default function MenusPage() {
   const [tab, setTab] = useState<Tab>("plats");
   const [filter, setFilter] = useState<Filter>("all");
+  // Retour de recette du 26/11 : retrouver un plat dans la bibliothèque.
+  const [recherche, setRecherche] = useState("");
   const [mealId, setMealId] = useState<string | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
   /* L'id, pas l'objet : après un PATCH la semaine ouverte doit se relire dans
@@ -96,8 +99,11 @@ export default function MenusPage() {
     [allMeals],
   );
 
-  const filtered =
-    filter === "all" ? allMeals : allMeals.filter((m) => m.status === filter);
+  const filtered = chercherPlats(
+    filter === "all" ? allMeals : allMeals.filter((m) => m.status === filter),
+    recherche,
+    (code) => countryLabel(code) || "",
+  );
 
   // La semaine en cours, telle que l'API la connaît.
   const now = currentIsoWeek();
@@ -227,33 +233,65 @@ export default function MenusPage() {
           count={allMeals.length}
         >
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <FilterTabs<Filter>
-              value={filter}
-              onChange={setFilter}
-              options={[
-                { id: "all", label: "Tous les plats", count: allMeals.length },
-                {
-                  id: "published",
-                  label: "Publiés",
-                  count: counts.published ?? 0,
-                },
-                { id: "draft", label: "Brouillons", count: counts.draft ?? 0 },
-                {
-                  id: "archived",
-                  label: "Archivés",
-                  count: counts.archived ?? 0,
-                },
-              ]}
-            />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <FilterTabs<Filter>
+                value={filter}
+                onChange={setFilter}
+                options={[
+                  { id: "all", label: "Tous les plats", count: allMeals.length },
+                  {
+                    id: "published",
+                    label: "Publiés",
+                    count: counts.published ?? 0,
+                  },
+                  { id: "draft", label: "Brouillons", count: counts.draft ?? 0 },
+                  {
+                    id: "archived",
+                    label: "Archivés",
+                    count: counts.archived ?? 0,
+                  },
+                ]}
+              />
+              <div className="relative w-full sm:w-64">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft"
+                  aria-hidden
+                />
+                <input
+                  type="search"
+                  value={recherche}
+                  onChange={(e) => setRecherche(e.target.value)}
+                  placeholder="Rechercher un plat…"
+                  aria-label="Rechercher un plat par son nom, sa description ou son pays"
+                  maxLength={80}
+                  className="input-base w-full pl-9"
+                />
+              </div>
+            </div>
             <Link href="/menus/nouveau" className="btn btn-primary">
               <Plus className="h-4 w-4" aria-hidden /> Nouveau plat
             </Link>
           </div>
 
           {filtered.length === 0 ? (
-            <p className="card p-6 text-sm text-ink-soft">
-              Aucun plat dans cet état.
-            </p>
+            recherche.trim() ? (
+              <div className="card flex flex-wrap items-center justify-between gap-3 p-6">
+                <p className="text-sm text-ink-soft">
+                  Aucun plat ne correspond à « {recherche.trim()} ».
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setRecherche("")}
+                  className="btn btn-outline btn-sm"
+                >
+                  Effacer la recherche
+                </button>
+              </div>
+            ) : (
+              <p className="card p-6 text-sm text-ink-soft">
+                Aucun plat dans cet état.
+              </p>
+            )
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filtered.map((m) => (
