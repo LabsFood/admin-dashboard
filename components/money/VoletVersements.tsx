@@ -135,7 +135,7 @@ export default function VoletVersements({
         <StatCard
           Icon={Landmark}
           tone="terra"
-          label="Marge Labs Food (part + frais CESU)"
+          label="Marge Lab’s Food (part + frais CESU)"
           value={centimes(s?.marginCents)}
           loading={resume.isPending}
         />
@@ -582,7 +582,7 @@ function FicheVersements({
             pending={verser.isPending}
             error={verser.error ? adminErrorMessage(verser.error) : null}
             title={`Marquer ${centimes(data.totalNetCents)} versés à ${data.chef.displayName} ?`}
-            lead="À faire une fois le virement parti du compte de la SAS. Les lignes passent dans « Versés », la part Labs Food est encaissée et l'autofacture est émise au nom du batch cooker."
+            lead="À faire une fois le virement parti du compte de la SAS. Les lignes passent dans « Versés », la part Lab’s Food est encaissée et l'autofacture est émise au nom du batch cooker."
             detail={`Libellé : ${libelle}`}
             confirmLabel="Le virement est fait"
             onConfirm={() =>
@@ -633,7 +633,7 @@ function TableVersements({ lines, view }: { lines: PayoutLine[]; view: PayoutVie
             <th className="px-2 py-2 text-right">Prix TTC</th>
             <th className="px-2 py-2 text-right">TVA</th>
             <th className="px-2 py-2 text-right">Prix HT</th>
-            <th className="px-2 py-2 text-right">Part Labs Food</th>
+            <th className="px-2 py-2 text-right">Part Lab’s Food</th>
             <th className="px-2 py-2 text-right">Frais CESU</th>
             <th className="px-2 py-2 text-right">Net à verser</th>
             <th className="px-2 py-2">{view === "paid" ? "Versé le" : "Encaissement"}</th>
@@ -751,7 +751,7 @@ function downloadCsv(name: string, rows: (string | number)[][]) {
 function exportDayCsv(lines: PayableLine[]) {
   const jour = new Date().toISOString().slice(0, 10);
   downloadCsv(`versements-a-faire-${jour}.csv`, [
-    ["Batch cooker", "Réservation", "Paiement", "Prix TTC", "Taux TVA", "TVA", "Prix HT", "Part Labs Food", "Frais CESU", "Net à verser", "Reçu le", "En retard"],
+    ["Batch cooker", "Réservation", "Paiement", "Prix TTC", "Taux TVA", "TVA", "Prix HT", "Part Lab’s Food", "Frais CESU", "Net à verser", "Reçu le", "En retard"],
     ...lines.map((l) => [
       l.chefName,
       l.bookingReference ?? "",
@@ -779,8 +779,8 @@ function exportCsv(chef: string, view: PayoutView, lines: PayoutLine[]) {
     "Taux TVA",
     "TVA",
     "Prix HT",
-    "Taux part Labs Food",
-    "Part Labs Food",
+    "Taux part Lab’s Food",
+    "Part Lab’s Food",
     "Taux frais CESU",
     "Frais CESU",
     "Net à verser",

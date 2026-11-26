@@ -1002,7 +1002,7 @@ function LienConnexion({ userId, email }: { userId: string; email: string | null
  * seule.
  *
  * Le CESU n'a plus de statut par batch cooker depuis le 25/11 : les titres
- * sont encaissés sur le NAN unique de Labs Food Batchcooking SAS.
+ * sont encaissés sur le NAN unique de Lab’s Food.
  */
 function StatutsSap({
   chefProfileId,
@@ -1075,7 +1075,7 @@ function StatutsSap({
       )}
       <p className="mt-2 max-w-prose text-xs leading-relaxed text-ink-soft">
         Le CESU n&apos;a plus de statut par batch cooker : il est encaissé sur le
-        NAN de Labs Food Batchcooking SAS. Le batch cooker choisit seulement
+        NAN de Lab’s Food. Le batch cooker choisit seulement
         s&apos;il l&apos;accepte, dans son espace Rémunération.
       </p>
     </div>

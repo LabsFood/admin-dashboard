@@ -8,7 +8,7 @@ import { useApiFetch } from "./client";
 
    La SAS vend avec la TVA (10 %), encaisse le CESU sur son NAN et l'avance
    immédiate, garde sa part (sur le HT, sans TVA) et verse au batch cooker
-   HT − part Labs Food − frais CESU, par virement. La carte n'apparaît pas ici :
+   HT − part Lab’s Food − frais CESU, par virement. La carte n'apparaît pas ici :
    Stripe paie le batch cooker.
 
    Tous les montants sont en centimes.

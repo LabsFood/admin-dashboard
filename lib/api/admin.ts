@@ -538,7 +538,7 @@ export const SAP_EXTERNAL_LABEL: Record<string, string> = {
  * L'avance immédiate URSSAF ne se décide pas chez nous : elle s'obtient
  * auprès de l'URSSAF. La console note ici sa réponse, que l'espace du batch
  * cooker affiche en lecture seule. Le CESU n'a plus de statut par batch
- * cooker (NAN unique de Labs Food Batchcooking SAS, 25/11).
+ * cooker (NAN unique de Lab’s Food, 25/11).
  */
 export function useSetSapExternalStatus(chefProfileId: string | undefined) {
   const apiFetch = useApiFetch();
