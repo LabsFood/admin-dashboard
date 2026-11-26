@@ -12,7 +12,7 @@ import Toaster from "@/components/ui/Toaster";
 
 /* L'authentification est fournie par <ClerkProvider> (voir app/layout.tsx).
    Ce composant héberge les providers côté client : TanStack Query, qui
-   alimente les appels vers l'API Labs Food, et le Toaster, qui donne à toute
+   alimente les appels vers l'API Lab’s Food, et le Toaster, qui donne à toute
    action son retour. Le Toaster est à l'intérieur du QueryClientProvider pour
    qu'un `onError` de mutation puisse l'appeler. */
 /** Rattache les erreurs Sentry au compte Clerk : l'id seulement, jamais l'email. */
