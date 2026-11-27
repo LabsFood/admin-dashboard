@@ -355,7 +355,7 @@ export default function CandidatureDetailPage({
                 company.sap?.path === "type-a"
                   ? `Déclaration propre${company.sap.declarationNumber ? ` · ${company.sap.declarationNumber}` : ""}`
                   : company.sap?.path === "type-b"
-                    ? "Par sa coopérative SAP"
+                    ? "NOVA à renseigner (ancienne voie coopérative)"
                     : undefined
               }
             />

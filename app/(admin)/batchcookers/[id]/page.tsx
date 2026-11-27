@@ -569,7 +569,7 @@ function Profil({
             app.company?.sap?.path === "type-a"
               ? "Déclaration à son nom"
               : app.company?.sap?.path === "type-b"
-                ? "Par sa coopérative SAP"
+                ? "NOVA à renseigner (ancienne voie coopérative)"
                 : undefined
           }
         />
