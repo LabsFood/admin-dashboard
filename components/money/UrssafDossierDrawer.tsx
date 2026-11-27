@@ -40,8 +40,8 @@ export default function UrssafDossierDrawer({
       <div className="space-y-5 p-5">
         <p className="flex items-start gap-2 text-sm leading-relaxed text-ink-mid">
           <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-navy" />
-          À recopier sur l&apos;espace de la coopérative pour rattacher ce client
-          {chefName ? ` à ${chefName}` : ""}. Cette lecture est tracée.
+          À recopier sur l&apos;espace URSSAF de Lab’s Food pour rattacher ce client
+          {chefName ? ` (prestations de ${chefName})` : ""}. Cette lecture est tracée.
         </p>
 
         {dossier.isPending && (
@@ -60,14 +60,26 @@ export default function UrssafDossierDrawer({
         )}
 
         {dossier.data && (
-          <Fiche d={dossier.data.dossier} nova={dossier.data.chefNovaCode} />
+          <Fiche
+            d={dossier.data.dossier}
+            sap={dossier.data.sapDeclarationNumber ?? null}
+            nova={dossier.data.chefNovaCode}
+          />
         )}
       </div>
     </Drawer>
   );
 }
 
-function Fiche({ d, nova }: { d: UrssafDossier; nova: string | null }) {
+function Fiche({
+  d,
+  sap,
+  nova,
+}: {
+  d: UrssafDossier;
+  sap: string | null;
+  nova: string | null;
+}) {
   const neEnFrance = d.birthCountryCode === FRANCE;
   return (
     <div className="space-y-5">
@@ -108,7 +120,16 @@ function Fiche({ d, nova }: { d: UrssafDossier; nova: string | null }) {
       </Bloc>
 
       <Bloc titre="Batch cooker">
-        <Ligne label="Numéro SAP / NOVA" valeur={nova ?? "Non renseigné"} mono={!!nova} />
+        <Ligne
+          label="Déclaration SAP à saisir (Lab’s Food)"
+          valeur={sap ?? "Non renseignée"}
+          mono={!!sap}
+        />
+        <Ligne
+          label="NOVA du batch cooker (contrôle du dossier)"
+          valeur={nova ?? "Non renseigné"}
+          mono={!!nova}
+        />
       </Bloc>
     </div>
   );

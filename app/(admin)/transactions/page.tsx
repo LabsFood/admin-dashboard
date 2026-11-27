@@ -36,7 +36,6 @@ import {
   CESU_SETTLEMENT,
   COLLECTION_METHOD,
   DEBIT_STATUS,
-  DECLARATION_TYPE,
   INVOICE_STATUS,
   LINK_STATUS,
   PAYMENT_METHOD,
@@ -739,7 +738,7 @@ function VoletUrssaf() {
             {(paiements.data ?? []).map((p) => {
               const manuel = demandeManuelle(p);
               const enAttente = p.status === "pending";
-              const aSaisirSurUnipros = manuel && enAttente && !p.transmittedAt;
+              const aSaisirManuellement = manuel && enAttente && !p.transmittedAt;
               return (
                 <li
                   key={p.paymentId}
@@ -773,13 +772,13 @@ function VoletUrssaf() {
                     <p className="text-xs text-ink-soft">
                       {manuel ? (
                         <>
-                          NOVA{" "}
+                          SAP Lab&apos;s Food{" "}
                           <span className="font-mono">
-                            {p.booking.chefNovaCode ?? "non renseigné"}
+                            {p.sapDeclarationNumber ?? "non renseigné"}
                           </span>
                           {p.externalReference && (
                             <>
-                              {" "}· Unipros{" "}
+                              {" "}· Réf.{" "}
                               <span className="font-mono">{p.externalReference}</span>
                             </>
                           )}
@@ -804,7 +803,7 @@ function VoletUrssaf() {
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <Badge tone={p.paidAt ? "success" : enAttente ? "warning" : "danger"}>
-                      {aSaisirSurUnipros
+                      {aSaisirManuellement
                         ? "À saisir manuellement"
                         : (URSSAF_PAYMENT_STATUS[p.status] ?? p.status)}
                     </Badge>
@@ -817,7 +816,7 @@ function VoletUrssaf() {
                         Reprise URSSAF
                       </button>
                     )}
-                    {aSaisirSurUnipros && (
+                    {aSaisirManuellement && (
                       <button
                         disabled={saisir.isPending || !ouvert}
                         onClick={() => setASaisir(p)}
@@ -826,7 +825,7 @@ function VoletUrssaf() {
                         Noter la saisie
                       </button>
                     )}
-                    {enAttente && !aSaisirSurUnipros && (
+                    {enAttente && !aSaisirManuellement && (
                       <>
                         <button
                           disabled={repondre.isPending || !ouvert}
@@ -904,10 +903,10 @@ function VoletUrssaf() {
         title="Noter la saisie"
         lead={
           aSaisir
-            ? `Saisissez la demande de ${centimes(aSaisir.amountCents)} sur l'espace de la coopérative (NOVA du batch cooker : ${aSaisir.booking.chefNovaCode ?? "non renseigné"}), puis recopiez ici la référence qu'Unipros lui a donnée. Une demande ne se note qu'une fois.`
+            ? `Saisissez la demande de ${centimes(aSaisir.amountCents)} sous la déclaration SAP de Lab’s Food (${aSaisir.sapDeclarationNumber ?? "non renseignée"}), puis recopiez ici la référence de la demande. Une demande ne se note qu'une fois.`
             : ""
         }
-        placeholder="Référence Coopérative de la demande"
+        placeholder="Référence de la demande"
         confirmLabel="Noter la saisie"
         minLength={3}
         maxLength={100}
@@ -932,7 +931,7 @@ function VoletUrssaf() {
         onClose={() => setAReprendre(null)}
         title="L’URSSAF a repris cette prestation (statut 120) ?"
         lead="Le paiement est marqué remboursé et la prestation redevient due. La commission revient au batch cooker : retirée si elle n’était pas facturée, sinon un avoir dans la suite des factures B, déduit de sa prochaine facture."
-        placeholder="Motif donné par Unipros : contestation du particulier…"
+        placeholder="Motif donné par l’URSSAF : contestation du particulier…"
         confirmLabel="Enregistrer la reprise"
         minLength={5}
         pending={reprise.isPending}
@@ -1125,7 +1124,14 @@ function VoletAttestations() {
                     <p className="font-display text-lg font-bold text-navy tabular-nums">
                       {centimes(c.platformAttestedAmountCents)}
                     </p>
-                    <p className="text-xs text-ink-soft">attestés par Lab&apos;s Food</p>
+                    <p className="text-xs text-ink-soft">
+                      attestés par Lab’s Food
+                      {c.issuer?.sapDeclarationNumber && (
+                        <span className="tabular-nums">
+                          {" "}· {c.issuer.sapDeclarationNumber}
+                        </span>
+                      )}
+                    </p>
                     {ecart > 0 && (
                       <p className="mt-0.5 text-xs text-[#8A6212] tabular-nums">
                         {centimes(ecart)} éligibles non attestés
@@ -1167,11 +1173,9 @@ function VoletAttestations() {
                           </span>
                         </div>
                         <p className="text-xs text-ink-soft">
-                          {p.sapDeclared
-                            ? `${DECLARATION_TYPE[p.declarationType ?? ""] ?? "SAP déclarée"}${
-                                p.novaCode ? ` · ${p.novaCode}` : ""
-                              }${p.cooperativeName ? ` · ${p.cooperativeName}` : ""}`
-                            : "Aucune voie SAP déclarée"}
+                          {p.paymentsCount} paiement{p.paymentsCount > 1 ? "s" : ""}
+                          {p.paymentMethods.length > 0 &&
+                            ` · ${p.paymentMethods.map((m) => PAYMENT_METHOD[m] ?? m).join(", ")}`}
                         </p>
                         {p.notes.map((n, i) => (
                           <p key={i} className="mt-0.5 text-xs text-[#8A6212]">
