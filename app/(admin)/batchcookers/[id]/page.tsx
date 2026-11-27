@@ -254,7 +254,6 @@ export default function BatchCookerPage({
         {c.isVerified && (
           <StatutsSap
             chefProfileId={c.id}
-            crcesuActuel={c.crcesuAffiliationStatus}
             urssafActuel={c.urssafTiersPrestationStatus}
           />
         )}
@@ -570,7 +569,7 @@ function Profil({
             app.company?.sap?.path === "type-a"
               ? "Déclaration à son nom"
               : app.company?.sap?.path === "type-b"
-                ? "Par sa coopérative SAP"
+                ? "NOVA à renseigner (ancienne voie coopérative)"
                 : undefined
           }
         />
@@ -992,69 +991,46 @@ function LienConnexion({ userId, email }: { userId: string; email: string | null
   );
 }
 
-/* ── Les statuts SAP instruits par la maison ───────────────────────────────── */
+/* ── Le statut SAP instruit par la maison ──────────────────────────────────── */
 
 /**
- * L'affiliation CRCESU et l'avance immédiate URSSAF.
+ * L'avance immédiate URSSAF.
  *
- * Ces deux statuts décident de ce qu'un client peut utiliser pour payer. Ils
- * s'obtiennent auprès du CRCESU et de l'URSSAF, pas chez nous : la console ne
- * fait que **noter la réponse** reçue. L'espace du batch cooker les affiche en
- * lecture seule et renvoie à l'équipe — c'est ici que l'équipe répond.
+ * Ce statut décide si un client peut utiliser l'avance immédiate pour payer.
+ * Il s'obtient auprès de l'URSSAF, pas chez nous : la console ne fait que
+ * **noter la réponse** reçue. L'espace du batch cooker l'affiche en lecture
+ * seule.
  *
- * Les deux statuts se relisent depuis le 24/10 : la fiche ouvre donc sur leur
- * valeur courante, au lieu d'un « ne pas changer » qui obligeait à se
- * rappeler ce qu'on avait noté la fois d'avant.
+ * Le CESU n'a plus de statut par batch cooker depuis le 25/11 : les titres
+ * sont encaissés sur le NAN unique de Lab’s Food.
  */
 function StatutsSap({
   chefProfileId,
-  crcesuActuel,
   urssafActuel,
 }: {
   chefProfileId: string;
-  crcesuActuel?: SapExternalStatus | null;
   urssafActuel?: SapExternalStatus | null;
 }) {
   const save = useSetSapExternalStatus(chefProfileId);
-  const [crcesu, setCrcesu] = useState<SapExternalStatus>(
-    crcesuActuel ?? "not_started",
-  );
   const [urssaf, setUrssaf] = useState<SapExternalStatus>(
     urssafActuel ?? "not_started",
   );
 
-  const rien =
-    crcesu === (crcesuActuel ?? "not_started") &&
-    urssaf === (urssafActuel ?? "not_started");
+  const rien = urssaf === (urssafActuel ?? "not_started");
 
   return (
     <div className="hairline mt-4 border-t pt-4">
       <p className="flex items-center gap-2 text-[13px] font-semibold text-navy">
-        <ShieldCheck className="h-3.5 w-3.5 text-ink-soft" aria-hidden /> Affiliation
-        CESU et avance immédiate
+        <ShieldCheck className="h-3.5 w-3.5 text-ink-soft" aria-hidden /> Avance
+        immédiate URSSAF
       </p>
       <p className="mt-0.5 max-w-prose text-xs leading-relaxed text-ink-soft">
-        Notez ici ce que le CRCESU et l&apos;URSSAF ont répondu. Ces deux statuts
-        décident de ce qu&apos;un client peut utiliser pour le payer, et son
-        espace les affiche sans pouvoir les changer.
+        Notez ici ce que l&apos;URSSAF a répondu. Ce statut décide si un client
+        peut payer ce batch cooker avec l&apos;avance immédiate, et son espace
+        l&apos;affiche sans pouvoir le changer.
       </p>
 
       <div className="mt-3 flex flex-wrap items-end gap-3">
-        <label className="min-w-44 flex-1">
-          <span className="field-label">Affiliation CRCESU</span>
-          <select
-            value={crcesu}
-            onChange={(e) => setCrcesu(e.target.value as SapExternalStatus)}
-            className="input-base"
-          >
-            {SAP_EXTERNAL_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {SAP_EXTERNAL_LABEL[s]}
-              </option>
-            ))}
-          </select>
-        </label>
-
         <label className="min-w-44 flex-1">
           <span className="field-label">Avance immédiate URSSAF</span>
           <select
@@ -1072,12 +1048,7 @@ function StatutsSap({
 
         <button
           type="button"
-          onClick={() =>
-            save.mutate({
-              crcesuAffiliationStatus: crcesu,
-              urssafTiersPrestationStatus: urssaf,
-            })
-          }
+          onClick={() => save.mutate({ urssafTiersPrestationStatus: urssaf })}
           disabled={rien || save.isPending}
           className="btn btn-primary btn-sm"
         >
@@ -1093,7 +1064,7 @@ function StatutsSap({
       {save.isSuccess && (
         <p className="mt-2 flex items-start gap-1.5 text-[12px] text-success">
           <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-          Statuts enregistrés. Son espace les affiche désormais.
+          Statut enregistré. Son espace l&apos;affiche désormais.
         </p>
       )}
       {save.isError && (
@@ -1103,10 +1074,9 @@ function StatutsSap({
         </p>
       )}
       <p className="mt-2 max-w-prose text-xs leading-relaxed text-ink-soft">
-        Ces deux statuts ne disent pas si le batch cooker <em>accepte</em> le
-        CESU — ça, c&apos;est son choix, dans son espace Rémunération. Ils
-        disent si le CRCESU et l&apos;URSSAF l&apos;ont habilité. Les deux
-        doivent être réunis pour qu&apos;un client puisse le payer ainsi.
+        Le CESU n&apos;a plus de statut par batch cooker : il est encaissé sur le
+        NAN de Lab’s Food. Le batch cooker choisit seulement
+        s&apos;il l&apos;accepte, dans son espace Rémunération.
       </p>
     </div>
   );

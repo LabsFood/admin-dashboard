@@ -11,6 +11,7 @@ import {
   ArrowDown,
   ArrowUp,
   Flame,
+  Percent,
   ShoppingBasket,
   Tags,
   Layers2,
@@ -23,11 +24,14 @@ import InfoPopover from "@/components/ui/InfoPopover";
 import TierRules from "@/components/admin/TierRules";
 import { useAuth } from "@/lib/auth";
 import {
+  MAX_CESU_FEE_BPS,
   useAisleSetting,
+  useCesuFeeSetting,
   useChefTierNames,
   useRecipeProfileSetting,
   useReheatModeSetting,
   useSetAisles,
+  useSetCesuFee,
   useSetChefTierNames,
   useSetRecipeProfiles,
   useSetReheatModes,
@@ -191,6 +195,10 @@ export default function ParametresPage() {
             onClick={() => flash("facturation")}
           />
         </Section>
+      </div>
+
+      <div className="lg:col-span-2">
+        <FraisCesu />
       </div>
 
       <div className="lg:col-span-2">
@@ -448,6 +456,138 @@ function AlerteConservation() {
         {save.isSuccess && brouillon === null && (
           <span className="flex items-center gap-1.5 text-[12px] text-success">
             <Check className="h-3.5 w-3.5" aria-hidden /> Seuil enregistré.
+          </span>
+        )}
+        {save.isError && (
+          <span role="alert" className="text-[12px] text-danger">
+            {adminErrorMessage(save.error)}
+          </span>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+/** Commission de la plateforme prise pour l'exemple chiffré (palier 1, 15 %). */
+const EXEMPLE_COMMISSION_BPS = 1500;
+const EXEMPLE_MONTANT_CENTS = 15_000;
+
+const euros = (cents: number) =>
+  (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+
+/**
+ * Les frais de traitement et d'encaissement des CESU (25/11) :
+ * `/admin/settings/cesu-fee`. Supportés par le batch cooker sur la part payée
+ * en CESU, en cascade après la commission ; le client ne paie jamais plus
+ * (CGA CRCESU art. 4.1). Un taux par défaut, et un taux par palier facultatif :
+ * vide, le palier prend le défaut. Le batch cooker voit son taux quand il
+ * active le CESU, dans son espace Rémunération.
+ */
+function FraisCesu() {
+  const reglage = useCesuFeeSetting();
+  const save = useSetCesuFee();
+  type Brouillon = { defaut: string } & Record<ChefTier, string>;
+  const [brouillon, setBrouillon] = useState<Brouillon | null>(null);
+  const d = reglage.data;
+  const pct = (bps: number | undefined) =>
+    bps === undefined ? "" : String(bps / 100).replace(".", ",");
+  const valeurs: Brouillon =
+    brouillon ??
+    ({
+      defaut: pct(d?.defaultBps),
+      ...Object.fromEntries(CHEF_TIERS.map((t) => [t, pct(d?.byTier[t])])),
+    } as Brouillon);
+  const bps = (t: string) => Math.round(Number(t.replace(",", ".")) * 100);
+  const correct = (t: string) => {
+    const v = bps(t);
+    return t.trim() !== "" && Number.isFinite(v) && v >= 0 && v <= MAX_CESU_FEE_BPS;
+  };
+  const valide =
+    correct(valeurs.defaut) && CHEF_TIERS.every((t) => !valeurs[t].trim() || correct(valeurs[t]));
+
+  const defautBps = correct(valeurs.defaut) ? bps(valeurs.defaut) : (d?.defaultBps ?? 0);
+  const commission = Math.round((EXEMPLE_MONTANT_CENTS * EXEMPLE_COMMISSION_BPS) / 10_000);
+  const frais = Math.round(((EXEMPLE_MONTANT_CENTS - commission) * defautBps) / 10_000);
+  const reverse = EXEMPLE_MONTANT_CENTS - commission - frais;
+
+  function enregistrer() {
+    const byTier = Object.fromEntries(
+      CHEF_TIERS.filter((t) => valeurs[t].trim()).map((t) => [t, bps(valeurs[t])]),
+    );
+    save.mutate(
+      { defaultBps: bps(valeurs.defaut), byTier },
+      { onSuccess: () => setBrouillon(null) },
+    );
+  }
+
+  return (
+    <Section title="Frais CESU" eyebrow="Finance" Icon={Percent}>
+      <p className="max-w-prose text-xs leading-relaxed text-ink-mid">
+        Frais de traitement et d&apos;encaissement des CESU, supportés par le batch
+        cooker sur la part payée en CESU, calculés après la commission. Le client ne
+        paie jamais plus.
+      </p>
+
+      {reglage.isPending ? (
+        <Skeleton className="h-16 rounded-xl" />
+      ) : reglage.isError ? (
+        <p role="alert" className="flex items-start gap-1.5 text-[12px] text-danger">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          {adminErrorMessage(reglage.error)}
+        </p>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <label className="block">
+            <span className="field-label">Taux par défaut (%)</span>
+            <input
+              value={valeurs.defaut}
+              onChange={(e) => setBrouillon({ ...valeurs, defaut: e.target.value })}
+              inputMode="decimal"
+              aria-invalid={!correct(valeurs.defaut)}
+              className="input-base"
+            />
+          </label>
+          {CHEF_TIERS.map((t, i) => (
+            <label key={t} className="block">
+              <span className="field-label">Palier {i + 1}</span>
+              <input
+                value={valeurs[t]}
+                onChange={(e) => setBrouillon({ ...valeurs, [t]: e.target.value })}
+                placeholder={valeurs.defaut || "Défaut"}
+                inputMode="decimal"
+                aria-invalid={!!valeurs[t].trim() && !correct(valeurs[t])}
+                className="input-base"
+              />
+            </label>
+          ))}
+        </div>
+      )}
+
+      <p className="rounded-xl bg-cream-soft px-3.5 py-2.5 text-xs text-ink-mid">
+        Exemple au taux par défaut, sur {euros(EXEMPLE_MONTANT_CENTS)} payés en CESU :
+        commission {euros(commission)} ({EXEMPLE_COMMISSION_BPS / 100} %), frais CESU{" "}
+        {euros(frais)}, reversé au batch cooker{" "}
+        <strong className="font-semibold text-navy">{euros(reverse)}</strong>. Un palier
+        laissé vide prend le taux par défaut (0 à {MAX_CESU_FEE_BPS / 100} %).
+      </p>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={enregistrer}
+          disabled={brouillon === null || !valide || save.isPending}
+          className="btn btn-primary"
+        >
+          {save.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          ) : (
+            <Save className="h-4 w-4" aria-hidden />
+          )}
+          Enregistrer les frais
+        </button>
+        {save.isSuccess && brouillon === null && (
+          <span className="flex items-center gap-1.5 text-[12px] text-success">
+            <Check className="h-3.5 w-3.5" aria-hidden /> Frais enregistrés.
           </span>
         )}
         {save.isError && (

@@ -76,7 +76,6 @@ export interface AdminChefDetail extends AdminChef {
   sapPath: string | null;
   sapDeclarationNumber: string | null;
   /** Rendus depuis le 24/10 : la fiche peut enfin relire ce qu'elle écrit. */
-  crcesuAffiliationStatus?: "not_started" | "pending" | "active" | null;
   urssafTiersPrestationStatus?: "not_started" | "pending" | "active" | null;
   zones: {
     regionCode: string;

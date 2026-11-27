@@ -318,9 +318,11 @@ export interface UrssafPayment {
     clientName: string;
     chefProfileId: string;
     chefName: string;
-    /** Le numéro SAP/NOVA du batch cooker, à saisir avec chaque demande. */
+    /** Le NOVA du batch cooker : contrôle de son dossier seulement, jamais saisi. */
     chefNovaCode: string | null;
   };
+  /** La déclaration SAP de Lab's Food, sous laquelle chaque demande est saisie. */
+  sapDeclarationNumber?: string | null;
   /** Recettes lot 6 : la prestation et le forfait courses, jamais les débours. */
   lines?: { label: string; amountCents: number }[];
   /** Reprise par l'URSSAF (statut 120), si elle a eu lieu. */
@@ -387,7 +389,7 @@ export function useUrssafPayments() {
 
 /**
  * Noter la réponse de l'URSSAF : à sa place (simulé) ou telle que l'espace
- * de la coopérative l'affiche (manuel).
+ * de l'espace URSSAF l'affiche (manuel).
  *
  * L'API refuse ces routes (`403 URSSAF_NOT_MANUAL_OR_SIMULATED`) hors de ces
  * deux modes : c'est voulu, et l'écran doit le dire plutôt que d'afficher
@@ -449,7 +451,7 @@ export function useSetUrssafOutcome() {
 }
 
 /**
- * Mode manuel : la demande est saisie sur l'espace de la coopérative. Une seule fois :
+ * Mode manuel : la demande est saisie sur l'espace URSSAF de Lab's Food. Une seule fois :
  * une seconde saisie répond `409 URSSAF_ALREADY_TRANSMITTED`, ce qui évite
  * qu'un autre admin la saisisse à nouveau.
  */
@@ -502,14 +504,17 @@ export interface RevealedDossier {
   linkId: string;
   clientId: string;
   chefProfileId: string;
+  /** Le NOVA du batch cooker : contrôle de son dossier seulement. */
   chefNovaCode: string | null;
+  /** La déclaration SAP de Lab's Food, celle à saisir avec la demande. */
+  sapDeclarationNumber?: string | null;
   filledAt: string;
   updatedAt: string;
   dossier: UrssafDossier;
 }
 
 /**
- * Le dossier complet, IBAN compris, pour le saisir sur l'espace de la coopérative.
+ * Le dossier complet, IBAN compris, pour le saisir sur l'espace URSSAF de Lab's Food.
  * Chaque lecture est tracée côté API (`urssaf.dossier_revealed`) : on ne lit
  * qu'à l'ouverture du tiroir, et rien n'est gardé en cache après fermeture.
  */
@@ -629,7 +634,18 @@ export interface AttestationProvider {
   currency: string;
 }
 
+/** Lab's Food, sous la déclaration SAP de la SAS : qui émet l'attestation. */
+export interface AttestationIssuer {
+  name: string;
+  legalName: string;
+  siren: string | null;
+  address: string | null;
+  sapDeclarationNumber: string | null;
+}
+
 export interface Attestation {
+  /** Absent tant que l'API n'est pas déployée avec l'émetteur. */
+  issuer?: AttestationIssuer;
   clientId: string;
   clientName?: string | null;
   clientEmail: string;
@@ -666,5 +682,5 @@ export function useAttestation(clientId: string | undefined, year: number) {
 
 export const DECLARATION_TYPE: Record<string, string> = {
   type_a_nova: "NOVA à son nom",
-  type_b_cooperative: "Sa coopérative SAP",
+  type_b_cooperative: "NOVA à renseigner",
 };
