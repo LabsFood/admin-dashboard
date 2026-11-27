@@ -389,7 +389,7 @@ export function useUrssafPayments() {
 
 /**
  * Noter la réponse de l'URSSAF : à sa place (simulé) ou telle que l'espace
- * de la coopérative l'affiche (manuel).
+ * de l'espace URSSAF l'affiche (manuel).
  *
  * L'API refuse ces routes (`403 URSSAF_NOT_MANUAL_OR_SIMULATED`) hors de ces
  * deux modes : c'est voulu, et l'écran doit le dire plutôt que d'afficher
@@ -451,7 +451,7 @@ export function useSetUrssafOutcome() {
 }
 
 /**
- * Mode manuel : la demande est saisie sur l'espace de la coopérative. Une seule fois :
+ * Mode manuel : la demande est saisie sur l'espace URSSAF de Lab's Food. Une seule fois :
  * une seconde saisie répond `409 URSSAF_ALREADY_TRANSMITTED`, ce qui évite
  * qu'un autre admin la saisisse à nouveau.
  */
@@ -514,7 +514,7 @@ export interface RevealedDossier {
 }
 
 /**
- * Le dossier complet, IBAN compris, pour le saisir sur l'espace de la coopérative.
+ * Le dossier complet, IBAN compris, pour le saisir sur l'espace URSSAF de Lab's Food.
  * Chaque lecture est tracée côté API (`urssaf.dossier_revealed`) : on ne lit
  * qu'à l'ouverture du tiroir, et rien n'est gardé en cache après fermeture.
  */

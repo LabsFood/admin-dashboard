@@ -738,7 +738,7 @@ function VoletUrssaf() {
             {(paiements.data ?? []).map((p) => {
               const manuel = demandeManuelle(p);
               const enAttente = p.status === "pending";
-              const aSaisirSurUnipros = manuel && enAttente && !p.transmittedAt;
+              const aSaisirManuellement = manuel && enAttente && !p.transmittedAt;
               return (
                 <li
                   key={p.paymentId}
@@ -803,7 +803,7 @@ function VoletUrssaf() {
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <Badge tone={p.paidAt ? "success" : enAttente ? "warning" : "danger"}>
-                      {aSaisirSurUnipros
+                      {aSaisirManuellement
                         ? "À saisir manuellement"
                         : (URSSAF_PAYMENT_STATUS[p.status] ?? p.status)}
                     </Badge>
@@ -816,7 +816,7 @@ function VoletUrssaf() {
                         Reprise URSSAF
                       </button>
                     )}
-                    {aSaisirSurUnipros && (
+                    {aSaisirManuellement && (
                       <button
                         disabled={saisir.isPending || !ouvert}
                         onClick={() => setASaisir(p)}
@@ -825,7 +825,7 @@ function VoletUrssaf() {
                         Noter la saisie
                       </button>
                     )}
-                    {enAttente && !aSaisirSurUnipros && (
+                    {enAttente && !aSaisirManuellement && (
                       <>
                         <button
                           disabled={repondre.isPending || !ouvert}
@@ -931,7 +931,7 @@ function VoletUrssaf() {
         onClose={() => setAReprendre(null)}
         title="L’URSSAF a repris cette prestation (statut 120) ?"
         lead="Le paiement est marqué remboursé et la prestation redevient due. La commission revient au batch cooker : retirée si elle n’était pas facturée, sinon un avoir dans la suite des factures B, déduit de sa prochaine facture."
-        placeholder="Motif donné par Unipros : contestation du particulier…"
+        placeholder="Motif donné par l’URSSAF : contestation du particulier…"
         confirmLabel="Enregistrer la reprise"
         minLength={5}
         pending={reprise.isPending}

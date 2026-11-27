@@ -225,7 +225,7 @@ function Ligne({
           · {formatDateShort(t.paidAt ?? t.createdAt)}
           {t.externalReference && (
             <>
-              {" "}· Unipros <span className="font-mono">{t.externalReference}</span>
+              {" "}· Réf. <span className="font-mono">{t.externalReference}</span>
             </>
           )}
         </p>

@@ -40,8 +40,8 @@ export default function UrssafDossierDrawer({
       <div className="space-y-5 p-5">
         <p className="flex items-start gap-2 text-sm leading-relaxed text-ink-mid">
           <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-navy" />
-          À recopier sur l&apos;espace de la coopérative pour rattacher ce client
-          {chefName ? ` à ${chefName}` : ""}. Cette lecture est tracée.
+          À recopier sur l&apos;espace URSSAF de Lab’s Food pour rattacher ce client
+          {chefName ? ` (prestations de ${chefName})` : ""}. Cette lecture est tracée.
         </p>
 
         {dossier.isPending && (
