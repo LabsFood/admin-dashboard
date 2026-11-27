@@ -36,7 +36,6 @@ import {
   CESU_SETTLEMENT,
   COLLECTION_METHOD,
   DEBIT_STATUS,
-  DECLARATION_TYPE,
   INVOICE_STATUS,
   LINK_STATUS,
   PAYMENT_METHOD,
@@ -773,13 +772,13 @@ function VoletUrssaf() {
                     <p className="text-xs text-ink-soft">
                       {manuel ? (
                         <>
-                          NOVA{" "}
+                          SAP Lab&apos;s Food{" "}
                           <span className="font-mono">
-                            {p.booking.chefNovaCode ?? "non renseigné"}
+                            {p.sapDeclarationNumber ?? "non renseigné"}
                           </span>
                           {p.externalReference && (
                             <>
-                              {" "}· Unipros{" "}
+                              {" "}· Réf.{" "}
                               <span className="font-mono">{p.externalReference}</span>
                             </>
                           )}
@@ -904,10 +903,10 @@ function VoletUrssaf() {
         title="Noter la saisie"
         lead={
           aSaisir
-            ? `Saisissez la demande de ${centimes(aSaisir.amountCents)} sur l'espace de la coopérative (NOVA du batch cooker : ${aSaisir.booking.chefNovaCode ?? "non renseigné"}), puis recopiez ici la référence qu'Unipros lui a donnée. Une demande ne se note qu'une fois.`
+            ? `Saisissez la demande de ${centimes(aSaisir.amountCents)} sous la déclaration SAP de Lab’s Food (${aSaisir.sapDeclarationNumber ?? "non renseignée"}), puis recopiez ici la référence de la demande. Une demande ne se note qu'une fois.`
             : ""
         }
-        placeholder="Référence Coopérative de la demande"
+        placeholder="Référence de la demande"
         confirmLabel="Noter la saisie"
         minLength={3}
         maxLength={100}
@@ -1125,7 +1124,14 @@ function VoletAttestations() {
                     <p className="font-display text-lg font-bold text-navy tabular-nums">
                       {centimes(c.platformAttestedAmountCents)}
                     </p>
-                    <p className="text-xs text-ink-soft">attestés par Lab&apos;s Food</p>
+                    <p className="text-xs text-ink-soft">
+                      attestés par Lab’s Food
+                      {c.issuer?.sapDeclarationNumber && (
+                        <span className="tabular-nums">
+                          {" "}· {c.issuer.sapDeclarationNumber}
+                        </span>
+                      )}
+                    </p>
                     {ecart > 0 && (
                       <p className="mt-0.5 text-xs text-[#8A6212] tabular-nums">
                         {centimes(ecart)} éligibles non attestés
@@ -1167,11 +1173,9 @@ function VoletAttestations() {
                           </span>
                         </div>
                         <p className="text-xs text-ink-soft">
-                          {p.sapDeclared
-                            ? `${DECLARATION_TYPE[p.declarationType ?? ""] ?? "SAP déclarée"}${
-                                p.novaCode ? ` · ${p.novaCode}` : ""
-                              }${p.cooperativeName ? ` · ${p.cooperativeName}` : ""}`
-                            : "Aucune voie SAP déclarée"}
+                          {p.paymentsCount} paiement{p.paymentsCount > 1 ? "s" : ""}
+                          {p.paymentMethods.length > 0 &&
+                            ` · ${p.paymentMethods.map((m) => PAYMENT_METHOD[m] ?? m).join(", ")}`}
                         </p>
                         {p.notes.map((n, i) => (
                           <p key={i} className="mt-0.5 text-xs text-[#8A6212]">

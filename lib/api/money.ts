@@ -318,9 +318,11 @@ export interface UrssafPayment {
     clientName: string;
     chefProfileId: string;
     chefName: string;
-    /** Le numéro SAP/NOVA du batch cooker, à saisir avec chaque demande. */
+    /** Le NOVA du batch cooker : contrôle de son dossier seulement, jamais saisi. */
     chefNovaCode: string | null;
   };
+  /** La déclaration SAP de Lab's Food, sous laquelle chaque demande est saisie. */
+  sapDeclarationNumber?: string | null;
   /** Recettes lot 6 : la prestation et le forfait courses, jamais les débours. */
   lines?: { label: string; amountCents: number }[];
   /** Reprise par l'URSSAF (statut 120), si elle a eu lieu. */
@@ -502,7 +504,10 @@ export interface RevealedDossier {
   linkId: string;
   clientId: string;
   chefProfileId: string;
+  /** Le NOVA du batch cooker : contrôle de son dossier seulement. */
   chefNovaCode: string | null;
+  /** La déclaration SAP de Lab's Food, celle à saisir avec la demande. */
+  sapDeclarationNumber?: string | null;
   filledAt: string;
   updatedAt: string;
   dossier: UrssafDossier;
@@ -629,7 +634,18 @@ export interface AttestationProvider {
   currency: string;
 }
 
+/** Lab's Food, sous la déclaration SAP de la SAS : qui émet l'attestation. */
+export interface AttestationIssuer {
+  name: string;
+  legalName: string;
+  siren: string | null;
+  address: string | null;
+  sapDeclarationNumber: string | null;
+}
+
 export interface Attestation {
+  /** Absent tant que l'API n'est pas déployée avec l'émetteur. */
+  issuer?: AttestationIssuer;
   clientId: string;
   clientName?: string | null;
   clientEmail: string;

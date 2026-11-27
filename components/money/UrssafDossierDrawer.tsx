@@ -60,14 +60,26 @@ export default function UrssafDossierDrawer({
         )}
 
         {dossier.data && (
-          <Fiche d={dossier.data.dossier} nova={dossier.data.chefNovaCode} />
+          <Fiche
+            d={dossier.data.dossier}
+            sap={dossier.data.sapDeclarationNumber ?? null}
+            nova={dossier.data.chefNovaCode}
+          />
         )}
       </div>
     </Drawer>
   );
 }
 
-function Fiche({ d, nova }: { d: UrssafDossier; nova: string | null }) {
+function Fiche({
+  d,
+  sap,
+  nova,
+}: {
+  d: UrssafDossier;
+  sap: string | null;
+  nova: string | null;
+}) {
   const neEnFrance = d.birthCountryCode === FRANCE;
   return (
     <div className="space-y-5">
@@ -108,7 +120,16 @@ function Fiche({ d, nova }: { d: UrssafDossier; nova: string | null }) {
       </Bloc>
 
       <Bloc titre="Batch cooker">
-        <Ligne label="Numéro SAP / NOVA" valeur={nova ?? "Non renseigné"} mono={!!nova} />
+        <Ligne
+          label="Déclaration SAP à saisir (Lab’s Food)"
+          valeur={sap ?? "Non renseignée"}
+          mono={!!sap}
+        />
+        <Ligne
+          label="NOVA du batch cooker (contrôle du dossier)"
+          valeur={nova ?? "Non renseigné"}
+          mono={!!nova}
+        />
       </Bloc>
     </div>
   );
