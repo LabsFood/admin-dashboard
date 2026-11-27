@@ -27,7 +27,6 @@ import {
 
 type WorkStatus = OpenApplicationInput["workAuthorization"]["status"];
 type LegalForm = OpenApplicationInput["company"]["legalForm"];
-type SapPath = OpenApplicationInput["company"]["sap"]["path"];
 
 const WORK_STATUS: { id: WorkStatus; label: string }[] = [
   { id: "eu-citizen", label: "Citoyen de l'Union européenne" },
@@ -62,7 +61,6 @@ export default function ChefApplicationForm({
   const [workDetails, setWorkDetails] = useState("");
   const [legalForm, setLegalForm] = useState<LegalForm>("micro");
   const [siret, setSiret] = useState("");
-  const [sapPath, setSapPath] = useState<SapPath>("type-b");
   const [sapNumber, setSapNumber] = useState("");
   const [done, setDone] = useState<OpenedApplication | null>(null);
 
@@ -79,7 +77,7 @@ export default function ChefApplicationForm({
     zones.length > 0 &&
     (workStatus !== "other" || workDetails.trim().length >= 10) &&
     (!registered || siret.trim().length === 14) &&
-    (sapPath !== "type-a" || !!sapNumber.trim());
+    !!sapNumber.trim();
 
   const toggleZone = (code: string) =>
     setZones((z) => (z.includes(code) ? z.filter((c) => c !== code) : [...z, code]));
@@ -111,8 +109,8 @@ export default function ChefApplicationForm({
           legalForm,
           ...(registered ? { siret: siret.trim() } : {}),
           sap: {
-            path: sapPath,
-            ...(sapPath === "type-a" ? { declarationNumber: sapNumber.trim() } : {}),
+            path: "type-a",
+            declarationNumber: sapNumber.trim(),
           },
         },
       },
@@ -235,17 +233,9 @@ export default function ChefApplicationForm({
         </Field>
       )}
 
-      <Field label="Voie de déclaration SAP" required>
-        <select value={sapPath} onChange={(e) => setSapPath(e.target.value as SapPath)} className="input-base">
-          <option value="type-b">Type B : coopérative</option>
-          <option value="type-a">Type A : déclaration NOVA</option>
-        </select>
+      <Field label="Numéro de déclaration SAP (NOVA)" required hint="SAP suivi de 9 chiffres.">
+        <input value={sapNumber} onChange={(e) => setSapNumber(e.target.value)} placeholder="SAP443061841" className="input-base" />
       </Field>
-      {sapPath === "type-a" && (
-        <Field label="Numéro de déclaration SAP" required hint="SAP suivi de 9 chiffres.">
-          <input value={sapNumber} onChange={(e) => setSapNumber(e.target.value)} placeholder="SAP443061841" className="input-base" />
-        </Field>
-      )}
 
       {open.isError && (
         <div className="flex items-start gap-2.5 rounded-2xl border border-danger/30 bg-danger-soft px-4 py-3">
